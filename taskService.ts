@@ -1,6 +1,7 @@
 
-import { ClientTask, TaskStatusType, HistoryEntry, TabCategory, ClientProfile, User, CalendarEvent, Client } from '../types';
-import { INITIAL_TASKS, DEFAULT_YEAR, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, COLUMN_CONFIG, USERS as DEFAULT_USERS, DUMMY_CLIENTS } from '../constants';
+import { TabCategory } from './types';
+import type { ClientTask, TaskStatusType, HistoryEntry, ClientProfile, User, CalendarEvent, Client } from './types';
+import { INITIAL_TASKS, DEFAULT_YEAR, USERS as DEFAULT_USERS, DUMMY_CLIENTS } from './constants';
 
 const DB_NAME = 'ShuoyeTaskDB';
 const STORE_NAME = 'file_handles';
@@ -10,12 +11,16 @@ const CLIENT_PROFILE_KEY = 'shuoye_client_profiles';
 const USERS_STORAGE_KEY = 'shuoye_users_v1';
 
 let useLocalStorage = false;
+let fileHandle: FileSystemFileHandle | null = null;
 
-// Interface for the raw file structure
+// Cache variables to prevent unnecessary parsing
+let cachedData: DataStore | null = null;
+let lastFileModifiedTime: number = 0;
+
 interface DataStore {
     tasks: ClientTask[];
     events: CalendarEvent[];
-    clients?: Client[]; // Added clients field
+    clients?: Client[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -54,15 +59,15 @@ const getStoredHandle = async (): Promise<FileSystemFileHandle | undefined> => {
   });
 };
 
-// Helper to normalize data from file (Array vs Object)
 const normalizeData = (raw: any): DataStore => {
+    if (!raw) return { tasks: [], events: [], clients: [] };
     if (Array.isArray(raw)) {
         return { tasks: raw, events: [], clients: [] };
     }
     return {
         tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
         events: Array.isArray(raw.events) ? raw.events : [],
-        clients: Array.isArray(raw.clients) ? raw.clients : undefined // Leave undefined to trigger fallback if needed
+        clients: Array.isArray(raw.clients) ? raw.clients : undefined
     };
 };
 
@@ -71,7 +76,6 @@ export const TaskService = {
     return useLocalStorage;
   },
 
-  // --- User Management ---
   getUsers(): User[] {
       const stored = localStorage.getItem(USERS_STORAGE_KEY);
       if (stored) {
@@ -88,22 +92,28 @@ export const TaskService = {
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
   },
 
-  // --- Database Connection ---
   async connectDatabase(): Promise<boolean> {
+    // Check if API is supported
+    if (typeof (window as any).showOpenFilePicker !== 'function') {
+      console.warn("FileSystem Access API not supported. Falling back to LocalStorage.");
+      useLocalStorage = true;
+      return true; // Return true so the app loads in "offline/local" mode
+    }
+
     try {
-      if (typeof (window as any).showOpenFilePicker !== 'function') {
-        throw new Error('API_NOT_SUPPORTED');
-      }
       const [handle] = await (window as any).showOpenFilePicker({
         types: [{ description: 'JSON Database', accept: { 'application/json': ['.json'] } }],
         multiple: false,
       });
       fileHandle = handle;
       useLocalStorage = false;
+      cachedData = null; // Clear cache on new connection
+      lastFileModifiedTime = 0;
       await storeHandle(handle);
       return true;
     } catch (error: any) {
       if (error.name === 'AbortError') return false;
+      // Fallback if something else goes wrong
       useLocalStorage = true;
       fileHandle = null;
       return true;
@@ -111,17 +121,26 @@ export const TaskService = {
   },
 
   async restoreConnection(triggerPrompt: boolean = false): Promise<'connected' | 'permission_needed' | 'failed'> {
+    // If API not supported, assume connected via LocalStorage
+    if (typeof (window as any).showOpenFilePicker !== 'function') {
+        useLocalStorage = true;
+        return 'connected';
+    }
+
     try {
       const handle = await getStoredHandle();
       if (!handle) return 'failed';
       
       const options = { mode: 'readwrite' as any };
+      // Check permission
       let permissionState = await (handle as any).queryPermission(options);
+      
       if (permissionState === 'granted') {
         fileHandle = handle;
         useLocalStorage = false;
         return 'connected';
       }
+      
       if (triggerPrompt) {
         const requestState = await (handle as any).requestPermission(options);
         if (requestState === 'granted') {
@@ -131,82 +150,121 @@ export const TaskService = {
         }
       }
       return 'permission_needed';
-    } catch (error) { return 'failed'; }
+    } catch (error) { 
+        console.error("Restore connection failed:", error);
+        return 'failed'; 
+    }
   },
 
   isConnected(): boolean { return fileHandle !== null || useLocalStorage; },
 
-  // --- Low Level File I/O ---
   async loadFullData(): Promise<DataStore> {
+      // 1. LocalStorage Mode
       if (useLocalStorage) {
           const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-          return stored ? normalizeData(JSON.parse(stored)) : { tasks: INITIAL_TASKS, events: [], clients: [] };
+          // Simple caching for local storage isn't strictly necessary but good for consistency
+          const parsed = stored ? normalizeData(JSON.parse(stored)) : { tasks: INITIAL_TASKS, events: [], clients: [] };
+          // For local storage, we can essentially always return the parsed data.
+          // In a real app, we might check if localStorage string changed, but it's fast enough.
+          cachedData = parsed;
+          return parsed;
       }
+
+      // 2. File System Mode
       if (!fileHandle) return { tasks: [], events: [], clients: [] };
+
       try {
           const file = await fileHandle.getFile();
+          
+          // CRITICAL OPTIMIZATION: Check last modified time
+          // If the file hasn't changed since we last read it, return the cached object.
+          // This prevents React from re-rendering because the object reference stays the same.
+          if (cachedData && file.lastModified === lastFileModifiedTime) {
+              return cachedData;
+          }
+
           const text = await file.text();
-          return text.trim() ? normalizeData(JSON.parse(text)) : { tasks: INITIAL_TASKS, events: [], clients: [] };
+          const parsed = text.trim() ? normalizeData(JSON.parse(text)) : { tasks: INITIAL_TASKS, events: [], clients: [] };
+          
+          // Update cache
+          cachedData = parsed;
+          lastFileModifiedTime = file.lastModified;
+          
+          return parsed;
       } catch (error) {
+          console.error("Load data failed:", error);
           throw new Error("讀取檔案失敗");
       }
   },
 
   async saveFullData(data: DataStore): Promise<void> {
+      // Update the cache immediately so the UI reflects changes before the next poll
+      // (Optimistic update for the local session)
+      cachedData = data; 
+      
       if (useLocalStorage) {
           localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data, null, 2));
           return;
       }
+      
       if (!fileHandle) throw new Error("尚未連線至資料庫檔案");
+      
       try {
           const writable = await fileHandle.createWritable();
           await writable.write(JSON.stringify(data, null, 2));
           await writable.close();
+          
+          // After writing, the file's lastModified time changes on disk.
+          // We need to update our tracker so the next poll doesn't think it's an external change.
+          // However, we can't easily predict the exact OS timestamp.
+          // So we reset the timestamp to 0 to force a re-read on the next poll to ensure consistency.
+          lastFileModifiedTime = 0; 
       } catch (error) {
+          console.error("Save data failed:", error);
           throw new Error("寫入失敗");
       }
   },
 
-  // --- Client Management API ---
+  // --- API Methods ---
+
   async fetchClients(): Promise<Client[]> {
       const data = await this.loadFullData();
-      // If clients is undefined in JSON, fallback to DUMMY_CLIENTS for initialization, 
-      // but once saved it will be an array (even if empty).
-      if (data.clients === undefined) {
-          return DUMMY_CLIENTS;
-      }
-      return data.clients;
+      return data.clients || DUMMY_CLIENTS;
   },
 
   async saveClients(clients: Client[]): Promise<void> {
-      const currentData = await this.loadFullData();
+      // Use loadFullData to ensure we have the latest OTHER data (tasks, events)
+      // Note: If loadFullData hits cache, it's fast.
+      const currentData = await this.loadFullData(); 
       await this.saveFullData({ ...currentData, clients });
   },
 
-  // --- Tasks API ---
   async fetchTasks(): Promise<ClientTask[]> {
-    const data = await this.loadFullData();
-    const rawTasks = data.tasks;
-    return rawTasks.map((t: any) => {
-        let cat = t.category;
-        if (cat === '入帳') cat = TabCategory.ACCOUNTING;
-        if (cat === '所得/扣繳') cat = '所得扣繳';
+      const data = await this.loadFullData();
+      const rawTasks = data.tasks;
+      // We map here to ensure data integrity, but if data.tasks is essentially the same,
+      // we might want to memoize this too. For now, rely on loadFullData caching.
+      return rawTasks.map((t: any) => {
+          let cat = t.category;
+          // Legacy support
+          if (cat === '入帳') cat = TabCategory.ACCOUNTING;
+          if (cat === '所得/扣繳') cat = TabCategory.INCOME_TAX;
 
-        return {
-            ...t,
-            id: String(t.id),
-            status: (t.status === 'completed' || t.status === 'pending') ? (t.status === 'completed' ? 'done' : 'todo') : t.status || 'todo',
-            workItem: t.workItem || '',
-            category: cat,
-            year: t.year || DEFAULT_YEAR,
-            isNA: t.isNA || false,
-            isMisc: t.isMisc || false,
-            assigneeId: t.assigneeId || '',
-            assigneeName: t.assigneeName || '',
-            completionDate: t.completionDate || '',
-            history: t.history || []
-        };
-    });
+          return {
+              ...t,
+              id: String(t.id),
+              status: (t.status === 'completed' || t.status === 'pending') ? (t.status === 'completed' ? 'done' : 'todo') : t.status || 'todo',
+              workItem: t.workItem || '',
+              category: cat,
+              year: t.year || DEFAULT_YEAR,
+              isNA: t.isNA || false,
+              isMisc: t.isMisc || false,
+              assigneeId: t.assigneeId || '',
+              assigneeName: t.assigneeName || '',
+              completionDate: t.completionDate || '',
+              history: t.history || []
+          };
+      });
   },
 
   async saveTasks(tasks: ClientTask[]): Promise<void> {
@@ -214,7 +272,6 @@ export const TaskService = {
       await this.saveFullData({ ...currentData, tasks });
   },
 
-  // --- Calendar Events API ---
   async fetchEvents(): Promise<CalendarEvent[]> {
       const data = await this.loadFullData();
       return data.events || [];
@@ -246,7 +303,6 @@ export const TaskService = {
       return newEvents;
   },
 
-  // --- Client Profile API ---
   getClientProfile(clientId: string): ClientProfile {
       const stored = localStorage.getItem(CLIENT_PROFILE_KEY);
       const profiles: Record<string, ClientProfile> = stored ? JSON.parse(stored) : {};
@@ -260,7 +316,6 @@ export const TaskService = {
       localStorage.setItem(CLIENT_PROFILE_KEY, JSON.stringify(profiles));
   },
 
-  // --- Task Operations ---
   async addTask(task: ClientTask): Promise<ClientTask[]> {
     const currentTasks = await this.fetchTasks();
     let existingIndex = -1;
@@ -345,5 +400,3 @@ export const TaskService = {
     return newTasks;
   }
 };
-
-let fileHandle: FileSystemFileHandle | null = null;
