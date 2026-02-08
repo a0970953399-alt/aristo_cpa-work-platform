@@ -1,5 +1,4 @@
 
-// 這個檔案是多餘的，主要程式碼位於 src/main.tsx。
-// 您可以安全地刪除此檔案。
-// This file is unused. Main entry point is src/main.tsx.
-
+// 此檔案已不再使用。
+// 請在 GitHub 或本地檔案總管中將此檔案刪除 (rm index.tsx)。
+// This file is deprecated. Please delete it.
