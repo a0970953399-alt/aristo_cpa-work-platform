@@ -1,39 +1,52 @@
+
 name: Deploy to GitHub Pages
 
 on:
+  # 當推送到 main 分支時觸發
   push:
     branches: ["main"]
+  # 允許從 Actions 頁籤手動執行
   workflow_dispatch:
 
+# 設定 GITHUB_TOKEN 的權限，允許部署到 GitHub Pages
 permissions:
   contents: read
   pages: write
   id-token: write
 
+# 允許同時只有一個部署任務在執行
 concurrency:
   group: "pages"
   cancel-in-progress: true
 
 jobs:
+  # 建置工作
   build:
     runs-on: ubuntu-latest
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+
       - name: Setup Node
         uses: actions/setup-node@v4
         with:
           node-version: "20"
-          cache: 'npm'
+          # 移除 cache: 'npm'，因為手動上傳檔案時不會有 package-lock.json
+          # 這能解決 "Dependencies lock file is not found" 的錯誤
+
       - name: Install dependencies
         run: npm install
+
       - name: Build
         run: npm run build
+
       - name: Upload artifact
         uses: actions/upload-pages-artifact@v3
         with:
+          # 上傳 dist 資料夾 (Vite 的預設輸出目錄)
           path: ./dist
 
+  # 部署工作
   deploy:
     environment:
       name: github-pages
