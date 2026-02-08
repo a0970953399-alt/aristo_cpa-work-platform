@@ -1,6 +1,6 @@
 
 import React, { useRef, useState, useEffect } from 'react';
-import { ClientTask, TaskStatusType, User } from '../types';
+import { ClientTask, TaskStatusType, User } from './types';
 import { FunnelIcon, ChevronDownIcon } from './Icons';
 import { TaskListItem } from './TaskListItem';
 
