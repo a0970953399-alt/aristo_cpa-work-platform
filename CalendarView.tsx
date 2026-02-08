@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { CalendarEvent, User } from '../types';
+import { CalendarEvent, User } from './types';
 
 interface CalendarViewProps {
     currentMonth: Date;
