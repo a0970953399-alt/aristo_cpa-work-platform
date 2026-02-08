@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
-import { Client, ClientProfile, ClientTask, TabCategory } from '../types';
-import { MATRIX_TABS } from '../constants';
-import { TaskService } from '../services/taskService';
+import { Client, ClientProfile, ClientTask, TabCategory } from './types';
+import { MATRIX_TABS } from './constants';
+import { TaskService } from './services/taskService';
 import { BellAlertIcon, DocumentTextIcon } from './Icons';
 
 interface ClientDrawerProps {
