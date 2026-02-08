@@ -1,7 +1,7 @@
 
 import React from 'react';
-import { Client, ClientTask, TabCategory, User } from '../types';
-import { COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS } from '../constants';
+import { Client, ClientTask, TabCategory, User } from './types';
+import { COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS } from './constants';
 import { SearchIcon, PlusIcon, MinusIcon, NoteIcon } from './Icons';
 
 interface MatrixViewProps {
