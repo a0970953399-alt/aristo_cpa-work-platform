@@ -1,8 +1,9 @@
 
-export enum UserRole {
-  SUPERVISOR = 'supervisor',
-  INTERN = 'intern'
-}
+export const UserRole = {
+  SUPERVISOR: 'supervisor',
+  INTERN: 'intern'
+} as const;
+export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 export interface User {
   id: string;
@@ -37,21 +38,20 @@ export interface ClientTask {
   lastUpdatedBy: string;
   lastUpdatedAt: string;
   category: string;
-  history?: HistoryEntry[]; // New: Track changes
+  history?: HistoryEntry[];
 }
 
-// Calendar Types
 export type EventType = 'shift' | 'reminder';
 
 export interface CalendarEvent {
     id: string;
-    date: string; // YYYY-MM-DD
+    date: string;
     type: EventType;
     title: string;
     description?: string;
-    ownerId: string; // The person this event belongs to (Assignee for shift, Creator for reminder)
+    ownerId: string;
     ownerName: string;
-    creatorId: string; // The person who created this
+    creatorId: string;
     createdAt: string;
 }
 
@@ -61,12 +61,11 @@ export interface Client {
     name: string;
 }
 
-// 新增：客戶詳細檔案
 export interface ClientProfile {
     clientId: string;
-    specialNotes: string;    // 特殊注意事項 (紅色警報區 - 行政/習慣)
-    accountingNotes: string; // 入帳注意事項 (藍色工作區 - 帳務/稅務)
-    tags?: string[];         // 標籤
+    specialNotes: string;
+    accountingNotes: string;
+    tags?: string[];
 }
 
 export interface Instruction {
@@ -77,12 +76,13 @@ export interface Instruction {
     description: string;
 }
 
-export enum TabCategory {
-  WORK_LIST = "工作清單",
-  CALENDAR = "行事曆",
-  ACCOUNTING = "帳務處理",
-  TAX = "營業稅申報",
-  INCOME_TAX = "所得扣繳",
-  ANNUAL = "年度申報",
-  SUBMISSION = "送件"
-}
+export const TabCategory = {
+  WORK_LIST: "工作清單",
+  CALENDAR: "行事曆",
+  ACCOUNTING: "帳務處理",
+  TAX: "營業稅申報",
+  INCOME_TAX: "所得扣繳",
+  ANNUAL: "年度申報",
+  SUBMISSION: "送件"
+} as const;
+export type TabCategory = typeof TabCategory[keyof typeof TabCategory];

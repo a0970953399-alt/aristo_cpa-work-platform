@@ -1,5 +1,6 @@
 
-import { User, UserRole, TabCategory, Client, Instruction } from './types';
+import { UserRole, TabCategory } from './types';
+import type { User, Client, Instruction } from './types';
 
 export const SUPERVISOR_NAME = "周愉";
 export const DEFAULT_PIN = "1234";
@@ -43,7 +44,6 @@ export const MATRIX_TABS = [
   TabCategory.SUBMISSION
 ];
 
-// Modified: Removed WORK_LIST and CALENDAR tabs
 export const TABS = [
   ...MATRIX_TABS
 ];
@@ -71,7 +71,6 @@ export const DUMMY_CLIENTS: Client[] = Array.from({ length: 5 }, (_, i) => {
     };
 });
 
-// 懶人包範例數據
 export const INSTRUCTIONS: Instruction[] = [
     {
         id: 'i1',

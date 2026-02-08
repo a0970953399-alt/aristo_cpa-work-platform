@@ -2,7 +2,7 @@
 import React, { useState, useEffect } from 'react';
 import LoginScreen from './components/LoginScreen';
 import Dashboard from './components/Dashboard';
-import { User } from './types';
+import type { User } from './types';
 import { TaskService } from './services/taskService';
 
 const App: React.FC = () => {
@@ -10,12 +10,9 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
 
-  // Initialize Users and restore session
   useEffect(() => {
     const loadedUsers = TaskService.getUsers();
     setUsers(loadedUsers);
-
-    // Simulate loading for smooth UX
     const timer = setTimeout(() => {
       setIsLoading(false);
     }, 500);
