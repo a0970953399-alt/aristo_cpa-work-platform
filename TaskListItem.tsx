@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { ClientTask, TaskStatusType } from '../types';
+import { ClientTask, TaskStatusType } from './types';
 import { DocumentTextIcon, TrashIcon } from './Icons';
 
 interface TaskListItemProps {
