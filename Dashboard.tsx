@@ -1,8 +1,8 @@
 
 import React, { useState, useEffect, useRef } from 'react';
-import { User, TabCategory, ClientTask, UserRole, TaskStatusType, Client, Instruction, HistoryEntry, ClientProfile, CalendarEvent, EventType } from '../types';
-import { TABS, MATRIX_TABS, COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, DUMMY_CLIENTS, YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS } from '../constants';
-import { TaskService } from '../services/taskService';
+import { User, TabCategory, ClientTask, UserRole, TaskStatusType, Client, Instruction, HistoryEntry, ClientProfile, CalendarEvent, EventType } from './types';
+import { TABS, MATRIX_TABS, COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, DUMMY_CLIENTS, YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS } from './constants';
+import { TaskService } from './taskService';
 import { RefreshSvg, FolderIcon, LightningIcon, TrashIcon, UserGroupIcon, TableCellsIcon, ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, LockClosedIcon, CalendarIcon, LightBulbIcon, ClockIcon } from './Icons';
 import { ClientDrawer } from './ClientDrawer';
 import { MatrixView } from './MatrixView';
@@ -860,7 +860,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       )}
 
-      {/* Misc Task Modal */}
       {isMiscModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
@@ -877,7 +876,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       )}
 
-      {/* Delete Confirmation Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
             <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center">
@@ -892,7 +890,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       )}
 
-      {/* Note Edit Modal (For Interns) */}
       {isNoteEditModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
               <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
