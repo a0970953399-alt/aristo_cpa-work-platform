@@ -49,7 +49,7 @@
 </head>
   <body>
     <div id="root"></div>
-    <!-- 修正：移除 importmap，改回標準 Vite 絕對路徑 -->
-    <script type="module" src="/src/main.tsx"></script>
+    <!-- 修正：因為您沒有 src 資料夾，我們把路徑改為根目錄的 ./main.tsx -->
+    <script type="module" src="./main.tsx"></script>
   </body>
 </html>
