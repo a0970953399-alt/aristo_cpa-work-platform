@@ -9,6 +9,7 @@ import { MatrixView } from './MatrixView';
 import { CalendarView } from './CalendarView';
 import { ListView } from './ListView';
 import * as XLSX from 'xlsx';
+import appLogo from './aristo mountain.png';
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const totalMinutes = i * 30;
