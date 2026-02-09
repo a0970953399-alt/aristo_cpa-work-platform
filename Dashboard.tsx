@@ -627,6 +627,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         /* User Management or Personal Settings */
                         isSupervisor ? (
                           <>
+                              <div className="flex flex-col items-center p-6 bg-gray-50 rounded-xl border border-gray-100 mb-6">
+                                  <div className="relative w-24 h-24 mb-4 cursor-pointer group" onClick={() => handleAvatarClick(currentUser.id)}>
+                                      <img src={activeUser.avatar} className="w-full h-full rounded-full bg-white border-4 border-white shadow-lg object-cover" alt={currentUser.name} />
+                                      <div className="absolute inset-0 bg-black/30 rounded-full flex items-center justify-center opacity-0 group-hover:opacity-100 transition-all duration-300"><CameraIcon className="w-8 h-8 text-white" /></div>
+                                  </div>
+                                  <h4 className="text-2xl font-bold text-gray-800">{currentUser.name}</h4>
+                                  <p className="text-sm text-gray-500 mt-2">點擊上方圖片即可更換大頭貼</p>
+                              </div>
+                              
                               <div className="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-100">
                                   <h4 className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-2 flex items-center gap-1"><LockClosedIcon className="w-4 h-4" /> 修改登入密碼</h4>
                                   <div className="flex gap-2">
