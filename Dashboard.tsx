@@ -335,9 +335,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
                 <img 
-                    src="https://cdn-icons-png.flaticon.com/512/3135/3135715.png" 
+                    src="/aristo mountain.png.png" 
                     alt="Logo" 
-                    className="w-10 h-10 object-contain" 
+                    className="w-10 h-10 object-contain"
                 />
                 <h1 className="font-bold text-2xl text-gray-800 hidden md:block tracking-tight">碩業工作平台</h1>
             </div>
