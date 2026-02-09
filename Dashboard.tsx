@@ -9,7 +9,6 @@ import { MatrixView } from './MatrixView';
 import { CalendarView } from './CalendarView';
 import { ListView } from './ListView';
 import * as XLSX from 'xlsx';
-import appLogo from './aristo mountain.png';
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const totalMinutes = i * 30;
@@ -336,7 +335,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
                 <img 
-                    src={appLogo}
+                    src="/aristo mountain.png"
                     alt="Logo" 
                     className="w-10 h-10 object-contain"
                 />
