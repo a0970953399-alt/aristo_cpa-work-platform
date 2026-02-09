@@ -336,7 +336,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
                 <img 
-                    src="/aristo mountain.png.png" 
+                    src={appLogo}
                     alt="Logo" 
                     className="w-10 h-10 object-contain"
                 />
