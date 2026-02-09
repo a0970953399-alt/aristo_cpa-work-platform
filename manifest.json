@@ -9,7 +9,7 @@
   "description": "會計事務所工作進度同步系統",
   "icons": [
     {
-      "src": "/aristo mountain.png",
+      "src": "/app-aristo mountain.png",
       "sizes": "512x512",
       "type": "image/png"
     }
