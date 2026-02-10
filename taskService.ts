@@ -68,7 +68,7 @@ const normalizeData = (raw: any): DataStore => {
     return {
         tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
         events: Array.isArray(raw.events) ? raw.events : [],
-        clients: Array.isArray(raw.clients) ? raw.clients : undefined
+        clients: Array.isArray(raw.clients) ? raw.clients : undefined,
         clientProfiles: Array.isArray(raw.clientProfiles) ? raw.clientProfiles : []
     };
 };
