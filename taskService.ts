@@ -315,7 +315,7 @@ export const TaskService = {
       return { clientId, specialNotes: "", accountingNotes: "", tags: [] };
   },
 
-  saveClientProfile(profile: ClientProfile): Promise<void> {
+  async saveClientProfile(profile: ClientProfile): Promise<void> {
       // 1. 讀取目前的完整資料
       const currentData = await this.loadFullData();
       
