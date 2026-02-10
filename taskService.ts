@@ -21,6 +21,7 @@ interface DataStore {
     tasks: ClientTask[];
     events: CalendarEvent[];
     clients?: Client[];
+    clientProfiles?: ClientProfile[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -68,6 +69,7 @@ const normalizeData = (raw: any): DataStore => {
         tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
         events: Array.isArray(raw.events) ? raw.events : [],
         clients: Array.isArray(raw.clients) ? raw.clients : undefined
+        clientProfiles: Array.isArray(raw.clientProfiles) ? raw.clientProfiles : []
     };
 };
 
@@ -304,16 +306,34 @@ export const TaskService = {
   },
 
   getClientProfile(clientId: string): ClientProfile {
-      const stored = localStorage.getItem(CLIENT_PROFILE_KEY);
-      const profiles: Record<string, ClientProfile> = stored ? JSON.parse(stored) : {};
-      return profiles[clientId] || { clientId, specialNotes: "", accountingNotes: "", tags: [] };
+      // 1. 先從快取資料 (cachedData) 裡面找
+      if (cachedData && cachedData.clientProfiles) {
+          const found = cachedData.clientProfiles.find(p => p.clientId === clientId);
+          if (found) return found;
+      }
+      // 2. 找不到就回傳空的預設值
+      return { clientId, specialNotes: "", accountingNotes: "", tags: [] };
   },
 
-  saveClientProfile(profile: ClientProfile): void {
-      const stored = localStorage.getItem(CLIENT_PROFILE_KEY);
-      const profiles: Record<string, ClientProfile> = stored ? JSON.parse(stored) : {};
-      profiles[profile.clientId] = profile;
-      localStorage.setItem(CLIENT_PROFILE_KEY, JSON.stringify(profiles));
+  saveClientProfile(profile: ClientProfile): Promise<void> {
+      // 1. 讀取目前的完整資料
+      const currentData = await this.loadFullData();
+      
+      // 2. 確保陣列存在
+      if (!currentData.clientProfiles) {
+          currentData.clientProfiles = [];
+      }
+
+      // 3. 更新或新增這筆備註
+      const index = currentData.clientProfiles.findIndex(p => p.clientId === profile.clientId);
+      if (index >= 0) {
+          currentData.clientProfiles[index] = profile;
+      } else {
+          currentData.clientProfiles.push(profile);
+      }
+
+      // 4. ✨ 呼叫你原本就有的 saveFullData 寫入檔案
+      await this.saveFullData(currentData);
   },
 
   async addTask(task: ClientTask): Promise<ClientTask[]> {
