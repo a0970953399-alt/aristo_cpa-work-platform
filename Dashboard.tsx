@@ -108,6 +108,19 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const pollingRef = useRef<number | null>(null);
   const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
   const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
+  const [checkInRecords, setCheckInRecords] = useState<CheckInRecord[]>([]);
+  const [isTimesheetOpen, setIsTimesheetOpen] = useState(false);
+  const [isCheckOutModalOpen, setIsCheckOutModalOpen] = useState(false);
+  const [deductBreak, setDeductBreak] = useState(true); // 預設扣除午休
+
+  // 計算今天的打卡狀態
+  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const myTodayRecord = checkInRecords.find(r => r.userId === currentUser.id && r.date === todayStr);
+  const isWorking = myTodayRecord && !myTodayRecord.endTime;
+  // -----------------------------------------------------------
+
+  // Settings / User / Client Management Modals
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
 
   useEffect(() => {
     const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -993,7 +1006,41 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               </div>
           </div>
       )}
+            
+      {/* Check Out Modal (下班確認視窗) */}
+      {isCheckOutModalOpen && (
+          <div className="fixed inset-0 bg-black/50 z-[120] flex items-center justify-center p-4 animate-fade-in">
+              <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
+                  <h3 className="text-xl font-bold text-gray-800 mb-4 text-center">準備下班了嗎？</h3>
+                  <div className="bg-gray-50 p-4 rounded-xl mb-6 flex items-center justify-between">
+                      <span className="text-gray-600 font-bold">扣除午休 (1小時)</span>
+                      <input 
+                          type="checkbox" 
+                          checked={deductBreak} 
+                          onChange={e => setDeductBreak(e.target.checked)}
+                          className="w-6 h-6 text-blue-600 rounded focus:ring-blue-500"
+                      />
+                  </div>
+                  <div className="flex gap-3">
+                      <button onClick={() => setIsCheckOutModalOpen(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">取消</button>
+                      <button onClick={handleCheckOut} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">確認下班</button>
+                  </div>
+              </div>
+          </div>
+      )}
 
+      {/* Timesheet Modal (工時紀錄表視窗) */}
+      {isTimesheetOpen && (
+          <TimesheetView 
+              currentUser={currentUser}
+              users={users}
+              records={checkInRecords}
+              onUpdate={loadData}
+              onClose={() => setIsTimesheetOpen(false)}
+          />
+      )}
+      {/* ----------------------------------------------------------- */}
+        
       <style>{`
           @keyframes slideInRight {
             from { transform: translateX(100%); }
