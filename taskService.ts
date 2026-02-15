@@ -22,6 +22,7 @@ interface DataStore {
     events: CalendarEvent[];
     clients?: Client[];
     clientProfiles?: ClientProfile[];
+    checkIns?: CheckInRecord[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -69,7 +70,8 @@ const normalizeData = (raw: any): DataStore => {
         tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
         events: Array.isArray(raw.events) ? raw.events : [],
         clients: Array.isArray(raw.clients) ? raw.clients : undefined,
-        clientProfiles: Array.isArray(raw.clientProfiles) ? raw.clientProfiles : []
+        clientProfiles: Array.isArray(raw.clientProfiles) ? raw.clientProfiles : [],
+        checkIns: Array.isArray(raw.checkIns) ? raw.checkIns : []
     };
 };
 
@@ -428,3 +430,41 @@ async fetchClients(): Promise<Client[]> {
     return newTasks;
   }
 };
+
+// --- 打卡系統相關 API ---
+
+  async fetchCheckIns(): Promise<CheckInRecord[]> {
+      const data = await this.loadFullData();
+      return data.checkIns || [];
+  },
+
+  async addCheckIn(record: CheckInRecord): Promise<CheckInRecord[]> {
+      const currentData = await this.loadFullData();
+      if (!currentData.checkIns) currentData.checkIns = [];
+      
+      currentData.checkIns.push(record);
+      await this.saveFullData(currentData);
+      return currentData.checkIns;
+  },
+
+  async updateCheckIn(updatedRecord: CheckInRecord): Promise<CheckInRecord[]> {
+      const currentData = await this.loadFullData();
+      if (!currentData.checkIns) currentData.checkIns = [];
+      
+      const index = currentData.checkIns.findIndex(r => r.id === updatedRecord.id);
+      if (index >= 0) {
+          currentData.checkIns[index] = updatedRecord;
+      }
+      await this.saveFullData(currentData);
+      return currentData.checkIns;
+  },
+  
+  // 刪除打卡紀錄 (主管補救用)
+  async deleteCheckIn(recordId: string): Promise<CheckInRecord[]> {
+      const currentData = await this.loadFullData();
+      if (!currentData.checkIns) return [];
+      
+      currentData.checkIns = currentData.checkIns.filter(r => r.id !== recordId);
+      await this.saveFullData(currentData);
+      return currentData.checkIns;
+  }
