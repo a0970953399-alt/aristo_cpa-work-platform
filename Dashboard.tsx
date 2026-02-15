@@ -255,15 +255,24 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       setClientToDelete(client);
       setIsClientDeleteModalOpen(true);
   };
-
-  const handleConfirmDeleteClient = async () => {
+    
+    const handleConfirmDeleteClient = async () => {
       if (!clientToDelete) return;
+      
+      // 1. 刪除客戶本體
       const updatedClients = clients.filter(c => c.id !== clientToDelete.id);
       await TaskService.saveClients(updatedClients);
+      
+      // 🔴 新增: 2. 連動刪除該客戶的所有任務 (Cascade Delete)
+      const currentTasks = await TaskService.fetchTasks();
+      const updatedTasks = currentTasks.filter(t => t.clientId !== clientToDelete.id);
+      await TaskService.saveTasks(updatedTasks);
+      setTasks(updatedTasks); // 更新畫面上的任務列表
+
       setClients(updatedClients);
       setIsClientDeleteModalOpen(false);
       setClientToDelete(null);
-  };
+    };;
 
   const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
       const file = e.target.files?.[0];
