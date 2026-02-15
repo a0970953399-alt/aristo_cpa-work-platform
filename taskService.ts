@@ -467,3 +467,4 @@ async fetchClients(): Promise<Client[]> {
       await this.saveFullData(currentData);
       return currentData.checkIns;
   }
+};
