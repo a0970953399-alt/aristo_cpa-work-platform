@@ -229,10 +229,12 @@ export const TaskService = {
 
   // --- API Methods ---
 
-  async fetchClients(): Promise<Client[]> {
+    async fetchClients(): Promise<Client[]> {
       const data = await this.loadFullData();
-      return data.clients || DUMMY_CLIENTS;
-  },
+      const clients = data.clients || DUMMY_CLIENTS;
+      // 🔴 修改: 強制依照 code 排序
+      return clients.sort((a, b) => a.code.localeCompare(b.code, 'zh-Hant', { numeric: true }));
+    },,
 
   async saveClients(clients: Client[]): Promise<void> {
       // Use loadFullData to ensure we have the latest OTHER data (tasks, events)
