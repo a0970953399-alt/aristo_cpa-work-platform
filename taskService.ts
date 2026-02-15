@@ -229,12 +229,18 @@ export const TaskService = {
 
   // --- API Methods ---
 
-    async fetchClients(): Promise<Client[]> {
+async fetchClients(): Promise<Client[]> {
       const data = await this.loadFullData();
       const clients = data.clients || DUMMY_CLIENTS;
-      // 🔴 修改: 強制依照 code 排序
-      return clients.sort((a, b) => a.code.localeCompare(b.code, 'zh-Hant', { numeric: true }));
-    },
+      
+      // 使用 [...clients] 建立副本，確保不會因為唯讀屬性而排序失敗
+      // 這裡強制依照 code (A01, A02...) 進行排序
+      return [...clients].sort((a, b) => {
+          const codeA = a.code || '';
+          const codeB = b.code || '';
+          return codeA.localeCompare(codeB, 'zh-Hant', { numeric: true });
+      });
+},
 
   async saveClients(clients: Client[]): Promise<void> {
       // Use loadFullData to ensure we have the latest OTHER data (tasks, events)
