@@ -1,4 +1,7 @@
-
+import { CheckInRecord } from './types'; // 記得加 CheckInRecord
+import { TimesheetView } from './TimesheetView'; // 引入新頁面
+// 在 Icons 引入區加入 ClockIcon (如果沒有這個icon，用 LightBulbIcon 代替也可以，或是加一個)
+import { ClockIcon } from './Icons';
 import React, { useState, useEffect, useRef } from 'react';
 import { User, TabCategory, ClientTask, UserRole, TaskStatusType, Client, Instruction, HistoryEntry, ClientProfile, CalendarEvent, EventType } from './types';
 import { TABS, MATRIX_TABS, COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, DUMMY_CLIENTS, YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS } from './constants';
@@ -176,13 +179,58 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           const tData = await TaskService.fetchTasks(); 
           const eData = await TaskService.fetchEvents(); 
           const cData = await TaskService.fetchClients();
+          const checkInData = await TaskService.fetchCheckIns();
           setTasks(prev => JSON.stringify(prev) !== JSON.stringify(tData) ? tData : prev); 
           setEvents(prev => JSON.stringify(prev) !== JSON.stringify(eData) ? eData : prev); 
           setClients(prev => JSON.stringify(prev) !== JSON.stringify(cData) ? cData : prev);
+          setCheckInRecords(prev => JSON.stringify(prev) !== JSON.stringify(checkInData) ? checkInData : prev);
       } catch (error) { 
           setDbConnected(false); setPermissionNeeded(true); 
       } 
   };
+    
+  const handleCheckIn = async () => {
+      if (!confirm(`現在時間 ${timeStr}，確定上班打卡？`)) return;
+      setIsLoading(true);
+      const newRecord: CheckInRecord = {
+          id: Date.now().toString(),
+          userId: currentUser.id,
+          userName: currentUser.name,
+          date: todayStr,
+          startTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
+          breakHours: 0,
+          totalHours: 0
+      };
+      await TaskService.addCheckIn(newRecord);
+      await loadData();
+      setIsLoading(false);
+  };
+
+  const handleCheckOut = async () => {
+      if (!myTodayRecord) return;
+      // 計算工時
+      const endTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
+      const [sh, sm] = myTodayRecord.startTime.split(':').map(Number);
+      const [eh, em] = endTime.split(':').map(Number);
+      const minutes = (eh * 60 + em) - (sh * 60 + sm);
+      
+      const breakH = deductBreak ? 1 : 0;
+      let hours = minutes / 60 - breakH;
+      if (hours < 0) hours = 0;
+      const finalHours = Math.floor(hours * 2) / 2; // 無條件捨去至 0.5
+
+      const updatedRecord: CheckInRecord = {
+          ...myTodayRecord,
+          endTime: endTime,
+          breakHours: breakH,
+          totalHours: finalHours
+      };
+      await TaskService.updateCheckIn(updatedRecord);
+      setIsCheckOutModalOpen(false);
+      await loadData();
+      alert(`下班打卡成功！\n今日工時：${finalHours} 小時`);
+  };
+    
   const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => { stopPolling(); const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : ''; try { const updatedList = await TaskService.updateTaskStatus(task.id, newStatus, currentUser.name, completionDateStr); setTasks(updatedList); } catch (error) { alert("失敗"); } finally { startPolling(); } };
   const openInternNoteEdit = (task: ClientTask) => { setEditingTask(task); setModalNote(task.note); setIsNoteEditModalOpen(true); stopPolling(); };
   const handleInternNoteSubmit = async () => { if (!editingTask) return; setIsLoading(true); try { const updatedList = await TaskService.updateTaskNote(editingTask.id, modalNote, currentUser.name); setTasks(updatedList); setIsNoteEditModalOpen(false); setEditingTask(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
