@@ -119,9 +119,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const isWorking = myTodayRecord && !myTodayRecord.endTime;
   // -----------------------------------------------------------
 
-  // Settings / User / Client Management Modals
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
-
   useEffect(() => {
     const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
     const initConnection = async () => {
