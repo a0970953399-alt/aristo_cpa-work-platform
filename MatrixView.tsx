@@ -44,8 +44,9 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
         return (Date.now() - lastUpdate) > threeDaysMs; 
     };
 
-    const renderCell = (client: Client, col: string, task?: ClientTask) => {
+const renderCell = (client: Client, col: string, task?: ClientTask) => {
         let content = null;
+        // 🔴 修改 1: 預設顏色改成 "未開始 (黃色)"
         let cellClass = "cursor-pointer hover:bg-gray-100 transition-colors border-r text-center p-1 h-14 relative"; 
         
         if (task) {
@@ -57,24 +58,26 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                 cellClass += " bg-green-50";
             } else {
                 if (task.assigneeName) {
-                    // Modification: Always show text name instead of avatar
                     content = <span className="text-sm font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded border border-blue-200 shadow-sm">{task.assigneeName}</span>;
                 }
                 if (task.status === 'in_progress') {
-                    cellClass += " bg-white";
+                    // 🔴 修改 2: 進行中改成 "藍色"
+                    cellClass += " bg-blue-50"; 
                     if (isStale(task)) {
-                         cellClass += " bg-red-50"; 
+                         cellClass += " bg-red-50"; // 逾期仍然維持紅色警示
                          content = <div className="relative inline-block">{content}<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span></div>;
                     }
                 } else {
-                    cellClass += " bg-white";
+                    // 🔴 修改 3: 未執行 (Todo) 改成 "黃色"
+                    cellClass += " bg-yellow-50";
                 }
             }
             if (task.note) {
                  content = <div className="relative w-full h-full flex items-center justify-center">{content}<div className="absolute top-0.5 right-0.5"><NoteIcon /></div></div>;
             }
         } else {
-            cellClass += " bg-white";
+            // 🔴 修改 4: 完全沒任務 (也是未開始) 改成 "黃色"
+            cellClass += " bg-yellow-50";
         }
   
         return (
@@ -143,12 +146,20 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
                                     if (collapsedColumns.has(col)) {
                                         const groupTasks = subItems.map(s => getTaskForCell(client.id, `${col}-${s}`));
                                         const total = subItems.length;
+                                        // 🔴 修改 5: 加強判斷，確保只有真正完成的才算 done
                                         const done = groupTasks.filter(t => t && (t.status === 'done' || t.isNA)).length;
                                         const percent = Math.round((done / total) * 100);
                                         const isAllDone = done === total;
+                                        
+                                        // 讓折疊後的格子顏色也跟著邏輯變
+                                        let summaryClass = 'bg-gray-100 text-gray-400';
+                                        if (isAllDone) summaryClass = 'bg-green-100 text-green-700';
+                                        else if (percent > 0) summaryClass = 'bg-blue-100 text-blue-700';
+                                        else summaryClass = 'bg-yellow-100 text-yellow-700'; // 0% 顯示黃色
+
                                         return (
                                             <td key={`${client.id}-${col}-summary`} className="p-3 border-r text-center align-middle" onClick={() => toggleColumn(col)}>
-                                                <div className={`text-sm font-bold px-2 py-1 rounded cursor-pointer ${isAllDone ? 'bg-green-100 text-green-700' : percent > 0 ? 'bg-blue-100 text-blue-700' : 'bg-gray-100 text-gray-400'}`}>
+                                                <div className={`text-sm font-bold px-2 py-1 rounded cursor-pointer ${summaryClass}`}>
                                                     {percent}%
                                                 </div>
                                             </td>
