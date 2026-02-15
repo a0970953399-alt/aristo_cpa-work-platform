@@ -428,8 +428,7 @@ async fetchClients(): Promise<Client[]> {
     });
     await this.saveTasks(newTasks);
     return newTasks;
-  }
-};
+  },
 
 // --- 打卡系統相關 API ---
 
@@ -457,7 +456,7 @@ async fetchClients(): Promise<Client[]> {
       }
       await this.saveFullData(currentData);
       return currentData.checkIns;
-  },
+  };
   
   // 刪除打卡紀錄 (主管補救用)
   async deleteCheckIn(recordId: string): Promise<CheckInRecord[]> {
