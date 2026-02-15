@@ -164,10 +164,18 @@ const renderCell = (client: Client, col: string, task?: ClientTask) => {
                                         const isAllDone = done === total;
                                         
                                         // 讓折疊後的格子顏色也跟著邏輯變
-                                        let summaryClass = 'bg-gray-100 text-gray-400';
-                                        if (isAllDone) summaryClass = 'bg-green-100 text-green-700';
-                                        else if (percent > 0) summaryClass = 'bg-blue-100 text-blue-700';
-                                        else summaryClass = 'bg-yellow-100 text-yellow-700'; // 0% 顯示黃色
+                                        let summaryClass = '';
+                                        
+                                        if (isAllDone) {
+                                            // 全部完成 -> 綠色
+                                            summaryClass = 'bg-green-100 text-green-700';
+                                        } else if (percent > 0) {
+                                            // 部分完成 -> 藍色
+                                            summaryClass = 'bg-blue-100 text-blue-700';
+                                        } else {
+                                            // 0% (未開始) -> 改成 "灰色" (原本是黃色)
+                                            summaryClass = 'bg-gray-100 text-gray-500'; 
+                                        }
 
                                         return (
                                             <td key={`${client.id}-${col}-summary`} className="p-3 border-r text-center align-middle" onClick={() => toggleColumn(col)}>
@@ -177,6 +185,7 @@ const renderCell = (client: Client, col: string, task?: ClientTask) => {
                                             </td>
                                         );
                                     }
+                                    
                                     return subItems.map(sub => {
                                         const fullColName = `${col}-${sub}`;
                                         const task = getTaskForCell(client.id, fullColName);
