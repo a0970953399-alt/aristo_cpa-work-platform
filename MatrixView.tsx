@@ -46,40 +46,52 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
 
 const renderCell = (client: Client, col: string, task?: ClientTask) => {
         let content = null;
-        // 🔴 修改 1: 預設顏色改成 "未開始 (黃色)"
+        // 1. 預設背景是 "白色" (代表未派案/空)
         let cellClass = "cursor-pointer hover:bg-gray-100 transition-colors border-r text-center p-1 h-14 relative"; 
-        
+        let bgClass = "bg-white"; // 預設白色
+
         if (task) {
             if (task.isNA) {
                 content = <span className="text-gray-300 text-base">N/A</span>;
-                cellClass += " bg-gray-50";
+                bgClass = "bg-gray-50"; // N/A 用灰色
             } else if (task.status === 'done') {
                 content = <span className="font-bold text-green-700 text-sm">{task.completionDate || '已完成'}</span>;
-                cellClass += " bg-green-50";
+                bgClass = "bg-green-50"; // 已完成用綠色
             } else {
+                // 顯示負責人標籤
                 if (task.assigneeName) {
                     content = <span className="text-sm font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded border border-blue-200 shadow-sm">{task.assigneeName}</span>;
                 }
+                
                 if (task.status === 'in_progress') {
-                    // 🔴 修改 2: 進行中改成 "藍色"
-                    cellClass += " bg-blue-50"; 
+                    // 進行中 -> 藍色
+                    bgClass = "bg-blue-50"; 
                     if (isStale(task)) {
-                         cellClass += " bg-red-50"; // 逾期仍然維持紅色警示
+                         bgClass = "bg-red-50"; // 逾期仍然維持紅色警示
                          content = <div className="relative inline-block">{content}<span className="absolute -top-1 -right-1 w-2.5 h-2.5 bg-red-500 rounded-full"></span></div>;
                     }
                 } else {
-                    // 🔴 修改 3: 未執行 (Todo) 改成 "黃色"
-                    cellClass += " bg-yellow-50";
+                    // 狀態是 Todo (未開始)
+                    if (task.assigneeId) {
+                        // 2. 已派案 (有人) 但未開始 -> 黃色
+                        bgClass = "bg-yellow-50";
+                    } else {
+                        // 雖然有任務物件但沒人 (罕見情況) -> 視為未派案 (白色)
+                        bgClass = "bg-white";
+                    }
                 }
             }
             if (task.note) {
                  content = <div className="relative w-full h-full flex items-center justify-center">{content}<div className="absolute top-0.5 right-0.5"><NoteIcon /></div></div>;
             }
         } else {
-            // 🔴 修改 4: 完全沒任務 (也是未開始) 改成 "黃色"
-            cellClass += " bg-yellow-50";
+            // 3. 完全沒任務 -> 白色
+            bgClass = "bg-white";
         }
   
+        // 組合樣式
+        cellClass += ` ${bgClass}`;
+
         return (
             <td key={`${client.id}-${col}`} className={cellClass} onClick={() => onCellClick(client, col, task)}>
                 {content}
