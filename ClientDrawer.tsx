@@ -40,16 +40,30 @@ export const ClientDrawer: React.FC<ClientDrawerProps> = ({ client, isOpen, onCl
     };
 
     if (!isOpen) return null;
-
+    
     const progressStats = useMemo(() => {
+        // 🔴 大改版: 讓進度條計算邏輯跟 MatrixView 完全一致
         const clientTasks = tasks.filter(t => t.clientId === client.id && t.year === currentYear && !t.isMisc);
         const stats: Record<string, { total: number, done: number }> = {};
         
         MATRIX_TABS.forEach(tab => {
+             // 找出這個 Tab 應該要有幾項任務 (分母)
+             let subItems: string[] = [];
+             if (tab === TabCategory.ACCOUNTING) subItems = ACCOUNTING_SUB_ITEMS;
+             else if (tab === TabCategory.TAX) subItems = TAX_SUB_ITEMS;
+             
+             const columns = COLUMN_CONFIG[tab] || [];
+             
+             // 如果有子項目 (如帳務、營業稅)，總數 = 欄位數 * 子項目數
+             // 如果沒有 (如年度申報)，總數 = 欄位數
+             const totalItemsCount = subItems.length > 0 
+                ? columns.length * subItems.length 
+                : columns.length;
+
              const tabTasks = clientTasks.filter(t => t.category === tab);
-             const total = tabTasks.length; 
-             const done = tabTasks.filter(t => t.status === 'done' || t.isNA).length;
-             stats[tab] = { total, done };
+             const doneCount = tabTasks.filter(t => t.status === 'done' || t.isNA).length;
+             
+             stats[tab] = { total: totalItemsCount, done: doneCount };
         });
         return stats;
     }, [tasks, client.id, currentYear]);
