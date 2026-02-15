@@ -86,3 +86,14 @@ export const TabCategory = {
   SUBMISSION: "送件"
 } as const;
 export type TabCategory = typeof TabCategory[keyof typeof TabCategory];
+
+export interface CheckInRecord {
+    id: string;
+    userId: string;
+    userName: string;
+    date: string;       // 格式: YYYY-MM-DD
+    startTime: string;  // 格式: HH:mm
+    endTime?: string;   // 格式: HH:mm (上班時是空的)
+    breakHours: number; // 午休扣除時數
+    totalHours: number; // 最終計算工時
+}
