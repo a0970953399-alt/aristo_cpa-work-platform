@@ -456,7 +456,7 @@ async fetchClients(): Promise<Client[]> {
       }
       await this.saveFullData(currentData);
       return currentData.checkIns;
-  };
+  },
   
   // 刪除打卡紀錄 (主管補救用)
   async deleteCheckIn(recordId: string): Promise<CheckInRecord[]> {
