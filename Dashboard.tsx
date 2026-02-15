@@ -417,6 +417,31 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 <CalendarIcon className="w-7 h-7" />
             </button>
 
+              <button 
+                onClick={() => isWorking ? setIsCheckOutModalOpen(true) : handleCheckIn()} 
+                className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-base font-bold shadow-sm transition-all active:scale-95 ${
+                    isWorking 
+                    ? 'bg-green-500 text-white hover:bg-green-600 animate-pulse' 
+                    : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+            >
+                {isWorking ? (
+                    <>
+                        <ClockIcon className="w-5 h-5" />
+                        <span>工作中...</span>
+                    </>
+                ) : (
+                    <>
+                        <span>上班打卡</span>
+                    </>
+                )}
+            </button>
+
+            {/* 工時紀錄表按鈕 */}
+            <button onClick={() => setIsTimesheetOpen(true)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-blue-600 transition-colors" title="工時紀錄">
+                <span className="text-xl">⏱️</span>
+            </button>
+
             <button onClick={() => { setIsUserModalOpen(true); setSettingsTab('users'); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title={isSupervisor ? "人員管理" : "個人設定"}>
                 <GearIcon className="w-7 h-7" />
             </button>
