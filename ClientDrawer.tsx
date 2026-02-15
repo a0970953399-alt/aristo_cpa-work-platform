@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect, useMemo } from 'react';
 import { Client, ClientProfile, ClientTask, TabCategory } from './types';
-import { MATRIX_TABS } from './constants';
+import { MATRIX_TABS, COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS } from './constants'; // 🔴 引入這幾個常數
 import { TaskService } from './taskService';
 import { BellAlertIcon, DocumentTextIcon } from './Icons';
 
