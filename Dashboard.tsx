@@ -274,6 +274,16 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       // 組合文字
       let report = `📅 ${dateString} 工作匯報 - ${currentUser.name}\n\n`;
 
+      // 輔助函式：格式化每一行
+      const formatLine = (t: ClientTask) => {
+          // ✨ 這裡修改邏輯：如果是行政交辦 (MISC)，只顯示備註
+          if (t.category === 'MISC_TASK' || t.id.startsWith('misc_')) {
+              return `- 行政交辦：${t.note || '無內容'}\n`;
+          }
+          // 一般任務維持原樣
+          return `- ${t.clientName}：${t.category} ${t.workItem} ${t.isNA ? '(N/A)' : ''}\n`;
+      };
+
       if (done.length > 0) {
           report += `✅ 已完成：\n`;
           done.forEach(t => {
