@@ -19,6 +19,8 @@ import * as XLSX from 'xlsx';
 import { MailLogView } from './MailLogView';
 import { MailRecord } from './types'; // 引入類型
 
+const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件'];
+
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const totalMinutes = i * 30;
     const hours = Math.floor(totalMinutes / 60);
