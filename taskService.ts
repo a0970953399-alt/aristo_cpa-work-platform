@@ -493,7 +493,7 @@ async fetchClients(): Promise<Client[]> {
       data.messages = data.messages.filter(m => m.id !== msgId);
       await this.saveFullData(data);
       return data.messages;
-  }
+  },
 
 }; 
 
