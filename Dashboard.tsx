@@ -659,6 +659,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                     <MailLogView 
                         records={mailRecords}
                         onUpdate={loadData}
+                        isSupervisor={isSupervisor}
                     />
                 ) : (
                     <MatrixView 
