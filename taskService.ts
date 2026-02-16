@@ -23,6 +23,7 @@ interface DataStore {
     clients?: Client[];
     clientProfiles?: ClientProfile[];
     checkIns?: CheckInRecord[];
+    messages?: Message[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -71,7 +72,8 @@ const normalizeData = (raw: any): DataStore => {
         events: Array.isArray(raw.events) ? raw.events : [],
         clients: Array.isArray(raw.clients) ? raw.clients : undefined,
         clientProfiles: Array.isArray(raw.clientProfiles) ? raw.clientProfiles : [],
-        checkIns: Array.isArray(raw.checkIns) ? raw.checkIns : []
+        checkIns: Array.isArray(raw.checkIns) ? raw.checkIns : [],
+        messages: Array.isArray(raw.messages) ? raw.messages : []
     };
 };
 
@@ -468,3 +470,28 @@ async fetchClients(): Promise<Client[]> {
       return currentData.checkIns;
   }
 };
+
+// --- 留言板 API ---
+
+  async fetchMessages(): Promise<Message[]> {
+      const data = await this.loadFullData();
+      return data.messages || [];
+  },
+
+  async addMessage(msg: Message): Promise<Message[]> {
+      const data = await this.loadFullData();
+      if (!data.messages) data.messages = [];
+      data.messages.push(msg);
+      await this.saveFullData(data);
+      return data.messages;
+  },
+
+  async deleteMessage(msgId: string): Promise<Message[]> {
+      const data = await this.loadFullData();
+      if (!data.messages) return [];
+      data.messages = data.messages.filter(m => m.id !== msgId);
+      await this.saveFullData(data);
+      return data.messages;
+  }
+
+}; 
