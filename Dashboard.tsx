@@ -647,24 +647,34 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       ) : null}
 
-      {/* 3. Main Content - Scrollable Area */}
+{/* 3. Main Content - Scrollable Area */}
       <main className="flex-1 overflow-hidden relative w-full bg-gray-50">
         {((isSupervisor && !showMyList) || (!isSupervisor && showOverview)) ? (
             <div className="absolute inset-0 px-6 py-6">
-                {!dbConnected ? <div className="text-center py-40 opacity-50"><p className="text-2xl">請先連結資料庫</p></div> : 
-                <MatrixView 
-                    tasks={tasks}
-                    activeTab={activeTab}
-                    currentYear={currentYear}
-                    searchQuery={searchQuery}
-                    setSearchQuery={setSearchQuery}
-                    collapsedColumns={collapsedColumns}
-                    toggleColumn={toggleColumn}
-                    users={users}
-                    onCellClick={handleCellClick}
-                    onClientNameClick={handleClientNameClick}
-                    clients={clients}
-                />}
+                {!dbConnected ? (
+                    <div className="text-center py-40 opacity-50"><p className="text-2xl">請先連結資料庫</p></div>
+                ) : 
+                /* ✨ 這裡加入判斷：如果是「收發信件」，就顯示收發信頁面，否則顯示原本的矩陣圖 */
+                activeTab === '收發信件' ? (
+                    <MailLogView 
+                        records={mailRecords}
+                        onUpdate={loadData}
+                    />
+                ) : (
+                    <MatrixView 
+                        tasks={tasks}
+                        activeTab={activeTab}
+                        currentYear={currentYear}
+                        searchQuery={searchQuery}
+                        setSearchQuery={setSearchQuery}
+                        collapsedColumns={collapsedColumns}
+                        toggleColumn={toggleColumn}
+                        users={users}
+                        onCellClick={handleCellClick}
+                        onClientNameClick={handleClientNameClick}
+                        clients={clients}
+                    />
+                )}
             </div>
         ) : (
             <ListView 
