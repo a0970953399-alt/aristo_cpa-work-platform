@@ -97,3 +97,14 @@ export interface CheckInRecord {
     breakHours: number; // 午休扣除時數
     totalHours: number; // 最終計算工時
 }
+
+export type MessageCategory = 'announcement' | 'bug' | 'chat';
+
+export interface Message {
+    id: string;
+    content: string;
+    category: MessageCategory;
+    authorId: string;
+    authorName: string;
+    createdAt: string; // ISO 時間格式
+}
