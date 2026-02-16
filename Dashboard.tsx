@@ -1,3 +1,4 @@
+import { RefreshSvg, FolderIcon, ..., ClockIcon, DocumentTextIcon } from './Icons'; // 👈 加上 DocumentTextIcon
 import { CheckInRecord } from './types'; // 記得加 CheckInRecord
 import { TimesheetView } from './TimesheetView'; // 引入新頁面
 // 在 Icons 引入區加入 ClockIcon (如果沒有這個icon，用 LightBulbIcon 代替也可以，或是加一個)
