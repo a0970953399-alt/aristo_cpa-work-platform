@@ -468,8 +468,7 @@ async fetchClients(): Promise<Client[]> {
       currentData.checkIns = currentData.checkIns.filter(r => r.id !== recordId);
       await this.saveFullData(currentData);
       return currentData.checkIns;
-  }
-};
+  },    
 
 // --- 留言板 API ---
 
