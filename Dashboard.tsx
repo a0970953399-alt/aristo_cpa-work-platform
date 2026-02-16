@@ -531,6 +531,21 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       </header>
 
+     {/* ... 這裡原本是懶人包按鈕 ... */}
+            <button onClick={() => setIsGalleryOpen(true)} className="..." title="懶人包">...</button>
+            
+            {/* ✨ 新增：日報生成按鈕 */}
+            <button 
+                onClick={handleGenerateDailyReport} 
+                className="flex items-center gap-2 bg-green-600 text-white px-4 py-2 rounded-xl shadow-sm hover:bg-green-700 transition-all active:scale-95 text-base font-bold hidden md:flex" 
+                title="生成今日工作匯報"
+            >
+                <DocumentTextIcon className="w-5 h-5" />
+                <span>複製日報</span>
+            </button>
+
+            {/* ... 後面接臨時交辦按鈕 ... */}
+
       {/* 2. Tabs - Fixed Below Header (Context Specific) */}
       {((isSupervisor && !showMyList) || (!isSupervisor && showOverview)) ? (
           <div className="flex-none bg-white border-b border-gray-200 z-40">
