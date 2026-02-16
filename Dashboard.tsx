@@ -494,6 +494,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       {/* 1. App Header - Fixed Top */}
       <header className="flex-none bg-white shadow-sm z-50 h-20 border-b border-gray-200">
         <div className="w-full px-6 h-full flex items-center justify-between">
+          
+          {/* 左側：Logo 與 年份選擇 */}
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
                 <img 
@@ -509,20 +511,26 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 </select>
             </div>
           </div>
+
+          {/* 右側：功能按鈕區 */}
           <div className="flex items-center gap-4">
-             <div className="flex flex-col items-end mr-2 leading-tight"><span className="text-xs text-gray-400 font-medium">{dateStr}</span><span className="text-base font-bold text-gray-600 font-mono">{timeStr}</span></div>
             
-            <button onClick={() => setIsGalleryOpen(true)} className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2 rounded-xl shadow-sm hover:bg-yellow-600 transition-all active:scale-95 text-base font-bold" title="懶人包"><LightBulbIcon className="w-5 h-5" /></button>
+            {/* 時間顯示 */}
+            <div className="flex flex-col items-end mr-2 leading-tight">
+                <span className="text-xs text-gray-400 font-medium">{dateStr}</span>
+                <span className="text-base font-bold text-gray-600 font-mono">{timeStr}</span>
+            </div>
+            
+            {/* 1. 臨時交辦 (高頻使用 - 主管限定) */}
+            {isSupervisor && dbConnected && (
+                <button onClick={handleOpenMiscModal} className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl shadow-sm hover:bg-purple-700 transition-all active:scale-95 text-base font-bold">
+                    <span className="hidden sm:inline">臨時交辦</span>
+                    <span className="sm:hidden">+</span>
+                </button>
+            )}
 
-            {isSupervisor && dbConnected && <button onClick={handleOpenMiscModal} className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl shadow-sm hover:bg-purple-700 transition-all active:scale-95 text-base font-bold"><span className="hidden sm:inline">臨時交辦</span><span className="sm:hidden">+</span></button>}
-              
-            {!dbConnected ? <button title={permissionNeeded ? "點擊恢復連線" : "連結資料庫"} onClick={permissionNeeded ? handleRestoreClick : handleConnectDb} className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors text-base font-medium hidden sm:flex ${permissionNeeded ? 'bg-blue-100 text-blue-800 animate-pulse' : 'bg-yellow-100 text-yellow-800 animate-pulse'}`}><FolderIcon className="w-6 h-6" /></button> : <button onClick={loadData} disabled={isLoading} className={`p-2 text-gray-400 hover:text-blue-500 transition-colors hidden sm:block ${isLoading ? 'animate-spin' : ''}`}><RefreshSvg className="w-7 h-7" /></button>}
-
-            <button onClick={() => setIsCalendarOpen(true)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-blue-600 transition-colors" title="行事曆">
-                <CalendarIcon className="w-7 h-7" />
-            </button>
-
-              <button 
+            {/* 2. 上班打卡 / 工作中 (高頻使用) */}
+            <button 
                 onClick={() => isWorking ? setIsCheckOutModalOpen(true) : handleCheckIn()} 
                 className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-base font-bold shadow-sm transition-all active:scale-95 ${
                     isWorking 
@@ -536,40 +544,82 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         <span>工作中...</span>
                     </>
                 ) : (
-                    <>
-                        <span>上班打卡</span>
-                    </>
+                    <span>上班打卡</span>
                 )}
             </button>
 
-            {/* 工時紀錄表按鈕 */}
-            <button onClick={() => setIsTimesheetOpen(true)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-blue-600 transition-colors" title="工時紀錄">
-                <span className="text-xl">⏱️</span>
-            </button>
-
-            {/* ✨ 請把留言板按鈕貼在這裡 (設定按鈕的上面) ✨ */}
-            <button 
-                onClick={() => setIsMessageBoardOpen(true)} 
-                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" 
-                title="事務所留言板"
-            >
-                <ChatBubbleIcon className="w-6 h-6" />
-            </button>
-              
-            <button onClick={() => { setIsUserModalOpen(true); setSettingsTab('users'); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title={isSupervisor ? "人員管理" : "個人設定"}>
-                <GearIcon className="w-7 h-7" />
-            </button>
-
-            {isSupervisor && <button onClick={() => setShowMyList(!showMyList)} className={`px-4 py-2 rounded-xl text-base font-medium transition-colors border flex items-center gap-2 ${showMyList ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>{showMyList ? <ReturnIcon className="w-5 h-5"/> : <><UserGroupIcon className="w-5 h-5"/><span>每日進度</span></>}</button>}
-
-            {!isSupervisor && (
+            {/* 3. 視圖切換 (每日進度/全所進度) */}
+            {isSupervisor ? (
+                <button onClick={() => setShowMyList(!showMyList)} className={`px-4 py-2 rounded-xl text-base font-medium transition-colors border flex items-center gap-2 ${showMyList ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                    {showMyList ? <ReturnIcon className="w-5 h-5"/> : <><UserGroupIcon className="w-5 h-5"/><span>每日進度</span></>}
+                </button>
+            ) : (
                 <button onClick={() => setShowOverview(!showOverview)} className={`px-4 py-2 rounded-xl text-base font-medium transition-colors border flex items-center gap-2 ${showOverview ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
                     {showOverview ? <ReturnIcon className="w-5 h-5"/> : <><TableCellsIcon className="w-5 h-5"/><span>全所進度</span></>}
                 </button>
             )}
 
-            <div className={`flex items-center gap-3 pr-4 pl-2 py-1.5 rounded-full ${isSupervisor ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}><img src={activeUser.avatar} alt="User" className="w-10 h-10 rounded-full border border-blue-100 object-cover" /><span className="font-medium text-base hidden sm:inline">{currentUser.name}</span></div>
+            {/* 4. ✨ 應用程式選單 (Windows 風格) - 收納所有次要功能 */}
+            <div className="relative" ref={appMenuRef}>
+                <button 
+                    onClick={() => setIsAppMenuOpen(!isAppMenuOpen)} 
+                    className={`p-2 rounded-xl transition-all border ${isAppMenuOpen ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-gray-100 text-gray-500 border-transparent hover:bg-gray-200'}`}
+                    title="應用程式選單"
+                >
+                    <Squares2X2Icon className="w-6 h-6" />
+                </button>
+
+                {/* 下拉選單內容 */}
+                {isAppMenuOpen && (
+                    <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-fade-in p-2 grid grid-cols-2 gap-2">
+                        
+                        {/* 留言板 */}
+                        <button onClick={() => { setIsMessageBoardOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-blue-50 rounded-xl text-gray-600 hover:text-blue-600 transition-colors">
+                            <ChatBubbleIcon className="w-6 h-6" />
+                            <span className="text-xs font-bold">留言板</span>
+                        </button>
+
+                        {/* 重新整理 */}
+                        <button onClick={() => { loadData(); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-green-50 rounded-xl text-gray-600 hover:text-green-600 transition-colors">
+                            <RefreshSvg className="w-6 h-6" />
+                            <span className="text-xs font-bold">重新整理</span>
+                        </button>
+
+                        {/* 懶人包 */}
+                        <button onClick={() => { setIsGalleryOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-yellow-50 rounded-xl text-gray-600 hover:text-yellow-600 transition-colors">
+                            <LightBulbIcon className="w-6 h-6" />
+                            <span className="text-xs font-bold">懶人包</span>
+                        </button>
+
+                        {/* 設定 */}
+                        <button onClick={() => { setIsUserModalOpen(true); setSettingsTab('users'); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-xl text-gray-600 hover:text-gray-900 transition-colors">
+                            <GearIcon className="w-6 h-6" />
+                            <span className="text-xs font-bold">{isSupervisor ? "人員管理" : "個人設定"}</span>
+                        </button>
+
+                        {/* 行事曆 */}
+                        <button onClick={() => { setIsCalendarOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-purple-50 rounded-xl text-gray-600 hover:text-purple-600 transition-colors">
+                            <CalendarIcon className="w-6 h-6" />
+                            <span className="text-xs font-bold">行事曆</span>
+                        </button>
+
+                         {/* 工時紀錄 (碼表) */}
+                         <button onClick={() => { setIsTimesheetOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-red-50 rounded-xl text-gray-600 hover:text-red-600 transition-colors">
+                            <ClockIcon className="w-6 h-6" />
+                            <span className="text-xs font-bold">工時紀錄</span>
+                        </button>
+
+                    </div>
+                )}
+            </div>
+
+            {/* 使用者頭像與登出 */}
+            <div className={`flex items-center gap-3 pr-4 pl-2 py-1.5 rounded-full ${isSupervisor ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
+                <img src={activeUser.avatar} alt="User" className="w-10 h-10 rounded-full border border-blue-100 object-cover" />
+                <span className="font-medium text-base hidden sm:inline">{currentUser.name}</span>
+            </div>
             <button onClick={onLogout} className="text-gray-500 hover:text-red-600 text-base font-medium transition-colors">登出</button>
+            
           </div>
         </div>
       </header>
