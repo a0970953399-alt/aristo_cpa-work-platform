@@ -493,8 +493,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             
             <button onClick={() => setIsGalleryOpen(true)} className="flex items-center gap-2 bg-yellow-500 text-white px-4 py-2 rounded-xl shadow-sm hover:bg-yellow-600 transition-all active:scale-95 text-base font-bold" title="懶人包"><LightBulbIcon className="w-5 h-5" /></button>
 
-            {isSupervisor && dbConnected && <button onClick={handleOpenMiscModal} className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl shadow-sm hover:bg-purple-700 transition-all active:scale-95 text-base font-bold"><LightningIcon className="w-5 h-5"/><span className="hidden sm:inline">臨時交辦</span><span className="sm:hidden">+</span></button>}
-
+            {isSupervisor && dbConnected && <button onClick={handleOpenMiscModal} className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl shadow-sm hover:bg-purple-700 transition-all active:scale-95 text-base font-bold"><span className="hidden sm:inline">臨時交辦</span><span className="sm:hidden">+</span></button>}
+              
             {!dbConnected ? <button title={permissionNeeded ? "點擊恢復連線" : "連結資料庫"} onClick={permissionNeeded ? handleRestoreClick : handleConnectDb} className={`flex items-center gap-2 px-4 py-2 rounded-xl transition-colors text-base font-medium hidden sm:flex ${permissionNeeded ? 'bg-blue-100 text-blue-800 animate-pulse' : 'bg-yellow-100 text-yellow-800 animate-pulse'}`}><FolderIcon className="w-6 h-6" /></button> : <button onClick={loadData} disabled={isLoading} className={`p-2 text-gray-400 hover:text-blue-500 transition-colors hidden sm:block ${isLoading ? 'animate-spin' : ''}`}><RefreshSvg className="w-7 h-7" /></button>}
 
             <button onClick={() => setIsCalendarOpen(true)} className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-blue-600 transition-colors" title="行事曆">
