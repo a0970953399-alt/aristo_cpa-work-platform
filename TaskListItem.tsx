@@ -34,15 +34,20 @@ export const TaskListItem: React.FC<TaskListItemProps> = ({ task, readOnly, isSu
                 )}
             </div>
             
-            {(task.note || !readOnly) && (
+            {/* 🔴 修改重點 1: 顯示條件改為 (有備註 OR 不是唯讀 OR 是主管) */}
+            {/* 這樣就算工讀生沒寫備註，主管也能看到這區塊 (為了看到刪除按鈕) */}
+            {(task.note || !readOnly || isSupervisor) && (
                 <div className="mt-3 bg-yellow-50 p-3 rounded-lg border border-yellow-100 text-lg text-gray-700 relative group flex justify-between items-start">
                     <span className="flex-1">{task.note ? task.note : <span className="text-gray-400 italic">尚無備註...</span>}</span>
                     <div className="flex gap-2">
-                        {!readOnly && (
+                        {/* 🔴 修改重點 2: 編輯按鈕條件改為 (不是唯讀 OR 是主管) */}
+                        {/* 這樣主管就能修改任何人的備註了 */}
+                        {(!readOnly || isSupervisor) && (
                             <button onClick={() => onEditNote(task)} className="p-1.5 bg-white rounded-full shadow-sm text-gray-400 hover:text-blue-600 transition-colors">
                                 <DocumentTextIcon className="w-5 h-5"/>
                             </button>
                         )}
+                        {/* 刪除按鈕維持原樣，只有主管看得到 */}
                         {isSupervisor && (
                             <button onClick={() => onDelete(task)} className="p-1.5 bg-white rounded-full shadow-sm text-gray-400 hover:text-red-600 transition-colors">
                                 <TrashIcon className="w-5 h-5"/>
