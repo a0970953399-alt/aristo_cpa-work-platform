@@ -16,6 +16,8 @@ import { MatrixView } from './MatrixView';
 import { CalendarView } from './CalendarView';
 import { ListView } from './ListView';
 import * as XLSX from 'xlsx';
+import { MailLogView } from './MailLogView';
+import { MailRecord } from './types'; // 引入類型
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const totalMinutes = i * 30;
@@ -128,6 +130,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [isAppMenuOpen, setIsAppMenuOpen] = useState(false); // ✨ 控制開始選單
   const appMenuRef = useRef<HTMLDivElement>(null); // ✨ 點擊外面自動關閉用
 
+  const [mailRecords, setMailRecords] = useState<MailRecord[]>([]);
+
   // 點擊外部關閉選單的特效 (加在 useEffect 區域)
   useEffect(() => {
       function handleClickOutside(event: MouseEvent) {
@@ -211,11 +215,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           const cData = await TaskService.fetchClients();
           const checkInData = await TaskService.fetchCheckIns();
           const messageData = await TaskService.fetchMessages();
+          const mailData = await TaskService.fetchMailRecords();    
           setTasks(prev => JSON.stringify(prev) !== JSON.stringify(tData) ? tData : prev); 
           setEvents(prev => JSON.stringify(prev) !== JSON.stringify(eData) ? eData : prev); 
           setClients(prev => JSON.stringify(prev) !== JSON.stringify(cData) ? cData : prev);
           setCheckInRecords(prev => JSON.stringify(prev) !== JSON.stringify(checkInData) ? checkInData : prev);
           setMessages(prev => JSON.stringify(prev) !== JSON.stringify(messageData) ? messageData : prev);
+          setMailRecords(prev => JSON.stringify(prev) !== JSON.stringify(mailData) ? mailData : prev);
       } catch (error) { 
           setDbConnected(false); setPermissionNeeded(true); 
       } 
