@@ -105,6 +105,7 @@ export const ListView: React.FC<ListViewProps> = ({
                             task={task} 
                             readOnly={task.assigneeId !== currentUser.id} 
                             isSupervisor={isSupervisor}
+                            users={users}
                             onUpdateStatus={onUpdateStatus}
                             onEditNote={onEditNote}
                             onDelete={onDelete}
