@@ -1,7 +1,7 @@
 import { Message } from './types';
 import { MessageBoard } from './MessageBoard';
 import { ChatBubbleIcon } from './Icons'; // 記得引入 Icon
-import { RefreshSvg, FolderIcon, LightningIcon, TrashIcon, UserGroupIcon, TableCellsIcon, ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, LockClosedIcon, CalendarIcon, LightBulbIcon, ClockIcon, DocumentTextIcon } from './Icons';
+import { RefreshSvg, FolderIcon, LightningIcon, TrashIcon, UserGroupIcon, TableCellsIcon, ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, LockClosedIcon, CalendarIcon, LightBulbIcon, ClockIcon, DocumentTextIcon,Squares2X2Icon } from './Icons';
 import { CheckInRecord } from './types'; // 記得加 CheckInRecord
 import { TimesheetView } from './TimesheetView'; // 引入新頁面
 // 在 Icons 引入區加入 ClockIcon (如果沒有這個icon，用 LightBulbIcon 代替也可以，或是加一個)
@@ -124,6 +124,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   // -----------------------------------------------------------
   const [messages, setMessages] = useState<Message[]>([]); // 存放留言
   const [isMessageBoardOpen, setIsMessageBoardOpen] = useState(false); // 控制開關
+
+  const [isAppMenuOpen, setIsAppMenuOpen] = useState(false); // ✨ 控制開始選單
+  const appMenuRef = useRef<HTMLDivElement>(null); // ✨ 點擊外面自動關閉用
+
+  // 點擊外部關閉選單的特效 (加在 useEffect 區域)
+  useEffect(() => {
+      function handleClickOutside(event: MouseEvent) {
+          if (appMenuRef.current && !appMenuRef.current.contains(event.target as Node)) {
+              setIsAppMenuOpen(false);
+          }
+      }
+      if (isAppMenuOpen) document.addEventListener("mousedown", handleClickOutside);
+      return () => document.removeEventListener("mousedown", handleClickOutside);
+  }, [isAppMenuOpen]);
 
   useEffect(() => {
     const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
