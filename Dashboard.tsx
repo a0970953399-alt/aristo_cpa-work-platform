@@ -248,70 +248,73 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
   const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } }
 
+// --- 📋 一鍵生成日報功能 (修正版) ---
   const handleGenerateDailyReport = async () => {
       const today = new Date();
-      // 格式化日期：2024/02/16
+      // 格式化日期：2026/02/16
       const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
       const checkDate = today.toDateString();
 
-      // 🔍 篩選邏輯：抓取「最後更新時間是今天」且「最後更新者是我」的任務
+      // 1. 抓取今天的任務
       const myTasks = tasks.filter(t => {
           if (!t.lastUpdatedAt) return false;
           const updateDate = new Date(t.lastUpdatedAt).toDateString();
+          // 確保是「今天」且「最後更新者是我」
           return t.lastUpdatedBy === currentUser.name && updateDate === checkDate;
       });
 
       if (myTasks.length === 0) {
-          alert("今天您還沒有更新任何工作紀錄喔！\n(系統是抓取「最後更新時間為今天」且「更新者是您」的任務)");
+          alert("今天您還沒有更新任何工作紀錄喔！");
           return;
       }
 
-      // 分類
+      // 2. 分類狀態
       const done = myTasks.filter(t => t.status === 'done' || t.isNA);
       const inProgress = myTasks.filter(t => t.status === 'in_progress');
       const todo = myTasks.filter(t => t.status === 'todo');
 
-      // 組合文字
+      // 3. 準備標題
       let report = `📅 ${dateString} 工作匯報 - ${currentUser.name}\n\n`;
 
-      // 輔助函式：格式化每一行
+      // ✨ 核心修改：定義每一行的文字格式
       const formatLine = (t: ClientTask) => {
-          // ✨ 這裡修改邏輯：如果是行政交辦 (MISC)，只顯示備註
-          if (t.category === 'MISC_TASK' || t.id.startsWith('misc_')) {
-              return `- 行政交辦：${t.note || '無內容'}\n`;
+          // 判斷是否為行政交辦 (檢查 ID 開頭 或 Category)
+          const isMisc = t.id.startsWith('misc_') || t.category === 'MISC_TASK';
+
+          if (isMisc) {
+              // 🔴 針對行政交辦：只顯示備註！
+              // 格式變成： "- 備註內容"
+              return `- ${t.note || '行政交辦 (無內容)'}\n`;
           }
-          // 一般任務維持原樣
+
+          // 🔵 針對一般客戶任務：維持原本格式
+          // 格式： "- 客戶名：分類 工作項目"
           return `- ${t.clientName}：${t.category} ${t.workItem} ${t.isNA ? '(N/A)' : ''}\n`;
       };
 
+      // 4. 組合內容
       if (done.length > 0) {
           report += `✅ 已完成：\n`;
-          done.forEach(t => {
-              report += `- ${t.clientName}：${t.category} ${t.workItem} ${t.isNA ? '(N/A)' : ''}\n`;
-          });
+          done.forEach(t => { report += formatLine(t); });
           report += `\n`;
       }
 
       if (inProgress.length > 0) {
           report += `🔄 進行中：\n`;
-          inProgress.forEach(t => {
-              report += `- ${t.clientName}：${t.category} ${t.workItem}\n`;
-          });
+          inProgress.forEach(t => { report += formatLine(t); });
           report += `\n`;
       }
 
       if (todo.length > 0) {
           report += `📝 其他/待辦：\n`;
-          todo.forEach(t => {
-              report += `- ${t.clientName}：${t.category} ${t.workItem}\n`;
-          });
+          todo.forEach(t => { report += formatLine(t); });
           report += `\n`;
       }
 
-      // 複製到剪貼簿
+      // 5. 複製到剪貼簿
       try {
           await navigator.clipboard.writeText(report);
-          alert("📋 工作匯報已複製到剪貼簿！\n您可以直接貼到 LINE 群組囉。");
+          alert("📋 工作匯報已複製到剪貼簿！");
       } catch (err) {
           console.error('Failed to copy: ', err);
           alert("複製失敗，請手動複製");
