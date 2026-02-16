@@ -24,6 +24,7 @@ interface DataStore {
     clientProfiles?: ClientProfile[];
     checkIns?: CheckInRecord[];
     messages?: Message[];
+    mailRecords?: MailRecord[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -73,7 +74,8 @@ const normalizeData = (raw: any): DataStore => {
         clients: Array.isArray(raw.clients) ? raw.clients : undefined,
         clientProfiles: Array.isArray(raw.clientProfiles) ? raw.clientProfiles : [],
         checkIns: Array.isArray(raw.checkIns) ? raw.checkIns : [],
-        messages: Array.isArray(raw.messages) ? raw.messages : []
+        messages: Array.isArray(raw.messages) ? raw.messages : [],
+        mailRecords: Array.isArray(raw.mailRecords) ? raw.mailRecords : []
     };
 };
 
@@ -494,3 +496,48 @@ async fetchClients(): Promise<Client[]> {
   }
 
 }; 
+
+// --- 📦 收發信件 API ---
+
+  async fetchMailRecords(): Promise<MailRecord[]> {
+      const data = await this.loadFullData();
+      return data.mailRecords || [];
+  },
+
+  async addMailRecord(record: MailRecord): Promise<MailRecord[]> {
+      const data = await this.loadFullData();
+      if (!data.mailRecords) data.mailRecords = [];
+      data.mailRecords.push(record);
+      await this.saveFullData(data);
+      return data.mailRecords;
+  },
+
+  // 批次匯入用
+  async addMailRecordsBatch(records: MailRecord[]): Promise<MailRecord[]> {
+      const data = await this.loadFullData();
+      if (!data.mailRecords) data.mailRecords = [];
+      data.mailRecords = [...data.mailRecords, ...records]; // 追加模式
+      await this.saveFullData(data);
+      return data.mailRecords;
+  },
+
+  async updateMailRecord(updated: MailRecord): Promise<MailRecord[]> {
+      const data = await this.loadFullData();
+      if (!data.mailRecords) return [];
+      const idx = data.mailRecords.findIndex(r => r.id === updated.id);
+      if (idx !== -1) {
+          data.mailRecords[idx] = updated;
+          await this.saveFullData(data);
+      }
+      return data.mailRecords;
+  },
+
+  async deleteMailRecord(id: string): Promise<MailRecord[]> {
+      const data = await this.loadFullData();
+      if (!data.mailRecords) return [];
+      data.mailRecords = data.mailRecords.filter(r => r.id !== id);
+      await this.saveFullData(data);
+      return data.mailRecords;
+  }
+
+}; // 👈 TaskService 結束
