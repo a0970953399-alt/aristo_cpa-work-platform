@@ -247,7 +247,67 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleInternNoteSubmit = async () => { if (!editingTask) return; setIsLoading(true); try { const updatedList = await TaskService.updateTaskNote(editingTask.id, modalNote, currentUser.name); setTasks(updatedList); setIsNoteEditModalOpen(false); setEditingTask(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
   const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
   const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } }
-  
+
+  const handleGenerateDailyReport = async () => {
+      const today = new Date();
+      // 格式化日期：2024/02/16
+      const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
+      const checkDate = today.toDateString();
+
+      // 🔍 篩選邏輯：抓取「最後更新時間是今天」且「最後更新者是我」的任務
+      const myTasks = tasks.filter(t => {
+          if (!t.lastUpdatedAt) return false;
+          const updateDate = new Date(t.lastUpdatedAt).toDateString();
+          return t.lastUpdatedBy === currentUser.name && updateDate === checkDate;
+      });
+
+      if (myTasks.length === 0) {
+          alert("今天您還沒有更新任何工作紀錄喔！\n(系統是抓取「最後更新時間為今天」且「更新者是您」的任務)");
+          return;
+      }
+
+      // 分類
+      const done = myTasks.filter(t => t.status === 'done' || t.isNA);
+      const inProgress = myTasks.filter(t => t.status === 'in_progress');
+      const todo = myTasks.filter(t => t.status === 'todo');
+
+      // 組合文字
+      let report = `📅 ${dateString} 工作匯報 - ${currentUser.name}\n\n`;
+
+      if (done.length > 0) {
+          report += `✅ 已完成：\n`;
+          done.forEach(t => {
+              report += `- ${t.clientName}：${t.category} ${t.workItem} ${t.isNA ? '(N/A)' : ''}\n`;
+          });
+          report += `\n`;
+      }
+
+      if (inProgress.length > 0) {
+          report += `🔄 進行中：\n`;
+          inProgress.forEach(t => {
+              report += `- ${t.clientName}：${t.category} ${t.workItem}\n`;
+          });
+          report += `\n`;
+      }
+
+      if (todo.length > 0) {
+          report += `📝 其他/待辦：\n`;
+          todo.forEach(t => {
+              report += `- ${t.clientName}：${t.category} ${t.workItem}\n`;
+          });
+          report += `\n`;
+      }
+
+      // 複製到剪貼簿
+      try {
+          await navigator.clipboard.writeText(report);
+          alert("📋 工作匯報已複製到剪貼簿！\n您可以直接貼到 LINE 群組囉。");
+      } catch (err) {
+          console.error('Failed to copy: ', err);
+          alert("複製失敗，請手動複製");
+      }
+  };
+    
   // Calendar Logic
   const handleDayClick = (dateStr: string) => { 
       if (!dbConnected) return; 
