@@ -544,9 +544,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       </header>
 
-     {/* ... 這裡原本是懶人包按鈕 ... */}
-        <button onClick={() => setIsGalleryOpen(true)} className="..." title="懶人包">...</button>
-
       {/* 2. Tabs - Fixed Below Header (Context Specific) */}
       {((isSupervisor && !showMyList) || (!isSupervisor && showOverview)) ? (
           <div className="flex-none bg-white border-b border-gray-200 z-40">
