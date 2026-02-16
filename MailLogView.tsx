@@ -128,7 +128,7 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate }) =
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden min-h-[600px] flex flex-col">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
             {/* Header & Tabs */}
             <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
