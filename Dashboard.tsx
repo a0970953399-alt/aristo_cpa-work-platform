@@ -533,6 +533,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 <span className="text-xl">⏱️</span>
             </button>
 
+            {/* ✨ 請把留言板按鈕貼在這裡 (設定按鈕的上面) ✨ */}
+            <button 
+                onClick={() => setIsMessageBoardOpen(true)} 
+                className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-all" 
+                title="事務所留言板"
+            >
+                <ChatBubbleIcon className="w-6 h-6" />
+            </button>
+              
             <button onClick={() => { setIsUserModalOpen(true); setSettingsTab('users'); }} className="flex items-center gap-2 px-3 py-2 rounded-xl text-gray-400 hover:bg-gray-100 hover:text-gray-600 transition-colors" title={isSupervisor ? "人員管理" : "個人設定"}>
                 <GearIcon className="w-7 h-7" />
             </button>
