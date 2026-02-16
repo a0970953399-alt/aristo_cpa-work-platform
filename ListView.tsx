@@ -1,4 +1,4 @@
-
+import { FunnelIcon, ChevronDownIcon, DocumentTextIcon } from './Icons';
 import React, { useRef, useState, useEffect } from 'react';
 import { ClientTask, TaskStatusType, User } from './types';
 import { FunnelIcon, ChevronDownIcon } from './Icons';
@@ -15,11 +15,12 @@ interface ListViewProps {
     onUpdateStatus: (task: ClientTask, newStatus: TaskStatusType) => void;
     onEditNote: (task: ClientTask) => void;
     onDelete: (task: ClientTask) => void;
+    onGenerateReport: () => void;
 }
 
 export const ListView: React.FC<ListViewProps> = ({
     tasks, currentUser, isSupervisor, currentYear, users, 
-    viewTargetId, setViewTargetId, onUpdateStatus, onEditNote, onDelete
+    viewTargetId, setViewTargetId, onUpdateStatus, onEditNote, onDelete, onGenerateReport
 }) => {
     const [filterStatus, setFilterStatus] = useState<'ALL' | TaskStatusType>('ALL');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -58,6 +59,20 @@ export const ListView: React.FC<ListViewProps> = ({
                 <div className="flex items-center justify-between sticky top-0 bg-gray-50 z-30 py-2 mb-4">
                     <h2 className="text-2xl font-bold text-gray-800 flex items-center gap-3">📋 {isSupervisor ? "每日進度監控" : "今日工作清單"} <span className="text-base font-normal text-gray-500 bg-gray-100 px-3 py-1 rounded-full">民國{currentYear}年</span></h2>
                     <div className="flex items-center gap-3">
+                        
+                        {/* ✨ 4. 修改這裡：新增這個「複製日報」小按鈕 */}
+                        <button 
+                            onClick={onGenerateReport} 
+                            className="bg-white border border-gray-300 p-2 rounded-xl text-gray-500 hover:text-green-600 hover:border-green-600 hover:bg-green-50 transition-all shadow-sm active:scale-95"
+                            title="複製今日工作匯報"
+                        >
+                            <DocumentTextIcon className="w-5 h-5" />
+                        </button>
+                        
+                        {/* Status Filter (原本的篩選器，不用動) */}
+                        <div className="relative" ref={statusFilterRef}>
+                            {/* ... */}
+                            
                         {/* Status Filter */}
                         <div className="relative" ref={statusFilterRef}>
                             <button onClick={() => setIsStatusFilterOpen(!isStatusFilterOpen)} className="flex items-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-xl text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors">
