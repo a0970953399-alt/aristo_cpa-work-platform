@@ -1,3 +1,6 @@
+import { Message } from './types';
+import { MessageBoard } from './MessageBoard';
+import { ChatBubbleIcon } from './Icons'; // 記得引入 Icon
 import { RefreshSvg, FolderIcon, LightningIcon, TrashIcon, UserGroupIcon, TableCellsIcon, ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, LockClosedIcon, CalendarIcon, LightBulbIcon, ClockIcon, DocumentTextIcon } from './Icons';
 import { CheckInRecord } from './types'; // 記得加 CheckInRecord
 import { TimesheetView } from './TimesheetView'; // 引入新頁面
@@ -119,6 +122,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const myTodayRecord = checkInRecords.find(r => r.userId === currentUser.id && r.date === todayStr);
   const isWorking = myTodayRecord && !myTodayRecord.endTime;
   // -----------------------------------------------------------
+  const [messages, setMessages] = useState<Message[]>([]); // 存放留言
+  const [isMessageBoardOpen, setIsMessageBoardOpen] = useState(false); // 控制開關
 
   useEffect(() => {
     const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -191,10 +196,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           const eData = await TaskService.fetchEvents(); 
           const cData = await TaskService.fetchClients();
           const checkInData = await TaskService.fetchCheckIns();
+          const messageData = await TaskService.fetchMessages();
           setTasks(prev => JSON.stringify(prev) !== JSON.stringify(tData) ? tData : prev); 
           setEvents(prev => JSON.stringify(prev) !== JSON.stringify(eData) ? eData : prev); 
           setClients(prev => JSON.stringify(prev) !== JSON.stringify(cData) ? cData : prev);
           setCheckInRecords(prev => JSON.stringify(prev) !== JSON.stringify(checkInData) ? checkInData : prev);
+          setMessages(prev => JSON.stringify(prev) !== JSON.stringify(messageData) ? messageData : prev);
       } catch (error) { 
           setDbConnected(false); setPermissionNeeded(true); 
       } 
