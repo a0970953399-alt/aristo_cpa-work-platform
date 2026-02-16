@@ -151,45 +151,99 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate }) =
                 </div>
             </div>
 
-            {/* Table */}
-            <div className="flex-1 overflow-auto">
-                <table className="w-full text-left border-collapse">
-                    <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase">
+            {/* Table Area */}
+            <div className="flex-1 overflow-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse min-w-[1000px]"> 
+                    {/* 👆 min-w-[1000px] 確保螢幕太小時，表格會出現橫向卷軸，而不會硬擠在一起 */}
+                    
+                    <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider">
                         <tr>
-                            <th className="p-3 border-b">日期</th>
-                            <th className="p-3 border-b w-1/4">文件名稱</th>
-                            <th className="p-3 border-b">{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱(請款)'}</th>
-                            <th className="p-3 border-b">{activeSubTab === 'inbound' ? '寄件者' : '收件者'}</th>
-                            {activeSubTab !== 'inbound' && <th className="p-3 border-b w-1/5">地址</th>}
-                            <th className="p-3 border-b">送件方式</th>
-                            {activeSubTab !== 'inbound' && <th className="p-3 border-b">金額</th>}
-                            <th className="p-3 border-b">單號</th>
-                            <th className="p-3 border-b w-20">操作</th>
+                            {/* 1. 日期：固定寬度，不准換行 */}
+                            <th className="p-3 border-b w-28 whitespace-nowrap">日期</th>
+                            
+                            {/* 2. 文件名稱：給予較大空間，但設最小寬度防止被擠扁 */}
+                            <th className="p-3 border-b min-w-[200px]">文件名稱</th>
+                            
+                            {/* 3. 客戶名稱：固定寬度 */}
+                            <th className="p-3 border-b w-32 min-w-[120px]">{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱(請款)'}</th>
+                            
+                            {/* 4. 收/寄件者：固定寬度 */}
+                            <th className="p-3 border-b w-32 min-w-[120px]">{activeSubTab === 'inbound' ? '寄件者' : '收件者'}</th>
+                            
+                            {/* 5. 地址：給予最大空間，但限制最大寬度避免撐爆版面 */}
+                            {activeSubTab !== 'inbound' && <th className="p-3 border-b w-[25%] min-w-[200px]">地址</th>}
+                            
+                            {/* 6. 送件方式：固定寬度，置中 */}
+                            <th className="p-3 border-b w-24 whitespace-nowrap text-center">送件方式</th>
+                            
+                            {/* 7. 金額：固定寬度，靠右 */}
+                            {activeSubTab !== 'inbound' && <th className="p-3 border-b w-20 text-right whitespace-nowrap">金額</th>}
+                            
+                            {/* 8. 單號：固定寬度，不准換行 */}
+                            <th className="p-3 border-b w-40 whitespace-nowrap">單號</th>
+                            
+                            {/* 9. 操作：固定寬度 */}
+                            <th className="p-3 border-b w-20 text-center">操作</th>
                         </tr>
                     </thead>
-                    <tbody className="text-sm divide-y divide-gray-100">
+                    
+                    <tbody className="text-sm divide-y divide-gray-100 bg-white">
                         {currentRecords.map(r => (
                             <tr key={r.id} className="hover:bg-blue-50 transition-colors group">
-                                <td className="p-3 text-gray-500 font-mono">{r.date}</td>
-                                <td className="p-3 font-medium text-gray-800">{r.fileName}</td>
-                                <td className="p-3 text-blue-600">{r.clientName}</td>
-                                <td className="p-3 text-gray-700">{r.counterpart}</td>
-                                {activeSubTab !== 'inbound' && <td className="p-3 text-gray-500 text-xs truncate max-w-[200px]" title={r.address}>{r.address}</td>}
-                                <td className="p-3">
-                                    <span className={`px-2 py-1 rounded text-xs font-bold ${r.method.includes('掛') ? 'bg-orange-100 text-orange-800' : r.method.includes('快遞') ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>
+                                {/* 日期 */}
+                                <td className="p-3 text-gray-500 font-mono whitespace-nowrap">{r.date}</td>
+                                
+                                {/* 文件名稱 (超過自動換行，保持可讀性) */}
+                                <td className="p-3 font-medium text-gray-800 break-words leading-relaxed">{r.fileName}</td>
+                                
+                                {/* 客戶 */}
+                                <td className="p-3 text-blue-600 font-medium truncate max-w-[120px]" title={r.clientName}>{r.clientName}</td>
+                                
+                                {/* 對方 */}
+                                <td className="p-3 text-gray-700 truncate max-w-[120px]" title={r.counterpart}>{r.counterpart}</td>
+                                
+                                {/* 地址 (重點：超過顯示...，滑鼠移過去才顯示全文，保持版面整潔) */}
+                                {activeSubTab !== 'inbound' && (
+                                    <td className="p-3 text-gray-500 text-xs">
+                                        <div className="truncate max-w-[250px]" title={r.address}>
+                                            {r.address}
+                                        </div>
+                                    </td>
+                                )}
+                                
+                                {/* 方式 */}
+                                <td className="p-3 text-center">
+                                    <span className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${r.method.includes('掛') ? 'bg-orange-100 text-orange-800' : r.method.includes('快遞') ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>
                                         {r.method}
                                     </span>
                                 </td>
-                                {activeSubTab !== 'inbound' && <td className="p-3 font-mono font-bold text-gray-700">{r.amount ? `$${r.amount}` : '-'}</td>}
-                                <td className="p-3 font-mono text-xs text-gray-500">{r.trackingNumber || '-'}</td>
-                                <td className="p-3 flex gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                    <button onClick={() => { setEditingRecord(r); setIsModalOpen(true); }} className="p-1 text-gray-400 hover:text-blue-600"><PencilIcon className="w-4 h-4"/></button>
-                                    <button onClick={() => handleDelete(r.id)} className="p-1 text-gray-400 hover:text-red-600"><TrashIcon className="w-4 h-4"/></button>
+                                
+                                {/* 金額 */}
+                                {activeSubTab !== 'inbound' && <td className="p-3 font-mono font-bold text-gray-700 text-right">{r.amount ? `$${r.amount}` : '-'}</td>}
+                                
+                                {/* 單號 */}
+                                <td className="p-3 font-mono text-xs text-gray-500 whitespace-nowrap" title={r.trackingNumber}>
+                                    {r.trackingNumber ? (
+                                        <span className="bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
+                                            {r.trackingNumber.length > 15 ? r.trackingNumber.substring(0, 15) + '...' : r.trackingNumber}
+                                        </span>
+                                    ) : '-'}
+                                </td>
+                                
+                                {/* 操作 */}
+                                <td className="p-3 text-center">
+                                    <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                        <button onClick={() => { setEditingRecord(r); setIsModalOpen(true); }} className="p-1.5 bg-white border rounded hover:bg-blue-50 text-blue-600 transition-colors shadow-sm"><PencilIcon className="w-4 h-4"/></button>
+                                        <button onClick={() => handleDelete(r.id)} className="p-1.5 bg-white border rounded hover:bg-red-50 text-red-600 transition-colors shadow-sm"><TrashIcon className="w-4 h-4"/></button>
+                                    </div>
                                 </td>
                             </tr>
                         ))}
                         {currentRecords.length === 0 && (
-                            <tr><td colSpan={10} className="p-10 text-center text-gray-400">尚無資料，請新增或匯入</td></tr>
+                            <tr><td colSpan={10} className="p-20 text-center text-gray-400 flex-col items-center">
+                                <div className="text-4xl mb-2">📭</div>
+                                <div>尚無資料，請新增或匯入</div>
+                            </td></tr>
                         )}
                     </tbody>
                 </table>
