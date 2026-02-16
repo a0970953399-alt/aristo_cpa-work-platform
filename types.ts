@@ -108,3 +108,19 @@ export interface Message {
     authorName: string;
     createdAt: string; // ISO 時間格式
 }
+
+// ✨ 新增：收發信件相關定義
+export type MailCategory = 'aristo_out' | 'lawyer_out' | 'inbound'; // 碩業寄件 | 張律師寄件 | 收文
+
+export interface MailRecord {
+    id: string;
+    date: string;          // 日期
+    fileName: string;      // 文件名稱
+    clientName: string;    // 客戶名稱 (寄件=請款對象, 收件=收件客戶)
+    counterpart: string;   // 對方名稱 (寄件=收件者, 收件=寄件者)
+    address?: string;      // 地址 (僅寄件需要)
+    method: string;        // 送件方式 (普掛/快遞...)
+    amount?: string;       // 金額 (僅寄件需要)
+    trackingNumber?: string; // 單號
+    category: MailCategory; // 分類
+}
