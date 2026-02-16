@@ -580,6 +580,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 onUpdateStatus={handleUpdateStatus}
                 onEditNote={openInternNoteEdit}
                 onDelete={(t) => { setTaskToDelete(t); setIsDeleteModalOpen(true); }}
+                onGenerateReport={handleGenerateDailyReport}
             />
         )}
       </main>
