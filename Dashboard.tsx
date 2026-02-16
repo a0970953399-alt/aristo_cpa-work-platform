@@ -306,7 +306,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       }
 
       if (todo.length > 0) {
-          report += `📝 其他/待辦：\n`;
+          report += `📝 待辦：\n`;
           todo.forEach(t => { report += formatLine(t); });
           report += `\n`;
       }
