@@ -1119,6 +1119,16 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           />
       )}
       {/* ----------------------------------------------------------- */}
+
+        {/* Message Board Modal */}
+      {isMessageBoardOpen && (
+          <MessageBoard 
+              currentUser={currentUser}
+              messages={messages}
+              onUpdate={loadData}
+              onClose={() => setIsMessageBoardOpen(false)}
+          />
+      )}
         
       <style>{`
           @keyframes slideInRight {
