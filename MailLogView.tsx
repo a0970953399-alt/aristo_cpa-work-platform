@@ -151,38 +151,43 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate }) =
                 </div>
             </div>
 
-            {/* Table Area */}
+{/* Table Area */}
             <div className="flex-1 overflow-auto custom-scrollbar">
                 <table className="w-full text-left border-collapse min-w-[1000px]"> 
-                    {/* 👆 min-w-[1000px] 確保螢幕太小時，表格會出現橫向卷軸，而不會硬擠在一起 */}
                     
                     <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider">
                         <tr>
-                            {/* 1. 日期：固定寬度，不准換行 */}
+                            {/* 1. 日期：固定寬度 */}
                             <th className="p-3 border-b w-28 whitespace-nowrap">日期</th>
                             
-                            {/* 2. 文件名稱：給予較大空間，但設最小寬度防止被擠扁 */}
-                            <th className="p-3 border-b min-w-[200px]">文件名稱</th>
+                            {/* 2. 文件名稱：收文表時給予超大空間 (30%以上)，寄件時給一般空間 */}
+                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[35%] min-w-[300px]' : 'min-w-[200px]'}`}>文件名稱</th>
                             
-                            {/* 3. 客戶名稱：固定寬度 */}
-                            <th className="p-3 border-b w-32 min-w-[120px]">{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱(請款)'}</th>
+                            {/* 3. 客戶名稱：收文表時加寬 */}
+                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>
+                                {activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱(請款)'}
+                            </th>
                             
-                            {/* 4. 收/寄件者：固定寬度 */}
-                            <th className="p-3 border-b w-32 min-w-[120px]">{activeSubTab === 'inbound' ? '寄件者' : '收件者'}</th>
+                            {/* 4. 寄件者/收件者：收文表時加寬 */}
+                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>
+                                {activeSubTab === 'inbound' ? '寄件者' : '收件者'}
+                            </th>
                             
-                            {/* 5. 地址：給予最大空間，但限制最大寬度避免撐爆版面 */}
+                            {/* 5. 地址 (寄件專用) */}
                             {activeSubTab !== 'inbound' && <th className="p-3 border-b w-[25%] min-w-[200px]">地址</th>}
                             
-                            {/* 6. 送件方式：固定寬度，置中 */}
+                            {/* 6. 送件方式 */}
                             <th className="p-3 border-b w-24 whitespace-nowrap text-center">送件方式</th>
                             
-                            {/* 7. 金額：固定寬度，靠右 */}
+                            {/* 7. 金額 (寄件專用) */}
                             {activeSubTab !== 'inbound' && <th className="p-3 border-b w-20 text-right whitespace-nowrap">金額</th>}
                             
-                            {/* 8. 單號：固定寬度，不准換行 */}
-                            <th className="p-3 border-b w-40 whitespace-nowrap">單號</th>
+                            {/* 8. 單號：收文表時因為欄位少，可以給稍微寬一點 */}
+                            <th className={`p-3 border-b whitespace-nowrap ${activeSubTab === 'inbound' ? 'w-auto min-w-[180px]' : 'w-40'}`}>
+                                {activeSubTab === 'inbound' ? '掛號編號' : '單號'}
+                            </th>
                             
-                            {/* 9. 操作：固定寬度 */}
+                            {/* 9. 操作 */}
                             <th className="p-3 border-b w-20 text-center">操作</th>
                         </tr>
                     </thead>
@@ -190,19 +195,14 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate }) =
                     <tbody className="text-sm divide-y divide-gray-100 bg-white">
                         {currentRecords.map(r => (
                             <tr key={r.id} className="hover:bg-blue-50 transition-colors group">
-                                {/* 日期 */}
                                 <td className="p-3 text-gray-500 font-mono whitespace-nowrap">{r.date}</td>
                                 
-                                {/* 文件名稱 (超過自動換行，保持可讀性) */}
                                 <td className="p-3 font-medium text-gray-800 break-words leading-relaxed">{r.fileName}</td>
                                 
-                                {/* 客戶 */}
-                                <td className="p-3 text-blue-600 font-medium truncate max-w-[120px]" title={r.clientName}>{r.clientName}</td>
+                                <td className="p-3 text-blue-600 font-medium truncate" title={r.clientName}>{r.clientName}</td>
                                 
-                                {/* 對方 */}
-                                <td className="p-3 text-gray-700 truncate max-w-[120px]" title={r.counterpart}>{r.counterpart}</td>
+                                <td className="p-3 text-gray-700 truncate" title={r.counterpart}>{r.counterpart}</td>
                                 
-                                {/* 地址 (重點：超過顯示...，滑鼠移過去才顯示全文，保持版面整潔) */}
                                 {activeSubTab !== 'inbound' && (
                                     <td className="p-3 text-gray-500 text-xs">
                                         <div className="truncate max-w-[250px]" title={r.address}>
@@ -211,26 +211,22 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate }) =
                                     </td>
                                 )}
                                 
-                                {/* 方式 */}
                                 <td className="p-3 text-center">
                                     <span className={`px-2 py-1 rounded text-xs font-bold whitespace-nowrap ${r.method.includes('掛') ? 'bg-orange-100 text-orange-800' : r.method.includes('快遞') ? 'bg-purple-100 text-purple-800' : 'bg-gray-100 text-gray-600'}`}>
                                         {r.method}
                                     </span>
                                 </td>
                                 
-                                {/* 金額 */}
                                 {activeSubTab !== 'inbound' && <td className="p-3 font-mono font-bold text-gray-700 text-right">{r.amount ? `$${r.amount}` : '-'}</td>}
                                 
-                                {/* 單號 */}
                                 <td className="p-3 font-mono text-xs text-gray-500 whitespace-nowrap" title={r.trackingNumber}>
                                     {r.trackingNumber ? (
                                         <span className="bg-gray-50 px-1.5 py-0.5 rounded border border-gray-200">
-                                            {r.trackingNumber.length > 15 ? r.trackingNumber.substring(0, 15) + '...' : r.trackingNumber}
+                                            {r.trackingNumber}
                                         </span>
                                     ) : '-'}
                                 </td>
                                 
-                                {/* 操作 */}
                                 <td className="p-3 text-center">
                                     <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
                                         <button onClick={() => { setEditingRecord(r); setIsModalOpen(true); }} className="p-1.5 bg-white border rounded hover:bg-blue-50 text-blue-600 transition-colors shadow-sm"><PencilIcon className="w-4 h-4"/></button>
@@ -248,7 +244,7 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate }) =
                     </tbody>
                 </table>
             </div>
-
+          
             {/* Add/Edit Modal */}
             {isModalOpen && (
                 <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsModalOpen(false)}>
