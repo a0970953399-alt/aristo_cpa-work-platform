@@ -22,9 +22,9 @@ export const USERS: User[] = [
   },
   {
     id: 'u3',
-    name: "吳東燁",
+    name: "吳東曄",
     role: UserRole.INTERN,
-    avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=吳東燁&backgroundColor=c0aede&radius=50',
+    avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=吳東曄&backgroundColor=c0aede&radius=50',
     pin: DEFAULT_PIN
   },
   {
