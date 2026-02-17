@@ -78,29 +78,23 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
             await workbook.xlsx.load(arrayBuffer);
 
             // ==========================================
-            // SHEET 1: 請款單 (使用 worksheets[0] 抓第一個分頁)
+            // SHEET 1: 請款單
             // ==========================================
-            const sheet1 = workbook.worksheets[0]; // 👈 強制抓第一個分頁，最保險
+            const sheet1 = workbook.worksheets[0]; // 抓第1頁
             if (sheet1) {
-                // 📍 座標設定 (依照您的指示)
-                const CELL_CLIENT = 'A8';  // ((客戶名稱))
-                const CELL_DATE   = 'C8';  // 日期：((日期))
-                const CELL_NO     = 'C10'; // 單號：((單號))
+                // 座標
+                const CELL_CLIENT = 'A8';
+                const CELL_DATE   = 'C8';
+                const CELL_NO     = 'C10';
+                const ROW_ITEMS   = 12; // A12 開始
                 
-                const ROW_ITEMS   = 12;    // 承辦事項從 A12 開始
-                
-                const CELL_TOTAL1 = 'B20'; // 業務收入總額
-                const CELL_TOTAL2 = 'B23'; // 代收代付 (要跟代墊款總額一樣)
-                const CELL_TOTAL3 = 'B27'; // 應收金額合計
-                const CELL_TAX    = 'B29'; // 扣繳稅款備註
-
-                // 填寫基本資料
+                // 填寫基本資料 (保持原格式，只換字)
                 sheet1.getCell(CELL_CLIENT).value = `${clientName}`; 
                 sheet1.getCell(CELL_DATE).value   = `日期：${invoiceDate}`; 
                 sheet1.getCell(CELL_NO).value     = `單號：${invoiceNo}`;
 
-                // 填寫承辦事項 (從 A12 開始)
-                // 先清空 A12 ~ A19 (清乾淨避免殘留)
+                // 填寫承辦事項 (重點修正：自動換行)
+                // 先清空舊資料
                 for(let i=0; i<8; i++) {
                     sheet1.getCell(`A${ROW_ITEMS+i}`).value = '';
                     sheet1.getCell(`B${ROW_ITEMS+i}`).value = '';
@@ -110,38 +104,47 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                 items.forEach((item, index) => {
                     const row = ROW_ITEMS + index;
                     if (item.description) {
-                        sheet1.getCell(`A${row}`).value = `${index + 1}. ${item.description}`;
-                        sheet1.getCell(`B${row}`).value = item.amount;
+                        const cellDesc = sheet1.getCell(`A${row}`);
+                        cellDesc.value = `${index + 1}. ${item.description}`;
+                        
+                        // 🔧 強制設定樣式：自動換行、垂直置中、靠左、新細明體
+                        cellDesc.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+                        cellDesc.font = { name: '新細明體', size: 12 };
+
+                        const cellAmount = sheet1.getCell(`B${row}`);
+                        cellAmount.value = item.amount;
+                        cellAmount.font = { name: '新細明體', size: 12 };
+                        cellAmount.alignment = { vertical: 'middle', horizontal: 'right' };
                     }
                 });
 
                 // 填寫金額統計
-                sheet1.getCell(CELL_TOTAL1).value = serviceTotal; 
-                sheet1.getCell(CELL_TOTAL2).value = advanceTotal; // 這裡填入代墊款總額
-                sheet1.getCell(CELL_TOTAL3).value = grandTotal;
+                sheet1.getCell('B20').value = serviceTotal; 
+                sheet1.getCell('B23').value = advanceTotal;
+                sheet1.getCell('B27').value = grandTotal;
 
                 // 填寫稅額備註
+                const cellTax = sheet1.getCell('B29');
                 if (taxAmount > 0) {
-                    sheet1.getCell(CELL_TAX).value = `(本所依法自行繳納$${taxAmount.toLocaleString()}之扣繳稅款)`;
+                    cellTax.value = `(本所依法自行繳納$${taxAmount.toLocaleString()}之扣繳稅款)`;
+                    cellTax.font = { name: '新細明體', size: 10 }; // 備註字體稍微小一點比較好看
                 } else {
-                    sheet1.getCell(CELL_TAX).value = '';
+                    cellTax.value = '';
                 }
             }
 
             // ==========================================
-            // SHEET 2: 代墊單 (動態伸縮功能)
+            // SHEET 2: 代墊單 (重點修正：框線)
             // ==========================================
-            // 嘗試抓第二個分頁
-            const sheet2 = workbook.worksheets[1]; 
+            const sheet2 = workbook.worksheets[1]; // 抓第2頁
             if (sheet2 && advances.length > 0) {
-                // 1. 填寫標題
+                // 標題
                 sheet2.getCell('A1').value = `公司名稱 : ${clientName}`; 
 
-                // 2. 準備填寫資料 (從第 4 列開始)
                 const startRow = 4;
                 
-                // 定義邊框樣式 (Thin Border)
-                const borderStyle: Partial<ExcelJS.Borders> = {
+                // 定義框線樣式
+                const borderThin: Partial<ExcelJS.Borders> = {
                     top: { style: 'thin' },
                     left: { style: 'thin' },
                     bottom: { style: 'thin' },
@@ -154,19 +157,19 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     const [y, m, d] = row.date.split('-');
                     const rocDate = `${Number(y)-1911}/${m}/${d}`;
                     
-                    // 填寫內容
+                    // 填值
                     sheet2.getCell(`A${currentRow}`).value = rocDate;
                     sheet2.getCell(`B${currentRow}`).value = Number(row.amount);
                     sheet2.getCell(`C${currentRow}`).value = row.category;
                     sheet2.getCell(`D${currentRow}`).value = row.description;
                     sheet2.getCell(`E${currentRow}`).value = row.note;
 
-                    // 🖌️ 自動畫線：確保每一格都有框線
+                    // 🔧 畫細框線 & 設定字體
                     ['A','B','C','D','E'].forEach(col => {
-                        sheet2.getCell(`${col}${currentRow}`).border = borderStyle;
-                        // 設定字體大小 (預防跑掉)
-                        sheet2.getCell(`${col}${currentRow}`).font = { name: '新細明體', size: 12 };
-                        sheet2.getCell(`${col}${currentRow}`).alignment = { vertical: 'middle', horizontal: col === 'D' ? 'left' : 'center' };
+                        const cell = sheet2.getCell(`${col}${currentRow}`);
+                        cell.border = borderThin;
+                        cell.font = { name: '新細明體', size: 12 };
+                        cell.alignment = { vertical: 'middle', horizontal: col === 'D' ? 'left' : 'center', wrapText: true };
                     });
                 });
 
@@ -176,13 +179,25 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                 sheet2.getCell(`A${totalRowIndex}`).value = '小計';
                 sheet2.getCell(`B${totalRowIndex}`).value = advanceTotal;
                 
-                // 幫小計這一行也畫線
+                // 🔧 畫框線 (重點：底部雙線)
+                // 定義雙線樣式
+                const borderTotal: Partial<ExcelJS.Borders> = {
+                    top: { style: 'thin' },
+                    left: { style: 'thin' },
+                    bottom: { style: 'double' }, // ✨ 雙框線
+                    right: { style: 'thin' }
+                };
+
                 ['A','B','C','D','E'].forEach(col => {
-                    sheet2.getCell(`${col}${totalRowIndex}`).border = borderStyle;
-                    sheet2.getCell(`${col}${totalRowIndex}`).font = { name: '新細明體', size: 12, bold: true };
+                    const cell = sheet2.getCell(`${col}${totalRowIndex}`);
+                    cell.border = borderTotal;
+                    cell.font = { name: '新細明體', size: 12, bold: true };
+                    cell.alignment = { vertical: 'middle', horizontal: 'center' };
+                    // 如果是空值也要畫線
+                    if (!cell.value) cell.value = ''; 
                 });
                 
-                // 5. 清除更下面的殘留資料 (往下清空 20 行，確保乾淨)
+                // 5. 清除更下面的殘留資料
                 for (let i = totalRowIndex + 1; i < totalRowIndex + 20; i++) {
                      ['A','B','C','D','E'].forEach(col => {
                          const cell = sheet2.getCell(`${col}${i}`);
@@ -211,7 +226,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                 
                 {/* Header */}
                 <div className="bg-gray-800 text-white p-4 flex justify-between items-center shrink-0">
-                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器 (Excel 填充模式)</h2>
+                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器 (完美邊框版)</h2>
                     <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1">✕</button>
                 </div>
 
@@ -237,11 +252,11 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                             
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-500 mb-1">客戶抬頭 (A8)</label>
+                                    <label className="block text-sm font-bold text-gray-500 mb-1">客戶抬頭</label>
                                     <input value={clientName} onChange={e => setClientName(e.target.value)} className="w-full p-2 border rounded-lg" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-500 mb-1">請款日期 (C8)</label>
+                                    <label className="block text-sm font-bold text-gray-500 mb-1">請款日期</label>
                                     <input value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="w-full p-2 border rounded-lg" />
                                 </div>
                             </div>
@@ -272,7 +287,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
 
                         {/* Right: Items & Actions */}
                         <div className="space-y-4">
-                            <h3 className="font-bold text-gray-700 border-b pb-2">2. 填寫業務費用 (A12)</h3>
+                            <h3 className="font-bold text-gray-700 border-b pb-2">2. 填寫業務費用</h3>
                             <div className="bg-white p-4 rounded-xl border shadow-sm space-y-2">
                                 {items.map((item, idx) => (
                                     <div key={idx} className="flex gap-2">
@@ -301,13 +316,13 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                                     </div>
                                 ))}
                                 <div className="flex justify-between items-center pt-2 border-t mt-2">
-                                    <span className="text-gray-500 font-bold">業務費總計 (B20)</span>
+                                    <span className="text-gray-500 font-bold">業務費總計</span>
                                     <span className="font-bold text-lg">${serviceTotal.toLocaleString()}</span>
                                 </div>
                             </div>
                             
                             <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-1">代繳稅款備註 (B29)</label>
+                                <label className="block text-sm font-bold text-gray-500 mb-1">代繳稅款備註</label>
                                 <input type="number" value={taxAmount || ''} onChange={e => setTaxAmount(Number(e.target.value))} className="w-full p-2 border rounded-lg" placeholder="0" />
                                 <p className="text-xs text-gray-400 mt-1">若為 0 則不顯示</p>
                             </div>
