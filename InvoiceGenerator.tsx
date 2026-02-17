@@ -97,9 +97,9 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
         try {
             const workbook = new ExcelJS.Workbook();
             
-            // 使用淨化後的 Buffer 載入
-            const buffer = getCleanBuffer(TEMPLATE_BASE64);
-            await workbook.xlsx.load(buffer);
+            // 修正點：變數改名為 templateBuffer
+            const templateBuffer = getCleanBuffer(TEMPLATE_BASE64);
+            await workbook.xlsx.load(templateBuffer);
 
             // ==========================================
             // SHEET 1: 請款單
@@ -153,8 +153,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                          const newText = originalText.replace('((稅款))', taxAmount.toLocaleString());
                          cellTax.value = newText;
                     } else {
-                         // 如果使用者忘了在模版加 ((稅款))，就直接附加在後面，至少不會沒顯示
-                         // 但這是不完美的 fallback
+                         // Fallback
                          cellTax.value = `(本所依法自行繳納$${taxAmount.toLocaleString()}之扣繳稅款)`;
                     }
                     cellTax.font = { name: '新細明體', size: 10 }; 
@@ -223,8 +222,9 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                 }
             }
 
-            const buffer = await workbook.xlsx.writeBuffer();
-            saveAs(new Blob([buffer]), `${clientName}_請款單_${invoiceDate}.xlsx`);
+            // 修正點：變數改名為 outputBuffer
+            const outputBuffer = await workbook.xlsx.writeBuffer();
+            saveAs(new Blob([outputBuffer]), `${clientName}_請款單_${invoiceDate}.xlsx`);
             
         } catch (error: any) {
             console.error(error);
