@@ -36,16 +36,15 @@ type ViewMode = 'dashboard' | 'shuoye' | 'yongye' | 'puhe' | 'client_detail';
 export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUpdate, isSupervisor }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-    const [sortDesc, setSortDesc] = useState(false); // ✨ 預設升序 (舊->新) 符合會計習慣
+    const [sortDesc, setSortDesc] = useState(false); // 預設升序
     
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingRecord, setEditingRecord] = useState<CashRecord | null>(null);
-    const [isProcessing, setIsProcessing] = useState(false); // 防止重複點擊
+    const [isProcessing, setIsProcessing] = useState(false);
 
-    // --- 資料處理邏輯 ---
+    // --- 資料處理邏輯 (核心修改) ---
 
-    // 取得當前顯示的紀錄
     const currentRecords = useMemo(() => {
         let filtered = [];
         if (viewMode === 'shuoye') {
@@ -57,21 +56,58 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
         } else if (viewMode === 'client_detail' && selectedClient) {
             filtered = records.filter(r => r.clientId === selectedClient.id);
         }
-        
-        // ✨ 排序邏輯：根據 sortDesc 切換
-        return filtered.sort((a, b) => {
-            const dateA = new Date(a.date).getTime();
-            const dateB = new Date(b.date).getTime();
-            return sortDesc ? dateB - dateA : dateA - dateB;
-        });
+
+        // ✨ 特殊排序邏輯：客戶代墊頁面
+        if (viewMode === 'client_detail') {
+            // 1. 將有 RequestId 的分組，沒有的當作獨立個體
+            const groups: { [key: string]: CashRecord[] } = {};
+            const singles: CashRecord[] = [];
+
+            filtered.forEach(r => {
+                if (r.requestId) {
+                    if (!groups[r.requestId]) groups[r.requestId] = [];
+                    groups[r.requestId].push(r);
+                } else {
+                    singles.push(r);
+                }
+            });
+
+            // 2. 群組「內部」永遠保持「日期升序 (舊->新)」，確保 1, 2, 3 順序邏輯正確
+            Object.values(groups).forEach(group => {
+                group.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            });
+
+            // 3. 準備排序「群組塊」
+            // 為了排序，我們需要找出每個群組的「代表日期」（例如群組內的第一個日期）
+            const blocks = [
+                ...Object.values(groups),
+                ...singles.map(s => [s]) // 單個項目也視為一個 array
+            ];
+
+            // 4. 群組「之間」依照使用者設定 (sortDesc) 排序
+            blocks.sort((blockA, blockB) => {
+                // 取該區塊的第一筆日期來比較
+                const dateA = new Date(blockA[0].date).getTime();
+                const dateB = new Date(blockB[0].date).getTime();
+                return sortDesc ? dateB - dateA : dateA - dateB;
+            });
+
+            // 5. 攤平回傳
+            return blocks.flat();
+
+        } else {
+            // 一般頁面 (碩業/永業...) 維持原本的單純日期排序
+            return filtered.sort((a, b) => {
+                const dateA = new Date(a.date).getTime();
+                const dateB = new Date(b.date).getTime();
+                return sortDesc ? dateB - dateA : dateA - dateB;
+            });
+        }
     }, [records, viewMode, selectedClient, sortDesc]);
 
     // 計算結餘 (僅針對內部帳本)
     const recordsWithBalance = useMemo(() => {
         if (viewMode === 'client_detail') return currentRecords;
-        
-        // 結餘必須永遠是「從舊到新」累加，所以如果現在是降序顯示，我們要先反轉回來算，算完再反轉回去
-        // 但為了顯示正確，通常會計帳本建議「舊 -> 新」排列
         
         let balance = 0;
         // 先強制用「舊 -> 新」來算結餘
@@ -83,8 +119,9 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
             return { ...r, currentBalance: balance };
         });
 
-        // 算完後，如果使用者選「新 -> 舊」，再反轉回來顯示
-        return sortDesc ? calculated.reverse() : calculated;
+        // 算完後，如果使用者選「新 -> 舊」且不是客戶頁面，再反轉回來顯示
+        // (注意：客戶頁面因為上面已經排好特殊的 group order，所以不參與這裡的反轉)
+        return (sortDesc && viewMode !== 'client_detail') ? calculated.reverse() : (viewMode === 'client_detail' ? currentRecords : calculated);
     }, [currentRecords, viewMode, sortDesc]);
 
 
@@ -102,10 +139,9 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
         }
     };
 
-    // ✨ 快速切換「已請款」狀態
     const handleToggleReimbursed = async (record: CashRecord) => {
         if (!isSupervisor || isProcessing) return;
-        setIsProcessing(true); // 鎖定
+        setIsProcessing(true);
         try {
             const updated = { ...record, isReimbursed: !record.isReimbursed };
             await TaskService.updateCashRecord(updated);
@@ -113,7 +149,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
         } catch (e) {
             alert("更新失敗");
         } finally {
-            setIsProcessing(false); // 解鎖
+            setIsProcessing(false);
         }
     };
 
@@ -123,7 +159,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     if (viewMode === 'dashboard') {
         return (
             <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
-                {/* 🅰️ 上半部：事務所金庫區 */}
                 <div className="p-6 pb-2">
                     <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
                         <BanknotesIcon className="w-5 h-5" /> 事務所帳本
@@ -153,7 +188,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </div>
                 </div>
 
-                {/* 🅱️ 下半部：客戶代墊監控區 */}
                 <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
                     <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm sticky top-0 bg-gray-50 z-10 py-2">
                         <span className="text-xl">👥</span> 客戶代墊紀錄
@@ -177,8 +211,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
         );
     }
 
-    // 2. 詳細頁面 (Master / Client Detail)
-    
+    // 2. 詳細頁面
     let pageTitle = '';
     let headerColor = '';
     if (viewMode === 'shuoye') { pageTitle = '碩業零用金 (總帳)'; headerColor = 'bg-purple-600'; }
@@ -188,7 +221,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
     return (
         <div className="h-full flex flex-col bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
-            {/* Header */}
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                 <div className="flex items-center gap-3">
                     <button onClick={() => { setViewMode('dashboard'); setSelectedClient(null); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
@@ -198,7 +230,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 </div>
                 
                 <div className="flex items-center gap-2">
-                    {/* ✨ 日期排序按鈕 */}
                     <button onClick={() => setSortDesc(!sortDesc)} className="flex items-center gap-1 px-3 py-2 bg-white border rounded-lg hover:bg-gray-50 text-gray-600 text-sm font-bold shadow-sm">
                         <SortIcon className="w-4 h-4" /> {sortDesc ? "日期：新→舊" : "日期：舊→新"}
                     </button>
@@ -211,7 +242,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 </div>
             </div>
 
-            {/* Table Area */}
             <div className="flex-1 overflow-auto custom-scrollbar">
                 <table className="w-full text-left border-collapse min-w-[1000px]">
                     <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider shadow-sm">
@@ -246,13 +276,16 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             let showSeparator = false;
                             let autoIndex = 1;
                             
-                            // 只有在客戶視圖，且是「日期升序 (舊->新)」的時候，才顯示藍色分隔線
-                            // 因為如果日期倒過來，分組邏輯會變得很怪
-                            if (viewMode === 'client_detail' && !sortDesc) {
+                            // ✨ 修改：移除 !sortDesc 限制，讓分隔線永遠顯示
+                            if (viewMode === 'client_detail') {
+                                // 因為現在 currentRecords 已經依照 Group 排好了，所以相同 ID 一定會黏在一起
                                 const sameReq = recordsWithBalance.filter((item: any) => item.requestId === r.requestId && item.requestId);
                                 if (r.requestId) {
+                                    // 找出自己在同組內的順序 (因為同組內永遠是升序，所以一定是 1,2,3...)
                                     autoIndex = sameReq.findIndex((item: any) => item.id === r.id) + 1;
                                 }
+                                
+                                // 檢查上一筆資料的 ID 是否跟我不一樣，不一樣就畫線
                                 if (index > 0) {
                                     const prev = recordsWithBalance[index - 1];
                                     if (prev.requestId !== r.requestId) showSeparator = true;
@@ -299,7 +332,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                                 
                                                 {viewMode === 'shuoye' && (
                                                     <td className="p-3 text-center">
-                                                        {/* ✨ 直接點擊 Checkbox 更新狀態 */}
                                                         <input 
                                                             type="checkbox" 
                                                             checked={!!r.isReimbursed} 
@@ -339,7 +371,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
                         <form onSubmit={async (e) => {
                             e.preventDefault();
-                            setIsProcessing(true); // 🔒 鎖定，防止重複提交
+                            setIsProcessing(true);
                             const formData = new FormData(e.currentTarget);
                             
                             let finalAccount: CashAccountType = viewMode === 'client_detail' ? 'shuoye' : (viewMode as CashAccountType);
@@ -373,7 +405,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 onUpdate();
                                 setIsModalOpen(false);
                             } finally {
-                                setIsProcessing(false); // 🔓 解鎖
+                                setIsProcessing(false);
                             }
                         }}>
                             <div className={`p-4 border-b text-white flex justify-between items-center ${headerColor}`}>
