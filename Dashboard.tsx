@@ -18,8 +18,10 @@ import { ListView } from './ListView';
 import * as XLSX from 'xlsx';
 import { MailLogView } from './MailLogView';
 import { MailRecord } from './types'; // 引入類型
+import { CashLogView } from './CashLogView';
+import { CashRecord } from './types';
 
-const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件'];
+const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款'];
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const totalMinutes = i * 30;
@@ -134,6 +136,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
   const [mailRecords, setMailRecords] = useState<MailRecord[]>([]);
 
+  const [cashRecords, setCashRecords] = useState<CashRecord[]>([]);
+
   // 點擊外部關閉選單的特效 (加在 useEffect 區域)
   useEffect(() => {
       function handleClickOutside(event: MouseEvent) {
@@ -217,13 +221,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           const cData = await TaskService.fetchClients();
           const checkInData = await TaskService.fetchCheckIns();
           const messageData = await TaskService.fetchMessages();
-          const mailData = await TaskService.fetchMailRecords();    
+          const mailData = await TaskService.fetchMailRecords();
+          const cashData = await TaskService.fetchCashRecords();
           setTasks(prev => JSON.stringify(prev) !== JSON.stringify(tData) ? tData : prev); 
           setEvents(prev => JSON.stringify(prev) !== JSON.stringify(eData) ? eData : prev); 
           setClients(prev => JSON.stringify(prev) !== JSON.stringify(cData) ? cData : prev);
           setCheckInRecords(prev => JSON.stringify(prev) !== JSON.stringify(checkInData) ? checkInData : prev);
           setMessages(prev => JSON.stringify(prev) !== JSON.stringify(messageData) ? messageData : prev);
           setMailRecords(prev => JSON.stringify(prev) !== JSON.stringify(mailData) ? mailData : prev);
+          setCashRecords(prev => JSON.stringify(prev) !== JSON.stringify(cashData) ? cashData : prev);
       } catch (error) { 
           setDbConnected(false); setPermissionNeeded(true); 
       } 
@@ -691,6 +697,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 onDelete={(t) => { setTaskToDelete(t); setIsDeleteModalOpen(true); }}
                 onGenerateReport={handleGenerateDailyReport}
             />
+             /* ✨ 零用金頁面 */
+                activeTab === '零用金/代墊款' ? (
+                    <CashLogView 
+                        records={cashRecords}
+                        clients={clients}
+                        onUpdate={loadData}
+                        isSupervisor={isSupervisor}
+                    />
+                ) :
         )}
       </main>
 
