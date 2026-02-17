@@ -660,14 +660,24 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 {!dbConnected ? (
                     <div className="text-center py-40 opacity-50"><p className="text-2xl">請先連結資料庫</p></div>
                 ) : 
-                /* ✨ 這裡加入判斷：如果是「收發信件」，就顯示收發信頁面，否則顯示原本的矩陣圖 */
+                /* 1. 判斷是否為「收發信件」 */
                 activeTab === '收發信件' ? (
                     <MailLogView 
-                        records={mailRecords}
+                        records={mailRecords} 
+                        onUpdate={loadData}
+                        isSupervisor={isSupervisor}
+                    />
+                ) : 
+                /* 2. 判斷是否為「零用金/代墊款」 (記得這裡前面要有冒號 : ) */
+                activeTab === '零用金/代墊款' ? (
+                    <CashLogView 
+                        records={cashRecords}
+                        clients={clients}
                         onUpdate={loadData}
                         isSupervisor={isSupervisor}
                     />
                 ) : (
+                /* 3. 都不是，就顯示原本的矩陣圖 (MatrixView) */
                     <MatrixView 
                         tasks={tasks}
                         activeTab={activeTab}
@@ -684,6 +694,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 )}
             </div>
         ) : (
+            /* 非總覽模式，顯示 ListView */
             <ListView 
                 tasks={tasks}
                 currentUser={currentUser}
@@ -697,15 +708,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 onDelete={(t) => { setTaskToDelete(t); setIsDeleteModalOpen(true); }}
                 onGenerateReport={handleGenerateDailyReport}
             />
-             /* ✨ 零用金頁面 */
-                activeTab === '零用金/代墊款' ? (
-                    <CashLogView 
-                        records={cashRecords}
-                        clients={clients}
-                        onUpdate={loadData}
-                        isSupervisor={isSupervisor}
-                    />
-                ) :
         )}
       </main>
 
