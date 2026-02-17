@@ -1,3 +1,5 @@
+import { InvoiceGenerator } from './InvoiceGenerator';
+import { PrinterIcon, CloudArrowUpIcon } from './Icons'; // 記得確認 Icons 檔有這兩個，或用現有的 DocumentTextIcon 代替
 import { Message } from './types';
 import { MessageBoard } from './MessageBoard';
 import { ChatBubbleIcon } from './Icons'; // 記得引入 Icon
@@ -137,6 +139,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [mailRecords, setMailRecords] = useState<MailRecord[]>([]);
 
   const [cashRecords, setCashRecords] = useState<CashRecord[]>([]);
+
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
   // 點擊外部關閉選單的特效 (加在 useEffect 區域)
   useEffect(() => {
@@ -621,6 +625,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                          <button onClick={() => { setIsTimesheetOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-red-50 rounded-xl text-gray-600 hover:text-red-600 transition-colors">
                             <ClockIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">工時紀錄</span>
+                        </button>
+
+                        {/* 生成請款單 */}
+                        <button onClick={() => { setIsInvoiceOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-pink-50 rounded-xl text-gray-600 hover:text-pink-600 transition-colors">
+                            <DocumentTextIcon className="w-6 h-6" /> {/* 如果沒有 PrinterIcon 就用這個 */}
+                            <span className="text-xs font-bold">請款單</span>
                         </button>
 
                     </div>
