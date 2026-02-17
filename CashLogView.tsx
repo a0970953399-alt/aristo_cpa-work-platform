@@ -18,6 +18,12 @@ const BanknotesIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+const SortIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+    </svg>
+);
+
 interface CashLogViewProps {
     records: CashRecord[];
     clients: Client[];
@@ -30,10 +36,12 @@ type ViewMode = 'dashboard' | 'shuoye' | 'yongye' | 'puhe' | 'client_detail';
 export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUpdate, isSupervisor }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
+    const [sortDesc, setSortDesc] = useState(false); // ✨ 預設升序 (舊->新) 符合會計習慣
     
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingRecord, setEditingRecord] = useState<CashRecord | null>(null);
+    const [isProcessing, setIsProcessing] = useState(false); // 防止重複點擊
 
     // --- 資料處理邏輯 ---
 
@@ -41,40 +49,71 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     const currentRecords = useMemo(() => {
         let filtered = [];
         if (viewMode === 'shuoye') {
-            // 碩業：顯示 account='shuoye' (包含客戶代墊)
             filtered = records.filter(r => r.account === 'shuoye');
         } else if (viewMode === 'yongye') {
             filtered = records.filter(r => r.account === 'yongye');
         } else if (viewMode === 'puhe') {
             filtered = records.filter(r => r.account === 'puhe');
         } else if (viewMode === 'client_detail' && selectedClient) {
-            // 客戶：只顯示該客戶的代墊
             filtered = records.filter(r => r.clientId === selectedClient.id);
         }
         
-        // 排序：日期升序 (舊->新) 方便計算結餘
-        return filtered.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-    }, [records, viewMode, selectedClient]);
+        // ✨ 排序邏輯：根據 sortDesc 切換
+        return filtered.sort((a, b) => {
+            const dateA = new Date(a.date).getTime();
+            const dateB = new Date(b.date).getTime();
+            return sortDesc ? dateB - dateA : dateA - dateB;
+        });
+    }, [records, viewMode, selectedClient, sortDesc]);
 
     // 計算結餘 (僅針對內部帳本)
     const recordsWithBalance = useMemo(() => {
         if (viewMode === 'client_detail') return currentRecords;
         
+        // 結餘必須永遠是「從舊到新」累加，所以如果現在是降序顯示，我們要先反轉回來算，算完再反轉回去
+        // 但為了顯示正確，通常會計帳本建議「舊 -> 新」排列
+        
         let balance = 0;
-        return currentRecords.map(r => {
+        // 先強制用「舊 -> 新」來算結餘
+        const sortedForCalc = [...currentRecords].sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        
+        const calculated = sortedForCalc.map(r => {
             if (r.type === 'income') balance += Number(r.amount);
             else balance -= Number(r.amount);
             return { ...r, currentBalance: balance };
         });
-    }, [currentRecords, viewMode]);
+
+        // 算完後，如果使用者選「新 -> 舊」，再反轉回來顯示
+        return sortDesc ? calculated.reverse() : calculated;
+    }, [currentRecords, viewMode, sortDesc]);
 
 
     // 處理刪除
     const handleDelete = async (id: string) => {
-        if (!isSupervisor) return;
+        if (!isSupervisor || isProcessing) return;
         if (confirm("確定要刪除這筆紀錄嗎？")) {
-            await TaskService.deleteCashRecord(id);
+            setIsProcessing(true);
+            try {
+                await TaskService.deleteCashRecord(id);
+                onUpdate();
+            } finally {
+                setIsProcessing(false);
+            }
+        }
+    };
+
+    // ✨ 快速切換「已請款」狀態
+    const handleToggleReimbursed = async (record: CashRecord) => {
+        if (!isSupervisor || isProcessing) return;
+        setIsProcessing(true); // 鎖定
+        try {
+            const updated = { ...record, isReimbursed: !record.isReimbursed };
+            await TaskService.updateCashRecord(updated);
             onUpdate();
+        } catch (e) {
+            alert("更新失敗");
+        } finally {
+            setIsProcessing(false); // 解鎖
         }
     };
 
@@ -140,7 +179,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
     // 2. 詳細頁面 (Master / Client Detail)
     
-    // 定義標題與顏色
     let pageTitle = '';
     let headerColor = '';
     if (viewMode === 'shuoye') { pageTitle = '碩業零用金 (總帳)'; headerColor = 'bg-purple-600'; }
@@ -158,11 +196,19 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </button>
                     <h2 className={`text-xl font-bold px-3 py-1 rounded text-white ${headerColor} shadow-sm`}>{pageTitle}</h2>
                 </div>
-                {isSupervisor && (
-                    <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} className={`flex items-center gap-1 px-4 py-2 ${headerColor} text-white rounded-lg hover:opacity-90 font-bold shadow-sm transition-opacity`}>
-                        <PlusIcon className="w-5 h-5" /> 新增紀錄
+                
+                <div className="flex items-center gap-2">
+                    {/* ✨ 日期排序按鈕 */}
+                    <button onClick={() => setSortDesc(!sortDesc)} className="flex items-center gap-1 px-3 py-2 bg-white border rounded-lg hover:bg-gray-50 text-gray-600 text-sm font-bold shadow-sm">
+                        <SortIcon className="w-4 h-4" /> {sortDesc ? "日期：新→舊" : "日期：舊→新"}
                     </button>
-                )}
+
+                    {isSupervisor && (
+                        <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} className={`flex items-center gap-1 px-4 py-2 ${headerColor} text-white rounded-lg hover:opacity-90 font-bold shadow-sm transition-opacity`}>
+                            <PlusIcon className="w-5 h-5" /> 新增紀錄
+                        </button>
+                    )}
+                </div>
             </div>
 
             {/* Table Area */}
@@ -197,34 +243,28 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </thead>
                     <tbody className="text-sm divide-y divide-gray-100">
                         {recordsWithBalance.map((r, index) => {
-                            // 客戶視圖：處理分組與自動編號
                             let showSeparator = false;
                             let autoIndex = 1;
                             
-                            if (viewMode === 'client_detail') {
-                                // 自動編號邏輯
+                            // 只有在客戶視圖，且是「日期升序 (舊->新)」的時候，才顯示藍色分隔線
+                            // 因為如果日期倒過來，分組邏輯會變得很怪
+                            if (viewMode === 'client_detail' && !sortDesc) {
                                 const sameReq = recordsWithBalance.filter((item: any) => item.requestId === r.requestId && item.requestId);
                                 if (r.requestId) {
                                     autoIndex = sameReq.findIndex((item: any) => item.id === r.id) + 1;
                                 }
-
-                                // 分隔線邏輯
                                 if (index > 0) {
                                     const prev = recordsWithBalance[index - 1];
                                     if (prev.requestId !== r.requestId) showSeparator = true;
                                 }
                             }
 
-                            // 黃色螢光筆邏輯 (碩業/永業)
                             const isHighlight = (viewMode === 'shuoye' || viewMode === 'yongye') && r.category === '零用金';
 
                             return (
                                 <React.Fragment key={r.id}>
-                                    {/* 藍色分隔線 (僅客戶視圖) */}
                                     {showSeparator && (
-                                        <tr>
-                                            <td colSpan={10} className="bg-blue-50 h-2 border-t border-b border-blue-100"></td>
-                                        </tr>
+                                        <tr><td colSpan={10} className="bg-blue-50 h-2 border-t border-b border-blue-100"></td></tr>
                                     )}
 
                                     <tr className={`hover:bg-gray-50 transition-colors group ${isHighlight ? 'bg-yellow-50 hover:bg-yellow-100' : ''}`}>
@@ -259,7 +299,14 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                                 
                                                 {viewMode === 'shuoye' && (
                                                     <td className="p-3 text-center">
-                                                        <input type="checkbox" checked={!!r.isReimbursed} disabled className="w-4 h-4 text-blue-600 rounded" />
+                                                        {/* ✨ 直接點擊 Checkbox 更新狀態 */}
+                                                        <input 
+                                                            type="checkbox" 
+                                                            checked={!!r.isReimbursed} 
+                                                            onChange={() => handleToggleReimbursed(r)}
+                                                            disabled={!isSupervisor || isProcessing}
+                                                            className="w-5 h-5 text-blue-600 rounded cursor-pointer disabled:opacity-50 disabled:cursor-not-allowed hover:ring-2 hover:ring-blue-200 transition-all" 
+                                                        />
                                                     </td>
                                                 )}
                                                 
@@ -288,18 +335,18 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
             {/* 新增/編輯 Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsModalOpen(false)}>
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !isProcessing && setIsModalOpen(false)}>
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
                         <form onSubmit={async (e) => {
                             e.preventDefault();
+                            setIsProcessing(true); // 🔒 鎖定，防止重複提交
                             const formData = new FormData(e.currentTarget);
                             
-                            // 判斷連動邏輯
                             let finalAccount: CashAccountType = viewMode === 'client_detail' ? 'shuoye' : (viewMode as CashAccountType);
                             let finalType: 'income' | 'expense' = 'expense';
                             
                             if (viewMode === 'client_detail') {
-                                finalType = 'expense'; // 客戶代墊一定是碩業支出
+                                finalType = 'expense';
                             } else {
                                 finalType = formData.get('type') as 'income' | 'expense';
                             }
@@ -320,15 +367,18 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 voucherId: formData.get('voucherId') as string || ''
                             };
 
-                            if (editingRecord) await TaskService.updateCashRecord(newRec);
-                            else await TaskService.addCashRecord(newRec);
-                            
-                            onUpdate();
-                            setIsModalOpen(false);
+                            try {
+                                if (editingRecord) await TaskService.updateCashRecord(newRec);
+                                else await TaskService.addCashRecord(newRec);
+                                onUpdate();
+                                setIsModalOpen(false);
+                            } finally {
+                                setIsProcessing(false); // 🔓 解鎖
+                            }
                         }}>
                             <div className={`p-4 border-b text-white flex justify-between items-center ${headerColor}`}>
                                 <h3 className="font-bold text-lg">{editingRecord ? '編輯' : '新增'} {viewMode === 'client_detail' ? '代墊款' : '紀錄'}</h3>
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 rounded-full p-1">✕</button>
+                                <button type="button" onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 rounded-full p-1" disabled={isProcessing}>✕</button>
                             </div>
                             
                             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
@@ -343,7 +393,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                     </div>
                                 </div>
 
-                                {/* 僅內部帳本顯示收入/支出切換 */}
                                 {viewMode !== 'client_detail' && (
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-1">類型</label>
@@ -377,7 +426,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                     <input name="description" defaultValue={editingRecord?.description} className="w-full p-2 border rounded-lg" placeholder="詳細內容..." />
                                 </div>
 
-                                {/* 客戶代墊特有欄位 */}
                                 {viewMode === 'client_detail' && (
                                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
                                         <label className="block text-sm font-bold text-blue-800 mb-1">請款單編號 (用於分組)</label>
@@ -386,7 +434,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                     </div>
                                 )}
 
-                                {/* 內部帳本特有欄位 */}
                                 {viewMode !== 'client_detail' && (
                                     <div className="grid grid-cols-2 gap-4">
                                         {viewMode === 'shuoye' && (
@@ -401,7 +448,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                                 <input name="voucherId" defaultValue={editingRecord?.voucherId} className="w-full p-2 border rounded-lg text-sm" />
                                             </div>
                                         )}
-                                        {/* 內部帳本的手動備註 */}
                                         <div className="col-span-2">
                                             <label className="block text-xs font-bold text-gray-500 mb-1">備註 (選填)</label>
                                             <input name="note" defaultValue={editingRecord?.note} className="w-full p-2 border rounded-lg text-sm" />
@@ -411,8 +457,11 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             </div>
                             
                             <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-bold">取消</button>
-                                <button type="submit" className={`px-4 py-2 text-white rounded-lg font-bold ${headerColor} hover:opacity-90`}>儲存</button>
+                                <button type="button" onClick={() => setIsModalOpen(false)} disabled={isProcessing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-bold">取消</button>
+                                <button type="submit" disabled={isProcessing} className={`px-4 py-2 text-white rounded-lg font-bold ${headerColor} hover:opacity-90 disabled:opacity-50 flex items-center gap-2`}>
+                                    {isProcessing && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
+                                    儲存
+                                </button>
                             </div>
                         </form>
                     </div>
