@@ -6,6 +6,10 @@ import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { CloudArrowDownIcon } from './Icons';
 
+// 🔴🔴🔴 請務必更新這裡的 Base64 字串！！！
+// 必須是您剛修改完 (包含 ((稅款)) 佔位符) 的 Excel 檔轉出來的編碼
+const TEMPLATE_BASE64 = ""; 
+
 interface InvoiceGeneratorProps {
     onClose: () => void;
     cashRecords: CashRecord[];
@@ -22,7 +26,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     const [clientName, setClientName] = useState('');
     const [invoiceDate, setInvoiceDate] = useState('');
     
-    // 承辦事項 (預設4行)
+    // 承辦事項
     const [items, setItems] = useState<InvoiceItem[]>([
         { description: '', amount: 0 },
         { description: '', amount: 0 },
@@ -64,50 +68,47 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     const serviceTotal = items.reduce((sum, item) => sum + Number(item.amount), 0);
     const grandTotal = serviceTotal + advanceTotal;
 
-    // ✨ 核心功能：生成並下載 Excel
+    // ✨ 核心功能：生成並下載 Excel (嵌入版)
     const handleDownloadExcel = async () => {
+        if (!TEMPLATE_BASE64) {
+            alert("請先將新的 Excel (包含 ((稅款)) 佔位符) 轉成 Base64 並貼入程式碼中！");
+            return;
+        }
+
         setIsGenerating(true);
         try {
-            // 1. 強制讀取最新模版 (加 timestamp 防止快取)
-            const response = await fetch(`/invoice_template.xlsx?v=${Date.now()}`);
-            if (!response.ok) throw new Error('找不到模版檔案，請確認 public/invoice_template.xlsx 是否存在');
-            const arrayBuffer = await response.arrayBuffer();
-
-            // 2. 解析 Excel
             const workbook = new ExcelJS.Workbook();
-            await workbook.xlsx.load(arrayBuffer);
+            await workbook.xlsx.load(Buffer.from(TEMPLATE_BASE64, 'base64'));
 
             // ==========================================
             // SHEET 1: 請款單
             // ==========================================
-            const sheet1 = workbook.worksheets[0]; // 抓第1頁
+            const sheet1 = workbook.worksheets[0]; 
             if (sheet1) {
-                // 座標
-                const CELL_CLIENT = 'A8';
-                const CELL_DATE   = 'C8';
-                const CELL_NO     = 'C10';
-                const ROW_ITEMS   = 12; // A12 開始
-                
-                // 填寫基本資料 (保持原格式，只換字)
-                sheet1.getCell(CELL_CLIENT).value = `${clientName}`; 
-                sheet1.getCell(CELL_DATE).value   = `日期：${invoiceDate}`; 
-                sheet1.getCell(CELL_NO).value     = `單號：${invoiceNo}`;
+                // 強制設定欄寬
+                sheet1.getColumn('A').width = 60; 
+                sheet1.getColumn('B').width = 20;
 
-                // 填寫承辦事項 (重點修正：自動換行)
-                // 先清空舊資料
+                const ROW_ITEMS = 12; // A12 開始
+                
+                // 填寫基本資料 (替換佔位符)
+                // 這裡我們直接寫入值，因為這些通常是整格替換
+                sheet1.getCell('A8').value = `${clientName}`; 
+                sheet1.getCell('C8').value = `日期：${invoiceDate}`; 
+                sheet1.getCell('C10').value = `單號：${invoiceNo}`;
+
+                // 清空舊資料
                 for(let i=0; i<8; i++) {
                     sheet1.getCell(`A${ROW_ITEMS+i}`).value = '';
                     sheet1.getCell(`B${ROW_ITEMS+i}`).value = '';
                 }
                 
-                // 填入資料
+                // 填入承辦事項
                 items.forEach((item, index) => {
                     const row = ROW_ITEMS + index;
                     if (item.description) {
                         const cellDesc = sheet1.getCell(`A${row}`);
                         cellDesc.value = `${index + 1}. ${item.description}`;
-                        
-                        // 🔧 強制設定樣式：自動換行、垂直置中、靠左、新細明體
                         cellDesc.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
                         cellDesc.font = { name: '新細明體', size: 12 };
 
@@ -123,48 +124,55 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                 sheet1.getCell('B23').value = advanceTotal;
                 sheet1.getCell('B27').value = grandTotal;
 
-                // 填寫稅額備註
+                // ✨✨✨ 重點修正：稅額文字替換 (B29) ✨✨✨
                 const cellTax = sheet1.getCell('B29');
+                
                 if (taxAmount > 0) {
-                    cellTax.value = `(本所依法自行繳納$${taxAmount.toLocaleString()}之扣繳稅款)`;
-                    cellTax.font = { name: '新細明體', size: 10 }; // 備註字體稍微小一點比較好看
+                    // 1. 讀取模版裡原本的文字 (例如：(本所依法自行繳納$((稅款))之扣繳稅款))
+                    // 如果讀不到，就給一個預設值防止報錯
+                    let originalText = cellTax.value ? cellTax.value.toString() : '(本所依法自行繳納$((稅款))之扣繳稅款)';
+                    
+                    // 2. 進行替換：把 ((稅款)) 換成數字
+                    const newText = originalText.replace('((稅款))', taxAmount.toLocaleString());
+                    
+                    // 3. 寫回去
+                    cellTax.value = newText;
+                    cellTax.font = { name: '新細明體', size: 10 }; // 維持格式
                 } else {
+                    // 如果稅額是 0，整行清空
                     cellTax.value = '';
                 }
             }
 
             // ==========================================
-            // SHEET 2: 代墊單 (重點修正：框線)
+            // SHEET 2: 代墊單 (完美框線)
             // ==========================================
-            const sheet2 = workbook.worksheets[1]; // 抓第2頁
+            const sheet2 = workbook.worksheets[1]; 
             if (sheet2 && advances.length > 0) {
-                // 標題
                 sheet2.getCell('A1').value = `公司名稱 : ${clientName}`; 
+                
+                sheet2.getColumn('A').width = 15; 
+                sheet2.getColumn('B').width = 15; 
+                sheet2.getColumn('C').width = 15; 
+                sheet2.getColumn('D').width = 40; 
+                sheet2.getColumn('E').width = 10; 
 
                 const startRow = 4;
-                
-                // 定義框線樣式
                 const borderThin: Partial<ExcelJS.Borders> = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'thin' },
-                    right: { style: 'thin' }
+                    top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'thin' }, right: { style: 'thin' }
                 };
 
-                // 3. 填入每一筆代墊款
                 advances.forEach((row, index) => {
                     const currentRow = startRow + index;
                     const [y, m, d] = row.date.split('-');
                     const rocDate = `${Number(y)-1911}/${m}/${d}`;
                     
-                    // 填值
                     sheet2.getCell(`A${currentRow}`).value = rocDate;
                     sheet2.getCell(`B${currentRow}`).value = Number(row.amount);
                     sheet2.getCell(`C${currentRow}`).value = row.category;
                     sheet2.getCell(`D${currentRow}`).value = row.description;
                     sheet2.getCell(`E${currentRow}`).value = row.note;
 
-                    // 🔧 畫細框線 & 設定字體
                     ['A','B','C','D','E'].forEach(col => {
                         const cell = sheet2.getCell(`${col}${currentRow}`);
                         cell.border = borderThin;
@@ -173,47 +181,35 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     });
                 });
 
-                // 4. 填寫「小計」與「總額」 (在最後一筆的下一行)
                 const totalRowIndex = startRow + advances.length;
-                
                 sheet2.getCell(`A${totalRowIndex}`).value = '小計';
                 sheet2.getCell(`B${totalRowIndex}`).value = advanceTotal;
                 
-                // 🔧 畫框線 (重點：底部雙線)
-                // 定義雙線樣式
-                const borderTotal: Partial<ExcelJS.Borders> = {
-                    top: { style: 'thin' },
-                    left: { style: 'thin' },
-                    bottom: { style: 'double' }, // ✨ 雙框線
-                    right: { style: 'thin' }
+                const borderDouble: Partial<ExcelJS.Borders> = {
+                    top: { style: 'thin' }, left: { style: 'thin' }, bottom: { style: 'double' }, right: { style: 'thin' }
                 };
 
                 ['A','B','C','D','E'].forEach(col => {
                     const cell = sheet2.getCell(`${col}${totalRowIndex}`);
-                    cell.border = borderTotal;
-                    cell.font = { name: '新細明體', size: 12, bold: true };
-                    cell.alignment = { vertical: 'middle', horizontal: 'center' };
-                    // 如果是空值也要畫線
-                    if (!cell.value) cell.value = ''; 
+                    cell.border = borderDouble;
+                    if (!cell.value) cell.value = '';
                 });
-                
-                // 5. 清除更下面的殘留資料
+
                 for (let i = totalRowIndex + 1; i < totalRowIndex + 20; i++) {
                      ['A','B','C','D','E'].forEach(col => {
                          const cell = sheet2.getCell(`${col}${i}`);
                          cell.value = '';
-                         cell.border = {}; // 清除邊框
+                         cell.border = {};
                      });
                 }
             }
 
-            // 3. 輸出檔案
             const buffer = await workbook.xlsx.writeBuffer();
             saveAs(new Blob([buffer]), `${clientName}_請款單_${invoiceDate}.xlsx`);
             
         } catch (error) {
             console.error(error);
-            alert("生成失敗！請檢查 public 資料夾內是否有 invoice_template.xlsx");
+            alert("生成失敗！請確認 Base64 字串是否正確。");
         } finally {
             setIsGenerating(false);
         }
@@ -223,135 +219,54 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     return (
         <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
-                
-                {/* Header */}
                 <div className="bg-gray-800 text-white p-4 flex justify-between items-center shrink-0">
-                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器 (完美邊框版)</h2>
+                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器 (嵌入版)</h2>
                     <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1">✕</button>
                 </div>
 
-                {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
-                        
-                        {/* Left: Basic Info */}
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-700 border-b pb-2">1. 載入資料</h3>
                             <div className="flex gap-2">
-                                <input 
-                                    value={invoiceNo} 
-                                    onChange={e => setInvoiceNo(e.target.value)} 
-                                    placeholder="輸入單號 (如 115R001)" 
-                                    className="flex-1 p-2 border rounded-lg shadow-sm font-mono font-bold"
-                                    onKeyDown={e => e.key === 'Enter' && handleSearch()}
-                                />
-                                <button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold shadow-sm">
-                                    載入
-                                </button>
+                                <input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="單號 (如 115R001)" className="flex-1 p-2 border rounded-lg font-mono font-bold" onKeyDown={e => e.key === 'Enter' && handleSearch()} />
+                                <button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold">載入</button>
                             </div>
-                            
                             <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-500 mb-1">客戶抬頭</label>
-                                    <input value={clientName} onChange={e => setClientName(e.target.value)} className="w-full p-2 border rounded-lg" />
-                                </div>
-                                <div>
-                                    <label className="block text-sm font-bold text-gray-500 mb-1">請款日期</label>
-                                    <input value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="w-full p-2 border rounded-lg" />
-                                </div>
+                                <div><label className="block text-sm font-bold text-gray-500 mb-1">客戶抬頭</label><input value={clientName} onChange={e => setClientName(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
+                                <div><label className="block text-sm font-bold text-gray-500 mb-1">請款日期</label><input value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
                             </div>
-                            
                             <div className="bg-white p-4 rounded-xl border shadow-sm">
-                                <div className="flex justify-between items-center mb-2">
-                                    <h4 className="font-bold text-gray-700">代墊款明細 ({advances.length} 筆)</h4>
-                                    <span className="text-blue-600 font-bold text-xl">${advanceTotal.toLocaleString()}</span>
-                                </div>
-                                <div className="max-h-40 overflow-y-auto text-sm border-t">
+                                <div className="flex justify-between items-center mb-2"><h4 className="font-bold text-gray-700">代墊款明細</h4><span className="text-blue-600 font-bold text-xl">${advanceTotal.toLocaleString()}</span></div>
+                                <div className="max-h-40 overflow-y-auto text-sm border-t mt-2">
                                     {advances.length > 0 ? (
-                                        <table className="w-full text-left mt-2">
-                                            <thead className="text-gray-500"><tr><th>日期</th><th>項目</th><th className="text-right">金額</th></tr></thead>
-                                            <tbody>
-                                                {advances.map(r => (
-                                                    <tr key={r.id} className="border-b last:border-0">
-                                                        <td className="py-1 text-gray-500">{r.date.slice(5)}</td>
-                                                        <td className="py-1">{r.description}</td>
-                                                        <td className="py-1 text-right font-mono">${r.amount}</td>
-                                                    </tr>
-                                                ))}
-                                            </tbody>
-                                        </table>
-                                    ) : <p className="text-gray-400 py-4 text-center">請先輸入單號並載入...</p>}
+                                        <table className="w-full text-left mt-2"><thead className="text-gray-500"><tr><th>日期</th><th>項目</th><th className="text-right">金額</th></tr></thead><tbody>
+                                            {advances.map(r => (<tr key={r.id} className="border-b last:border-0"><td className="py-1 text-gray-500">{r.date.slice(5)}</td><td className="py-1">{r.description}</td><td className="py-1 text-right font-mono">${r.amount}</td></tr>))}
+                                        </tbody></table>
+                                    ) : <p className="text-gray-400 py-4 text-center">...</p>}
                                 </div>
                             </div>
                         </div>
-
-                        {/* Right: Items & Actions */}
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-700 border-b pb-2">2. 填寫業務費用</h3>
                             <div className="bg-white p-4 rounded-xl border shadow-sm space-y-2">
                                 {items.map((item, idx) => (
                                     <div key={idx} className="flex gap-2">
                                         <span className="text-gray-400 py-2 w-4 text-center">{idx+1}.</span>
-                                        <input 
-                                            placeholder="項目名稱" 
-                                            value={item.description}
-                                            onChange={e => {
-                                                const newItems = [...items];
-                                                newItems[idx].description = e.target.value;
-                                                setItems(newItems);
-                                            }}
-                                            className="flex-1 p-2 border rounded"
-                                        />
-                                        <input 
-                                            type="number"
-                                            placeholder="$" 
-                                            value={item.amount || ''}
-                                            onChange={e => {
-                                                const newItems = [...items];
-                                                newItems[idx].amount = Number(e.target.value);
-                                                setItems(newItems);
-                                            }}
-                                            className="w-24 p-2 border rounded text-right font-mono"
-                                        />
+                                        <input placeholder="項目名稱" value={item.description} onChange={e => {const n=[...items];n[idx].description=e.target.value;setItems(n)}} className="flex-1 p-2 border rounded" />
+                                        <input type="number" placeholder="$" value={item.amount || ''} onChange={e => {const n=[...items];n[idx].amount=Number(e.target.value);setItems(n)}} className="w-24 p-2 border rounded text-right font-mono" />
                                     </div>
                                 ))}
-                                <div className="flex justify-between items-center pt-2 border-t mt-2">
-                                    <span className="text-gray-500 font-bold">業務費總計</span>
-                                    <span className="font-bold text-lg">${serviceTotal.toLocaleString()}</span>
-                                </div>
+                                <div className="flex justify-between items-center pt-2 border-t mt-2"><span className="text-gray-500 font-bold">總計</span><span className="font-bold text-lg">${serviceTotal.toLocaleString()}</span></div>
                             </div>
-                            
-                            <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-1">代繳稅款備註</label>
-                                <input type="number" value={taxAmount || ''} onChange={e => setTaxAmount(Number(e.target.value))} className="w-full p-2 border rounded-lg" placeholder="0" />
-                                <p className="text-xs text-gray-400 mt-1">若為 0 則不顯示</p>
-                            </div>
+                            <div><label className="block text-sm font-bold text-gray-500 mb-1">代繳稅款備註 (B29)</label><input type="number" value={taxAmount || ''} onChange={e => setTaxAmount(Number(e.target.value))} className="w-full p-2 border rounded-lg" /></div>
                         </div>
                     </div>
                 </div>
-
-                {/* Footer Actions */}
                 <div className="p-4 bg-white border-t flex justify-between items-center">
-                    <div className="text-xl font-bold text-gray-800">
-                        總應收金額：<span className="text-blue-600 text-2xl">${grandTotal.toLocaleString()}</span>
-                    </div>
-                    <div className="flex gap-3">
-                        <button onClick={onClose} className="px-6 py-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">取消</button>
-                        <button 
-                            onClick={handleDownloadExcel} 
-                            disabled={isGenerating}
-                            className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-bold shadow-lg hover:shadow-xl transition-all disabled:opacity-50 disabled:cursor-not-allowed"
-                        >
-                            {isGenerating ? '生成中...' : (
-                                <>
-                                    <CloudArrowDownIcon className="w-6 h-6" />
-                                    下載 Excel
-                                </>
-                            )}
-                        </button>
-                    </div>
+                    <div className="text-xl font-bold text-gray-800">總應收：<span className="text-blue-600 text-2xl">${grandTotal.toLocaleString()}</span></div>
+                    <div className="flex gap-3"><button onClick={onClose} className="px-6 py-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">取消</button><button onClick={handleDownloadExcel} disabled={isGenerating} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-bold shadow-lg"><CloudArrowDownIcon className="w-6 h-6"/> 下載 Excel</button></div>
                 </div>
-
             </div>
         </div>
     );
