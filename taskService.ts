@@ -25,6 +25,7 @@ interface DataStore {
     checkIns?: CheckInRecord[];
     messages?: Message[];
     mailRecords?: MailRecord[];
+    cashRecords?: CashRecord[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -75,7 +76,8 @@ const normalizeData = (raw: any): DataStore => {
         clientProfiles: Array.isArray(raw.clientProfiles) ? raw.clientProfiles : [],
         checkIns: Array.isArray(raw.checkIns) ? raw.checkIns : [],
         messages: Array.isArray(raw.messages) ? raw.messages : [],
-        mailRecords: Array.isArray(raw.mailRecords) ? raw.mailRecords : []
+        mailRecords: Array.isArray(raw.mailRecords) ? raw.mailRecords : [],
+        cashRecords: Array.isArray(raw.cashRecords) ? raw.cashRecords : []
     };
 };
 
@@ -536,6 +538,42 @@ async fetchClients(): Promise<Client[]> {
       data.mailRecords = data.mailRecords.filter(r => r.id !== id);
       await this.saveFullData(data);
       return data.mailRecords;
+  }
+
+},
+
+// --- 💰 零用金/代墊款 API ---
+
+  async fetchCashRecords(): Promise<CashRecord[]> {
+      const data = await this.loadFullData();
+      return data.cashRecords || [];
+  },
+
+  async addCashRecord(record: CashRecord): Promise<CashRecord[]> {
+      const data = await this.loadFullData();
+      if (!data.cashRecords) data.cashRecords = [];
+      data.cashRecords.push(record);
+      await this.saveFullData(data);
+      return data.cashRecords;
+  },
+
+  async updateCashRecord(updated: CashRecord): Promise<CashRecord[]> {
+      const data = await this.loadFullData();
+      if (!data.cashRecords) return [];
+      const idx = data.cashRecords.findIndex(r => r.id === updated.id);
+      if (idx !== -1) {
+          data.cashRecords[idx] = updated;
+          await this.saveFullData(data);
+      }
+      return data.cashRecords;
+  },
+
+  async deleteCashRecord(id: string): Promise<CashRecord[]> {
+      const data = await this.loadFullData();
+      if (!data.cashRecords) return [];
+      data.cashRecords = data.cashRecords.filter(r => r.id !== id);
+      await this.saveFullData(data);
+      return data.cashRecords;
   }
 
 }; // 👈 TaskService 結束
