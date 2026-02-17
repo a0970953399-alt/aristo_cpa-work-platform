@@ -85,14 +85,13 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
             // ==========================================
             const sheet1 = workbook.worksheets[0]; 
             if (sheet1) {
-                // 強制設定欄寬
+                // 強制設定欄寬 (避免擠壓)
                 sheet1.getColumn('A').width = 60; 
                 sheet1.getColumn('B').width = 20;
 
                 const ROW_ITEMS = 12; // A12 開始
                 
-                // 填寫基本資料 (替換佔位符)
-                // 這裡我們直接寫入值，因為這些通常是整格替換
+                // 填寫基本資料
                 sheet1.getCell('A8').value = `${clientName}`; 
                 sheet1.getCell('C8').value = `日期：${invoiceDate}`; 
                 sheet1.getCell('C10').value = `單號：${invoiceNo}`;
@@ -124,11 +123,11 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                 sheet1.getCell('B23').value = advanceTotal;
                 sheet1.getCell('B27').value = grandTotal;
 
-                // ✨✨✨ 重點修正：稅額文字替換 (B29) ✨✨✨
-                const cellTax = sheet1.getCell('B29');
+                // ✨✨✨ 修正：稅額文字替換 (A28) ✨✨✨
+                const cellTax = sheet1.getCell('A28'); // 👈 改成 A28 了
                 
                 if (taxAmount > 0) {
-                    // 1. 讀取模版裡原本的文字 (例如：(本所依法自行繳納$((稅款))之扣繳稅款))
+                    // 1. 讀取模版裡原本的文字
                     // 如果讀不到，就給一個預設值防止報錯
                     let originalText = cellTax.value ? cellTax.value.toString() : '(本所依法自行繳納$((稅款))之扣繳稅款)';
                     
@@ -137,7 +136,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     
                     // 3. 寫回去
                     cellTax.value = newText;
-                    cellTax.font = { name: '新細明體', size: 10 }; // 維持格式
+                    cellTax.font = { name: '新細明體', size: 10 }; 
                 } else {
                     // 如果稅額是 0，整行清空
                     cellTax.value = '';
@@ -259,7 +258,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                                 ))}
                                 <div className="flex justify-between items-center pt-2 border-t mt-2"><span className="text-gray-500 font-bold">總計</span><span className="font-bold text-lg">${serviceTotal.toLocaleString()}</span></div>
                             </div>
-                            <div><label className="block text-sm font-bold text-gray-500 mb-1">代繳稅款備註 (B29)</label><input type="number" value={taxAmount || ''} onChange={e => setTaxAmount(Number(e.target.value))} className="w-full p-2 border rounded-lg" /></div>
+                            <div><label className="block text-sm font-bold text-gray-500 mb-1">代繳稅款備註 (A28)</label><input type="number" value={taxAmount || ''} onChange={e => setTaxAmount(Number(e.target.value))} className="w-full p-2 border rounded-lg" /></div>
                         </div>
                     </div>
                 </div>
