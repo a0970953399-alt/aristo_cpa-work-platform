@@ -80,43 +80,50 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
             // ==========================================
             // SHEET 1: 請款單
             // ==========================================
-            const sheet1 = workbook.getWorksheet(1); // 假設請款單在第1頁
+            const sheet1 = workbook.getWorksheet(1);
             if (sheet1) {
-                // ⚠️ 注意：這裡的座標 (如 C9) 必須對應您真正的 Excel 模版
-                // 如果您的 Excel 跟我推測的不同，請自行調整這裡的座標
-                sheet1.getCell('A9').value = `${clientName}  台照`; // 客戶名稱
-                sheet1.getCell('C9').value = `日期：${invoiceDate}`; // 日期
-                sheet1.getCell('C11').value = `單號：${invoiceNo}`; // 單號
+                // 🔧 修正座標 (根據您的模版調整)
+                
+                // 客戶名稱：寫在 A8 (假設原本是空白，後面接著 "台照")
+                // 如果您的 "台照" 在 D8，且前面 A-C 是合併或空白，寫入 A8 應該會顯示
+                sheet1.getCell('A8').value = `${clientName}  台照`; 
+                
+                // 日期：寫在 C8 (原本是 C9)
+                // 這裡我們直接寫入完整字串，覆蓋掉模版裡的 "日期：年月日"
+                // 為了避免蓋掉格子格式，如果模版那一格原本就有 "日期："，我們可以直接替換內容
+                sheet1.getCell('C8').value = `日期：${invoiceDate}`; 
+                
+                // 單號：寫在 C10 (原本是 C11)
+                sheet1.getCell('C10').value = `單號：${invoiceNo}`;
 
-                // 填寫承辦事項 (從第13列開始)
-                // 我們只填入資料，不改格式。如果您的模版這裡有設定好格式，它就會很漂亮。
+                // 填寫承辦事項 (保持從第13列開始，這部分看起來沒錯)
                 items.forEach((item, index) => {
                     const row = 13 + index;
                     if (item.description) {
                         sheet1.getCell(`A${row}`).value = `${index + 1}. ${item.description}`;
                         sheet1.getCell(`B${row}`).value = item.amount;
                     } else {
-                        // 如果該行沒資料，清空它 (避免舊模版資料殘留)
                         sheet1.getCell(`A${row}`).value = '';
                         sheet1.getCell(`B${row}`).value = '';
                     }
                 });
 
-                // 金額統計
-                // 建議您的模版這裡原本就有公式 (例如 =SUM(B13:B20))
-                // 但為了保險，我們這裡直接覆蓋「數值」進去
-                sheet1.getCell('B21').value = serviceTotal; // 業務收入總額
-                sheet1.getCell('B24').value = advanceTotal; // 代收代付
-                sheet1.getCell('B28').value = grandTotal;   // 應收金額合計
+                // 金額統計 (根據模版位置)
+                // 業務收入總額 (原本推測在 B21，請確認 Excel 裡的列號)
+                sheet1.getCell('B21').value = serviceTotal; 
+                
+                // 代收代付 (原本推測在 B24)
+                sheet1.getCell('B24').value = advanceTotal;
 
-                // 稅額備註 (假設在 A29)
+                // 應收金額合計 (原本推測在 B28)
+                sheet1.getCell('B28').value = grandTotal;
+
+                // 稅額備註 (原本推測在 A29)
                 if (taxAmount > 0) {
                     sheet1.getCell('A29').value = `(本所依法自行繳納$${taxAmount.toLocaleString()}之扣繳稅款)`;
                 } else {
-                    sheet1.getCell('A29').value = ''; // 如果沒輸入，就清空這行
+                    sheet1.getCell('A29').value = '';
                 }
-                
-                // ❌ 我們不再寫入「扣繳統編」和「登記地址」，請確認您的 Excel 模版裡原本就有這兩行字！
             }
 
             // ==========================================
@@ -140,7 +147,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     sheet2.getCell(`E${r}`).value = row.note;
                 });
 
-                // 清除多餘的舊資料 (假設模版最多預留 20 行)
+                // 清除舊資料
                 const dataEndRow = 4 + advances.length;
                 for (let i = dataEndRow; i < 24; i++) {
                      sheet2.getCell(`A${i}`).value = '';
