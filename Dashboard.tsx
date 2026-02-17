@@ -1248,6 +1248,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               onClose={() => setIsMessageBoardOpen(false)}
           />
       )}
+
+      {/* Invoice Generator Modal */}
+      {isInvoiceOpen && (
+          <InvoiceGenerator 
+              onClose={() => setIsInvoiceOpen(false)}
+              cashRecords={cashRecords} // 把零用金資料傳進去
+          />
+      )}
         
       <style>{`
           @keyframes slideInRight {
