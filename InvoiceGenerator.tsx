@@ -20,15 +20,14 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     const [invoiceNo, setInvoiceNo] = useState('');
     const [clientName, setClientName] = useState('');
     const [invoiceDate, setInvoiceDate] = useState('');
-    const [guiNumber, setGuiNumber] = useState('42553094'); // 預設扣繳統編
-    const [regAddress, setRegAddress] = useState('10642台北市大安區麗水街32號12樓'); // 預設登記地址
+    const [guiNumber, setGuiNumber] = useState('42553094'); // 扣繳統編
+    const [regAddress, setRegAddress] = useState('10642台北市大安區麗水街32號12樓'); // 登記地址
     
     // 事務所抬頭圖片
     const [headerImage, setHeaderImage] = useState<string>(localStorage.getItem('shuoye_invoice_header') || '');
 
-    // 承辦事項 (預設給空行)
+    // 承辦事項 (預設3行)
     const [items, setItems] = useState<InvoiceItem[]>([
-        { description: '', amount: 0 },
         { description: '', amount: 0 },
         { description: '', amount: 0 },
         { description: '', amount: 0 }
@@ -37,8 +36,6 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     // 代墊款
     const [advances, setAdvances] = useState<CashRecord[]>([]);
     const [advanceTotal, setAdvanceTotal] = useState(0);
-
-    // 稅額
     const [taxAmount, setTaxAmount] = useState<number>(0);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
@@ -54,16 +51,13 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     const handleSearch = () => {
         if (!invoiceNo.trim()) { alert("請輸入單號"); return; }
         const found = cashRecords.filter(r => r.requestId === invoiceNo.trim());
-        
         if (found.length === 0) {
             alert("找不到此單號的代墊款紀錄");
             setAdvances([]);
             setAdvanceTotal(0);
             return;
         }
-
         if (found[0].clientName) setClientName(found[0].clientName);
-        // 依照日期舊->新排序
         found.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
         setAdvances(found);
         setAdvanceTotal(found.reduce((sum, r) => sum + Number(r.amount), 0));
@@ -91,10 +85,10 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     return (
         <div className="fixed inset-0 bg-gray-100 z-[200] flex flex-col animate-fade-in overflow-hidden font-sans">
             
-            {/* Top Toolbar (操作列) */}
+            {/* Top Toolbar (操作列 - 列印時隱藏) */}
             <div className="bg-gray-800 text-white p-4 flex justify-between items-center shadow-md print:hidden shrink-0">
                 <div className="flex items-center gap-4">
-                    <h2 className="text-xl font-bold flex items-center gap-2">🖨️ 請款單生成器 (EXCEL 復刻版)</h2>
+                    <h2 className="text-xl font-bold flex items-center gap-2">🖨️ 請款單生成器 (最終復刻版)</h2>
                     <div className="h-6 w-px bg-gray-600"></div>
                     <div className="flex gap-2">
                         <input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="單號 (115R001)" className="text-black px-3 py-1 rounded font-bold outline-none w-40" onKeyDown={e => e.key === 'Enter' && handleSearch()} />
@@ -129,7 +123,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                             <button onClick={() => setItems([...items, { description: '', amount: 0 }])} className="text-xs text-blue-600 font-bold hover:underline">+ 新增一行</button>
                         </div>
                         
-                        <div className="grid grid-cols-2 gap-3">
+                        <div className="grid grid-cols-1 gap-3">
                             <div><label className="block text-sm font-bold text-gray-500 mb-1">扣繳統編</label><input value={guiNumber} onChange={e => setGuiNumber(e.target.value)} className="w-full p-2 border rounded" /></div>
                             <div><label className="block text-sm font-bold text-gray-500 mb-1">登記地址</label><input value={regAddress} onChange={e => setRegAddress(e.target.value)} className="w-full p-2 border rounded" /></div>
                         </div>
@@ -138,64 +132,63 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     </div>
                 </div>
 
-                {/* Right: A4 Preview (預覽區 - 這裡就是重點！) */}
+                {/* Right: A4 Preview (預覽區) */}
                 <div className="flex-1 bg-gray-500 p-8 overflow-y-auto print:p-0 print:bg-white print:overflow-visible flex justify-center">
                     
-                    {/* A4 Container */}
-                    <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl print:shadow-none print:w-full print:min-h-0 flex flex-col"
+                    {/* A4 Page */}
+                    <div className="w-[210mm] min-h-[297mm] bg-white shadow-2xl print:shadow-none print:w-full print:min-h-0 flex flex-col box-border p-[15mm]"
                          style={{ fontFamily: '"PMingLiU", "MingLiU", "Times New Roman", serif' }}> 
                         
                         {/* ================= PAGE 1: 請款單 ================= */}
-                        <div className="p-[15mm] flex flex-col h-[297mm] relative print:h-[297mm] print:page-break-after-always">
+                        <div className="flex flex-col h-full relative print:page-break-after-always">
                             
-                            {/* Header Image (Full Width) */}
-                            <div className="mb-4">
+                            {/* 1. Header Image */}
+                            <div className="mb-2">
                                 {headerImage ? (
-                                    <img src={headerImage} alt="Header" className="w-full object-contain" />
+                                    <img src={headerImage} alt="Header" className="w-full object-contain max-h-[40mm]" />
                                 ) : (
                                     <div className="h-24 bg-gray-100 flex items-center justify-center text-gray-400 border-2 border-dashed border-gray-300 rounded">請上傳抬頭圖片</div>
                                 )}
                             </div>
 
-                            {/* Title (字距拉大) */}
-                            <h1 className="text-4xl font-bold text-center tracking-[1.2em] mb-4" style={{ fontFamily: 'DFKai-SB, BiauKai, serif' }}>請款單</h1>
+                            {/* 2. Title */}
+                            <h1 className="text-4xl font-bold text-center tracking-[1.5em] mb-4" style={{ fontFamily: 'DFKai-SB, BiauKai, serif' }}>請款單</h1>
 
-                            {/* Info Row */}
-                            <div className="flex justify-between items-end mb-1 text-lg">
-                                <div className="text-2xl font-bold underline decoration-1 underline-offset-4 mb-1 tracking-wider">{clientName} &nbsp; 台照</div>
-                                <div className="text-right leading-tight">
+                            {/* 3. Client Info */}
+                            <div className="flex justify-between items-end mb-2 text-xl">
+                                <div className="font-bold underline decoration-1 underline-offset-4 tracking-wider">{clientName} &nbsp; 台照</div>
+                                <div className="text-right leading-tight text-lg">
                                     <div className="tracking-widest">日期：{invoiceDate}</div>
                                     <div className="tracking-widest">單號：{invoiceNo}</div>
                                 </div>
                             </div>
 
-                            {/* Main Table (邊框加粗 border-2, 字距調整) */}
-                            <table className="w-full border-collapse border-2 border-black mb-1 table-fixed">
+                            {/* 4. Main Table (Grid System) */}
+                            <table className="w-full border-collapse border-[3px] border-black table-fixed text-xl">
                                 <thead>
-                                    <tr className="bg-gray-100 h-14">
-                                        <th className="border-2 border-black p-2 text-center text-xl w-[48%] tracking-[0.5em]">承辦事項</th>
-                                        <th className="border-2 border-black p-2 text-center text-xl w-[17%]">金額(新台幣)</th>
-                                        {/* 第三欄標題其實是空的，或是連在一起的 */}
-                                        <th className="border-2 border-black p-2 text-center text-xl w-[35%]"></th> 
+                                    <tr className="h-14 bg-gray-100">
+                                        <th className="border-2 border-black p-2 text-center w-[50%] tracking-[0.8em] font-serif">承辦事項</th>
+                                        <th className="border-2 border-black p-2 text-center w-[15%] font-serif">金額(新台幣)</th>
+                                        <th className="border-2 border-black p-2 text-center w-[35%] font-serif"></th>
                                     </tr>
                                 </thead>
                                 <tbody>
-                                    {/* Items & Payment Terms */}
-                                    {/* 我們預設顯示 4 行，如果不夠會自動補空白行，保持格式固定 */}
+                                    {/* 服務項目 Loop */}
+                                    {/* 我們固定顯示至少 4 行，以維持版面高度 */}
                                     {[...Array(Math.max(4, items.length))].map((_, i) => {
                                         const item = items[i] || { description: '', amount: 0 };
                                         return (
                                             <tr key={i} className="h-12">
-                                                <td className="border border-black p-2 text-lg align-middle pl-4 font-bold">
+                                                <td className="border border-black px-4 py-2 align-middle font-bold text-lg">
                                                     {item.description ? `${i + 1}. ${item.description}` : ''}
                                                 </td>
-                                                <td className="border border-black p-2 text-lg text-right align-middle font-bold tracking-wider pr-4">
-                                                    {item.amount ? item.amount.toLocaleString(undefined, {minimumFractionDigits: 1}) : ''}
+                                                <td className="border border-black px-2 py-2 text-right align-middle font-bold text-lg tracking-wider">
+                                                    {item.amount ? item.amount.toLocaleString() : ''}
                                                 </td>
                                                 
-                                                {/* 右側文字：合併儲存格，只在第一列渲染 */}
+                                                {/* 右側文字：合併儲存格 (RowSpan) */}
                                                 {i === 0 && (
-                                                    <td rowSpan={Math.max(7, items.length + 3)} className="border-2 border-black p-6 text-xl align-top leading-loose tracking-wider text-justify" style={{ verticalAlign: 'top' }}>
+                                                    <td rowSpan={Math.max(7, items.length + 3)} className="border border-black p-6 text-xl align-top leading-loose tracking-wider text-justify" style={{ verticalAlign: 'top' }}>
                                                         　  感謝　貴公司支持與愛護，請於收到本聯 7 天內支付左列款項金額於碩業會計師事務所，謝謝合作。
                                                     </td>
                                                 )}
@@ -203,59 +196,65 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                                         );
                                     })}
 
-                                    {/* 空白行填充 (確保高度一致) */}
+                                    {/* 空白行填充 (Spacer) */}
                                     {[...Array(2)].map((_, i) => (
                                         <tr key={`spacer-${i}`} className="h-12"><td className="border border-black"></td><td className="border border-black"></td></tr>
                                     ))}
 
-                                    {/* Totals Section */}
+                                    {/* 業務收入總額 & 扣繳統編 */}
                                     <tr className="h-12">
-                                        <td className="border border-black p-2 text-right text-lg font-bold pr-4 tracking-widest">業務收入總額</td>
-                                        <td className="border border-black p-2 text-right text-lg font-bold pr-4">{serviceTotal.toLocaleString(undefined, {minimumFractionDigits: 1})}</td>
-                                    </tr>
-                                    
-                                    {/* 隱藏資訊列 (扣繳統編 & 地址) - 這是 EXCEL 裡藏在總額旁邊的 */}
-                                    <tr className="h-12">
-                                        <td className="border border-black p-2 text-right text-lg font-bold pr-4 flex justify-between items-center relative">
-                                            {/* 這裡用絕對定位或 Flex 把地址資訊塞進去，模仿 EXCEL 排版 */}
-                                            <span className="absolute left-2 text-sm font-normal">扣繳統一編號：{guiNumber}</span>
-                                            <span></span>
+                                        <td className="border border-black px-4 py-2 text-right font-bold tracking-widest text-lg">業務收入總額</td>
+                                        <td className="border border-black px-2 py-2 text-right font-bold text-lg">{serviceTotal.toLocaleString()}</td>
+                                        {/* 第三欄開始顯示資訊 */}
+                                        <td className="border border-black px-4 py-2 text-left text-lg align-middle">
+                                            扣繳統一編號：{guiNumber}
                                         </td>
-                                        <td className="border border-black p-2 text-right text-lg font-bold"></td> 
-                                        {/* 注意：這裡不顯示金額，金額已經在上面了，這一行在 EXCEL 主要是為了右邊的文字空間，但在 HTML table 比較難完全一樣，我們這裡做視覺調整 */}
-                                    </tr>
-                                     <tr className="h-8">
-                                        <td className="border border-black p-1 text-right text-lg font-bold pr-4 flex justify-between items-center relative">
-                                            <span className="absolute left-2 text-sm font-normal">登記地址：{regAddress}</span>
-                                            <span className="tracking-widest ml-auto">加：代收代付</span>
-                                        </td>
-                                        <td className="border border-black p-2 text-right text-lg font-bold pr-4">{advanceTotal.toLocaleString(undefined, {minimumFractionDigits: 1})}</td>
                                     </tr>
 
-                                    {/* Grand Total */}
-                                    <tr className="h-14">
-                                        <td className="border-2 border-black p-2 text-right text-2xl font-bold pr-4 tracking-[0.5em]">應收金額合計</td>
-                                        <td className="border-2 border-black p-2 text-right text-2xl font-bold pr-4">{grandTotal.toLocaleString(undefined, {minimumFractionDigits: 1})}</td>
+                                    {/* 登記地址 (跨欄位或塞在左邊?) -> 依據EXCEL是在右邊 */}
+                                    <tr className="h-12">
+                                        <td className="border border-black px-4 py-2 text-right text-lg">
+                                            {/* 這裡左邊留空，但要顯示 "登記地址" 在右邊欄位 */}
+                                        </td>
+                                        <td className="border border-black"></td>
+                                        <td className="border border-black px-4 py-2 text-left text-lg align-top">
+                                            <div>登記地址：</div>
+                                            <div className="text-base">{regAddress}</div>
+                                        </td>
+                                    </tr>
+
+                                    {/* 代收代付 */}
+                                    <tr className="h-12">
+                                        <td className="border border-black px-4 py-2 text-right font-bold tracking-widest text-lg">加：代收代付</td>
+                                        <td className="border border-black px-2 py-2 text-right font-bold text-lg">{advanceTotal.toLocaleString()}</td>
+                                        <td className="border border-black"></td>
+                                    </tr>
+
+                                    {/* 應收金額合計 */}
+                                    <tr className="h-16">
+                                        <td className="border-t-2 border-black p-2 text-right text-2xl font-bold tracking-[0.5em]">應收金額合計</td>
+                                        <td className="border-t-2 border-black p-2 text-right text-2xl font-bold">{grandTotal.toLocaleString()}</td>
+                                        <td className="border-t-2 border-black"></td>
                                     </tr>
                                 </tbody>
                             </table>
 
                             {/* Tax Note */}
                             {taxAmount > 0 && (
-                                <div className="text-center text-xl mb-6 mt-4 tracking-wider">
+                                <div className="text-center text-xl mb-4 mt-6 tracking-wider">
                                     (本所依法自行繳納 <span className="font-bold">${taxAmount.toLocaleString()}</span> 之扣繳稅款)
                                 </div>
                             )}
 
-                            {/* Footer Notes (完全依照 EXCEL 格式) */}
-                            <div className="mt-auto text-base">
+                            {/* Footer (Fixed at bottom) */}
+                            <div className="mt-auto">
                                 <p className="mb-2 text-center text-lg">(本請款單未蓋本事務所章者無效)</p>
-                                <div className="border-t-2 border-black pt-3">
-                                    <div className="flex gap-1">
-                                        <span className="font-bold text-lg">註：</span>
-                                        <div className="flex-1 text-lg leading-relaxed">
+                                <div className="border-t-2 border-black pt-3 text-lg">
+                                    <div className="flex gap-2">
+                                        <span className="font-bold">註：</span>
+                                        <div className="flex-1 leading-relaxed">
                                             <p className="mb-1">一、請全額到帳匯入本所下列帳戶：</p>
-                                            <div className="pl-10 mb-2 font-bold tracking-wide">
+                                            <div className="pl-12 mb-2 font-bold tracking-wide">
                                                 銀行：玉山商業銀行 (808) 仁愛分行<br/>
                                                 戶名：碩業會計師事務所鄧博遠<br/>
                                                 帳號：0679-940-160222
@@ -269,18 +268,18 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                         </div>
 
 
-                        {/* ================= PAGE 2: 代墊單 (附件) ================= */}
+                        {/* ================= PAGE 2: 代墊單 ================= */}
                         {advances.length > 0 && (
-                             <div className="p-[15mm] flex flex-col h-[297mm] relative print:h-[297mm] print:page-break-before-always">
-                                <div className="text-xl mb-2 font-bold">公司名稱 : {clientName}</div>
-                                <table className="w-full border-collapse border border-black text-lg text-center">
-                                    <thead>
-                                        <tr>
-                                            <th className="border border-black p-2 w-32">日期</th>
-                                            <th className="border border-black p-2 w-28">金額</th>
-                                            <th className="border border-black p-2 w-32">費用</th>
-                                            <th className="border border-black p-2">說明</th>
-                                            <th className="border border-black p-2 w-20">備註</th>
+                             <div className="flex flex-col h-full relative print:page-break-before-always pt-[15mm]">
+                                <h1 className="text-3xl font-bold text-center mb-8 underline underline-offset-8 decoration-1" style={{ fontFamily: 'DFKai-SB, BiauKai, serif' }}>{clientName} - 代墊費用明細</h1>
+                                <table className="w-full border-collapse border border-black text-xl text-center table-fixed">
+                                    <thead className="bg-gray-100">
+                                        <tr className="h-12">
+                                            <th className="border border-black p-2 w-[15%]">日期</th>
+                                            <th className="border border-black p-2 w-[15%]">金額</th>
+                                            <th className="border border-black p-2 w-[15%]">費用</th>
+                                            <th className="border border-black p-2 w-[45%]">說明</th>
+                                            <th className="border border-black p-2 w-[10%]">備註</th>
                                         </tr>
                                     </thead>
                                     <tbody>
@@ -288,18 +287,18 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                                             const [y, m, d] = row.date.split('-');
                                             const rocDate = `${Number(y)-1911}/${m}/${d}`;
                                             return (
-                                                <tr key={row.id}>
+                                                <tr key={row.id} className="h-12">
                                                     <td className="border border-black p-2">{rocDate}</td>
-                                                    <td className="border border-black p-2 text-right">{Number(row.amount).toLocaleString(undefined, {minimumFractionDigits: 1})}</td>
+                                                    <td className="border border-black p-2 text-right">{Number(row.amount).toLocaleString()}</td>
                                                     <td className="border border-black p-2">{row.category}</td>
                                                     <td className="border border-black p-2 text-left">{row.description}</td>
                                                     <td className="border border-black p-2">{row.note}</td>
                                                 </tr>
                                             );
                                         })}
-                                        <tr className="font-bold">
+                                        <tr className="h-12 font-bold bg-gray-50">
                                             <td className="border border-black p-2">小計</td>
-                                            <td className="border border-black p-2 text-right">{advanceTotal.toLocaleString(undefined, {minimumFractionDigits: 1})}</td>
+                                            <td className="border border-black p-2 text-right">{advanceTotal.toLocaleString()}</td>
                                             <td className="border border-black p-2" colSpan={3}></td>
                                         </tr>
                                     </tbody>
