@@ -78,60 +78,57 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
             await workbook.xlsx.load(arrayBuffer);
 
             // ==========================================
-            // SHEET 1: 請款單
+            // SHEET 1: 請款單 (依照我們約定的座標)
             // ==========================================
             const sheet1 = workbook.getWorksheet(1);
             if (sheet1) {
-                // 🔧 修正座標 (根據您的模版調整)
-                
-                // 客戶名稱：寫在 A8 (假設原本是空白，後面接著 "台照")
-                // 如果您的 "台照" 在 D8，且前面 A-C 是合併或空白，寫入 A8 應該會顯示
-                sheet1.getCell('A8').value = `${clientName}  台照`; 
-                
-                // 日期：寫在 C8 (原本是 C9)
-                // 這裡我們直接寫入完整字串，覆蓋掉模版裡的 "日期：年月日"
-                // 為了避免蓋掉格子格式，如果模版那一格原本就有 "日期："，我們可以直接替換內容
-                sheet1.getCell('C8').value = `日期：${invoiceDate}`; 
-                
-                // 單號：寫在 C10 (原本是 C11)
-                sheet1.getCell('C10').value = `單號：${invoiceNo}`;
+                // 📍 座標設定區 (如果您以後要改位置，改這裡就好)
+                const CELL_CLIENT = 'A8';
+                const CELL_DATE   = 'C8';
+                const CELL_NO     = 'C10';
+                const ROW_ITEMS   = 13;   // 承辦事項從第 13 列開始
+                const CELL_TOTAL1 = 'B21'; // 業務總額
+                const CELL_TOTAL2 = 'B24'; // 代收代付
+                const CELL_TOTAL3 = 'B28'; // 總計
+                const CELL_TAX    = 'A29'; // 稅額備註
 
-                // 填寫承辦事項 (保持從第13列開始，這部分看起來沒錯)
+                // 填寫基本資料
+                sheet1.getCell(CELL_CLIENT).value = `${clientName}  台照`; 
+                sheet1.getCell(CELL_DATE).value   = `日期：${invoiceDate}`; 
+                sheet1.getCell(CELL_NO).value     = `單號：${invoiceNo}`;
+
+                // 填寫承辦事項 (迴圈寫入)
                 items.forEach((item, index) => {
-                    const row = 13 + index;
+                    const row = ROW_ITEMS + index;
                     if (item.description) {
                         sheet1.getCell(`A${row}`).value = `${index + 1}. ${item.description}`;
                         sheet1.getCell(`B${row}`).value = item.amount;
                     } else {
+                        // 清空該行 (防止舊模版有資料)
                         sheet1.getCell(`A${row}`).value = '';
                         sheet1.getCell(`B${row}`).value = '';
                     }
                 });
 
-                // 金額統計 (根據模版位置)
-                // 業務收入總額 (原本推測在 B21，請確認 Excel 裡的列號)
-                sheet1.getCell('B21').value = serviceTotal; 
-                
-                // 代收代付 (原本推測在 B24)
-                sheet1.getCell('B24').value = advanceTotal;
+                // 填寫金額統計
+                sheet1.getCell(CELL_TOTAL1).value = serviceTotal; 
+                sheet1.getCell(CELL_TOTAL2).value = advanceTotal;
+                sheet1.getCell(CELL_TOTAL3).value = grandTotal;
 
-                // 應收金額合計 (原本推測在 B28)
-                sheet1.getCell('B28').value = grandTotal;
-
-                // 稅額備註 (原本推測在 A29)
+                // 填寫稅額備註
                 if (taxAmount > 0) {
-                    sheet1.getCell('A29').value = `(本所依法自行繳納$${taxAmount.toLocaleString()}之扣繳稅款)`;
+                    sheet1.getCell(CELL_TAX).value = `(本所依法自行繳納$${taxAmount.toLocaleString()}之扣繳稅款)`;
                 } else {
-                    sheet1.getCell('A29').value = '';
+                    sheet1.getCell(CELL_TAX).value = '';
                 }
             }
 
             // ==========================================
-            // SHEET 2: 代墊款 (如果有第二頁)
+            // SHEET 2: 代墊款 (假設在第 2 頁)
             // ==========================================
             const sheet2 = workbook.getWorksheet(2);
             if (sheet2 && advances.length > 0) {
-                // 標題 (假設在 A1)
+                // 標題
                 sheet2.getCell('A1').value = `公司名稱 : ${clientName}`; 
 
                 // 從第 4 列開始填寫資料
@@ -140,6 +137,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     const [y, m, d] = row.date.split('-');
                     const rocDate = `${Number(y)-1911}/${m}/${d}`;
                     
+                    // 強制寫入資料
                     sheet2.getCell(`A${r}`).value = rocDate;
                     sheet2.getCell(`B${r}`).value = Number(row.amount);
                     sheet2.getCell(`C${r}`).value = row.category;
@@ -147,14 +145,12 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     sheet2.getCell(`E${r}`).value = row.note;
                 });
 
-                // 清除舊資料
+                // 清除剩餘的空行 (假設清到第 24 行)
                 const dataEndRow = 4 + advances.length;
                 for (let i = dataEndRow; i < 24; i++) {
-                     sheet2.getCell(`A${i}`).value = '';
-                     sheet2.getCell(`B${i}`).value = '';
-                     sheet2.getCell(`C${i}`).value = '';
-                     sheet2.getCell(`D${i}`).value = '';
-                     sheet2.getCell(`E${i}`).value = '';
+                     ['A','B','C','D','E'].forEach(col => {
+                         sheet2.getCell(`${col}${i}`).value = '';
+                     });
                 }
 
                 // 填上小計
@@ -168,7 +164,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
             
         } catch (error) {
             console.error(error);
-            alert("生成失敗，請確認是否已將 invoice_template.xlsx 放入 public 資料夾中。");
+            alert("生成失敗！請檢查 public 資料夾內是否有 invoice_template.xlsx");
         } finally {
             setIsGenerating(false);
         }
@@ -181,7 +177,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                 
                 {/* Header */}
                 <div className="bg-gray-800 text-white p-4 flex justify-between items-center shrink-0">
-                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器</h2>
+                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器 (Excel 填充模式)</h2>
                     <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1">✕</button>
                 </div>
 
@@ -207,11 +203,11 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                             
                             <div className="grid grid-cols-2 gap-4">
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-500 mb-1">客戶抬頭</label>
+                                    <label className="block text-sm font-bold text-gray-500 mb-1">客戶抬頭 (寫入 A8)</label>
                                     <input value={clientName} onChange={e => setClientName(e.target.value)} className="w-full p-2 border rounded-lg" />
                                 </div>
                                 <div>
-                                    <label className="block text-sm font-bold text-gray-500 mb-1">請款日期</label>
+                                    <label className="block text-sm font-bold text-gray-500 mb-1">請款日期 (寫入 C8)</label>
                                     <input value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="w-full p-2 border rounded-lg" />
                                 </div>
                             </div>
@@ -242,7 +238,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
 
                         {/* Right: Items & Actions */}
                         <div className="space-y-4">
-                            <h3 className="font-bold text-gray-700 border-b pb-2">2. 填寫業務費用</h3>
+                            <h3 className="font-bold text-gray-700 border-b pb-2">2. 填寫業務費用 (寫入 Row 13+)</h3>
                             <div className="bg-white p-4 rounded-xl border shadow-sm space-y-2">
                                 {items.map((item, idx) => (
                                     <div key={idx} className="flex gap-2">
@@ -271,15 +267,15 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                                     </div>
                                 ))}
                                 <div className="flex justify-between items-center pt-2 border-t mt-2">
-                                    <span className="text-gray-500 font-bold">業務費總計</span>
+                                    <span className="text-gray-500 font-bold">業務費總計 (寫入 B21)</span>
                                     <span className="font-bold text-lg">${serviceTotal.toLocaleString()}</span>
                                 </div>
                             </div>
                             
                             <div>
-                                <label className="block text-sm font-bold text-gray-500 mb-1">代繳稅款備註 (金額)</label>
+                                <label className="block text-sm font-bold text-gray-500 mb-1">代繳稅款備註 (寫入 A29)</label>
                                 <input type="number" value={taxAmount || ''} onChange={e => setTaxAmount(Number(e.target.value))} className="w-full p-2 border rounded-lg" placeholder="0" />
-                                <p className="text-xs text-gray-400 mt-1">若為 0 則不顯示備註</p>
+                                <p className="text-xs text-gray-400 mt-1">若為 0 則不顯示</p>
                             </div>
                         </div>
                     </div>
@@ -300,7 +296,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                             {isGenerating ? '生成中...' : (
                                 <>
                                     <CloudArrowDownIcon className="w-6 h-6" />
-                                    下載完整 Excel
+                                    下載 Excel
                                 </>
                             )}
                         </button>
