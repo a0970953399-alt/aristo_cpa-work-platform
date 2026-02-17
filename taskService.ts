@@ -538,8 +538,6 @@ async fetchClients(): Promise<Client[]> {
       data.mailRecords = data.mailRecords.filter(r => r.id !== id);
       await this.saveFullData(data);
       return data.mailRecords;
-  }
-
 },
 
 // --- 💰 零用金/代墊款 API ---
