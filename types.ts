@@ -124,3 +124,26 @@ export interface MailRecord {
     trackingNumber?: string; // 單號
     category: MailCategory; // 分類
 }
+
+// ✨ 新增：零用金/代墊款相關定義
+export type CashAccountType = 'shuoye' | 'yongye' | 'puhe';
+
+export interface CashRecord {
+    id: string;
+    date: string;               // 日期 (YYYY-MM-DD)
+    type: 'income' | 'expense'; // 收入 或 支出
+    amount: number;             // 金額
+    category: string;           // 代墊費用/會計科目 (如: 規費, 郵資, 零用金)
+    description: string;        // 說明
+    note?: string;              // 備註 (客戶代墊時自動生成 1,2,3... / 內部則為手動)
+    
+    // 連動相關欄位
+    account: CashAccountType;   // 帳本歸屬 (碩業/永業/璞和)
+    clientId?: string;          // 若有值，代表是「客戶代墊款」 (連動關鍵)
+    clientName?: string;        // 客戶名稱
+    
+    // 特殊欄位
+    requestId?: string;         // 請款單編號 (客戶代墊用，做藍色分組)
+    isReimbursed?: boolean;     // 是否已請款 (碩業用)
+    voucherId?: string;         // 傳票號碼 (內部用)
+}
