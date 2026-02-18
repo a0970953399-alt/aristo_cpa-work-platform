@@ -127,7 +127,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [deductBreak, setDeductBreak] = useState(true); // 預設扣除午休
 
   // 計算今天的打卡狀態
-  const todayStr = new Date().toLocaleDateString('en-CA'); // YYYY-MM-DD
+  const todayObj = new Date();
+  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
   const myTodayRecord = checkInRecords.find(r => r.userId === currentUser.id && r.date === todayStr);
   const isWorking = myTodayRecord && !myTodayRecord.endTime;
   // -----------------------------------------------------------
