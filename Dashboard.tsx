@@ -1,3 +1,4 @@
+import { NotificationService } from './notificationService'; // 👈 新增這行
 import { InvoiceGenerator } from './InvoiceGenerator';
 import { PrinterIcon, CloudArrowUpIcon } from './Icons'; // 記得確認 Icons 檔有這兩個，或用現有的 DocumentTextIcon 代替
 import { Message } from './types';
@@ -252,8 +253,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           totalHours: 0
       };
       await TaskService.addCheckIn(newRecord);
+
+      // 🔔 新增：發送上班通知給主管
+      NotificationService.send(currentUser.name, 'CLOCK_IN');
+      
       await loadData();
       setIsLoading(false);
+      alert("✅ 上班打卡成功！已通知主管。");
   };
 
   const handleCheckOut = async () => {
@@ -276,9 +282,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           totalHours: finalHours
       };
       await TaskService.updateCheckIn(updatedRecord);
+
+      // 🔔 新增：發送下班審核請求給主管
+      NotificationService.send(currentUser.name, 'CLOCK_OUT');
+      
       setIsCheckOutModalOpen(false);
       await loadData();
-      alert(`下班打卡成功！\n今日工時：${finalHours} 小時`);
+      alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時\n主管審核後即可生效。`);
   };
     
   const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => { stopPolling(); const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : ''; try { const updatedList = await TaskService.updateTaskStatus(task.id, newStatus, currentUser.name, completionDateStr); setTasks(updatedList); } catch (error) { alert("失敗"); } finally { startPolling(); } };
