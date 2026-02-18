@@ -4,11 +4,16 @@ import LoginScreen from './LoginScreen';
 import Dashboard from './Dashboard';
 import { User } from './types';
 import { TaskService } from './taskService';
+import { WorkCheckIn } from './WorkCheckIn';
 
 const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [showWorkCheckIn, setShowWorkCheckIn] = useState(false);
+  <button onClick={() => setShowWorkCheckIn(true)} className="bg-purple-600 text-white px-6 py-3 rounded-lg font-bold shadow-lg">
+   ⏰ 打卡系統
+</button>
 
   // Initialize Users and restore session
   useEffect(() => {
@@ -54,5 +59,6 @@ const App: React.FC = () => {
     </>
   );
 };
+{showWorkCheckIn && <WorkCheckIn onClose={() => setShowWorkCheckIn(false)} />}
 
 export default App;
