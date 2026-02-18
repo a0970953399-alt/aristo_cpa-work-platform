@@ -11,7 +11,7 @@ import { ListView } from './ListView';
 import { MailLogView } from './MailLogView';
 import { CashLogView } from './CashLogView';
 import { TaskService } from './taskService';
-import { NotificationService } from './notificationService'; // 引入通知服務
+import { NotificationService } from './notificationService';
 import * as XLSX from 'xlsx';
 
 // Types & Icons
@@ -27,10 +27,14 @@ import {
     LightBulbIcon, ClockIcon, DocumentTextIcon, Squares2X2Icon, FunnelIcon, ChatBubbleIcon 
 } from './Icons';
 
+// 🔴 注意：這裡移除了 TABS，改用下方定義的 const TABS
 import { 
-    TABS, COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, 
+    COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, 
     YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS 
 } from './constants';
+
+// ✅ 這是正確的完整標籤清單
+const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款'];
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const totalMinutes = i * 30;
