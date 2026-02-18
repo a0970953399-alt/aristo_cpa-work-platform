@@ -126,23 +126,29 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [isCheckOutModalOpen, setIsCheckOutModalOpen] = useState(false);
   const [deductBreak, setDeductBreak] = useState(true); // 預設扣除午休
 
-  // 計算今天的打卡狀態
-  const todayObj = new Date();
-  const todayStr = `${todayObj.getFullYear()}-${String(todayObj.getMonth() + 1).padStart(2, '0')}-${String(todayObj.getDate()).padStart(2, '0')}`;
-  const myTodayRecord = checkInRecords.find(r => r.userId === currentUser.id && r.date === todayStr);
+// 🛠️ 修正日期格式邏輯：強制使用 YYYY-MM-DD，避免瀏覽器語系差異導致判定失敗
+  const getTodayString = () => {
+      const d = new Date();
+      const year = d.getFullYear();
+      const month = String(d.getMonth() + 1).padStart(2, '0');
+      const day = String(d.getDate()).padStart(2, '0');
+      return `${year}-${month}-${day}`;
+  };
+  
+  const todayStr = getTodayString(); // 今天的標準日期 (如 2026-02-18)
+
+  const myTodayRecord = checkInRecords.find(r => {
+      // 1. 比對 User ID (轉成字串比對最保險)
+      const sameUser = String(r.userId) === String(currentUser.id);
+      
+      // 2. 比對日期 (相容 2026/02/18 和 2026-02-18)
+      const recordDate = r.date.replace(/\//g, '-'); // 把斜線全部換成減號
+      const sameDate = recordDate === todayStr;
+      
+      return sameUser && sameDate;
+  });
+
   const isWorking = myTodayRecord && !myTodayRecord.endTime;
-  // -----------------------------------------------------------
-  const [messages, setMessages] = useState<Message[]>([]); // 存放留言
-  const [isMessageBoardOpen, setIsMessageBoardOpen] = useState(false); // 控制開關
-
-  const [isAppMenuOpen, setIsAppMenuOpen] = useState(false); // ✨ 控制開始選單
-  const appMenuRef = useRef<HTMLDivElement>(null); // ✨ 點擊外面自動關閉用
-
-  const [mailRecords, setMailRecords] = useState<MailRecord[]>([]);
-
-  const [cashRecords, setCashRecords] = useState<CashRecord[]>([]);
-
-  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
 
   // 點擊外部關閉選單的特效 (加在 useEffect 區域)
   useEffect(() => {
@@ -244,6 +250,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleCheckIn = async () => {
       if (!confirm(`現在時間 ${timeStr}，確定上班打卡？`)) return;
       setIsLoading(true);
+      
       const newRecord: CheckInRecord = {
           id: Date.now().toString(),
           userId: currentUser.id,
