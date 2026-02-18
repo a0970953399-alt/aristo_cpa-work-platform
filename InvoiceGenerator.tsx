@@ -65,7 +65,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     const serviceTotal = items.reduce((sum, item) => sum + Number(item.amount), 0);
     const grandTotal = serviceTotal + advanceTotal;
 
-    // 🔧 工具 1: Base64 解碼
+    // 🔧 工具 1: Base64 淨化與解碼
     const getCleanBuffer = (base64Str: string) => {
         try {
             let clean = base64Str.replace(/^data:.*;base64,/, '').replace(/\s/g, '');
@@ -78,29 +78,28 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
             return bytes.buffer;
         } catch (e) {
             console.error("Base64 解碼失敗:", e);
-            throw new Error("Base64 字串格式錯誤。");
+            throw new Error("Base64 字串格式錯誤，請確認您複製的內容是否完整。");
         }
     };
 
     // 🔧 工具 2: 中西文混排產生器 (Rich Text)
-    // 這是實現「中文標楷體 + 數字Book Antiqua」的關鍵
+    // 功能：自動將字串切開，中文用標楷體，英數用 Book Antiqua
     const createRichText = (text: string, fontSize: number = 12) => {
         if (!text) return null;
         
-        // 使用正則表達式切分字串：找出連續的 ASCII (英文/數字/符號) 和 非ASCII (中文)
-        // [\x00-\x7F]+ 代表連續的英數符號
+        // 切分字串：找出連續的 ASCII (英文/數字/符號) 和 非ASCII (中文)
         const parts = text.split(/([\x00-\x7F]+)/g).filter(Boolean);
 
         return {
             richText: parts.map(part => {
-                // 判斷是否為英數 (檢查第一個字元即可)
+                // 判斷是否為英數
                 const isAscii = /^[\x00-\x7F]/.test(part);
                 return {
                     text: part,
                     font: {
-                        name: isAscii ? 'Book Antiqua' : '標楷體', // 👈 這裡就是您要的邏輯
+                        name: isAscii ? 'Book Antiqua' : '標楷體', // 👈 這裡實現您的字體需求
                         size: fontSize,
-                        family: isAscii ? 2 : 1, // 2=Swiss(Sans), 1=Roman(Serif)
+                        family: isAscii ? 2 : 1, 
                     }
                 };
             })
@@ -109,7 +108,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
 
     const handleDownloadExcel = async () => {
         if (!TEMPLATE_BASE64 || TEMPLATE_BASE64.length < 100) {
-            alert("⚠️ 尚未設定模版！\n請貼上 Base64 字串。");
+            alert("⚠️ 尚未設定模版！\n請將 Excel 轉成的 Base64 字串貼入程式碼最上方的 TEMPLATE_BASE64 變數中。");
             return;
         }
 
@@ -120,16 +119,16 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
             await workbook.xlsx.load(templateBuffer);
 
             // ==========================================
-            // SHEET 1: 請款單
+            // SHEET 1: 請款單 (套用混排字體)
             // ==========================================
             const sheet1 = workbook.worksheets[0]; 
             if (sheet1) {
                 const ROW_ITEMS = 12; // A12 開始
 
-                // 1. 客戶名稱 (A8) -> 使用混排字體
-                sheet1.getCell('A8').value = createRichText(`${clientName}`, 14); // 客戶名稱通常大一點
+                // 1. 客戶名稱 (A8) -> 混排字體
+                sheet1.getCell('A8').value = createRichText(`${clientName}`, 14); 
                 
-                // 2. 日期與單號 (C8, C10) -> 使用混排字體
+                // 2. 日期與單號 (C8, C10) -> 混排字體
                 sheet1.getCell('C8').value = createRichText(`日期：${invoiceDate}`);
                 sheet1.getCell('C10').value = createRichText(`單號：${invoiceNo}`);
 
@@ -139,16 +138,17 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     sheet1.getCell(`B${ROW_ITEMS+i}`).value = null;
                 }
                 
-                // 4. 填入承辦事項 (A12~) -> 使用混排字體
+                // 4. 填入承辦事項 (A12~) -> 說明混排，金額 Book Antiqua
                 items.forEach((item, index) => {
                     const row = ROW_ITEMS + index;
                     if (item.description) {
-                        // 說明欄位：混排字體 (標楷體+Book Antiqua)
+                        // A欄：說明 (需混排)
                         const cellDesc = sheet1.getCell(`A${row}`);
                         cellDesc.value = createRichText(`${index + 1}. ${item.description}`, 12);
+                        // 保持靠左、自動換行
                         cellDesc.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
 
-                        // 金額欄位：純數字，直接設定字體為 Book Antiqua
+                        // B欄：金額 (純數字，用 Book Antiqua)
                         const cellAmount = sheet1.getCell(`B${row}`);
                         cellAmount.value = item.amount;
                         cellAmount.font = { name: 'Book Antiqua', size: 12 };
@@ -156,7 +156,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     }
                 });
 
-                // 5. 填寫金額統計 -> 純數字，用 Book Antiqua
+                // 5. 填寫金額統計 (純數字，用 Book Antiqua)
                 ['B20', 'B23', 'B27'].forEach(cellRef => {
                     const cell = sheet1.getCell(cellRef);
                     if (cellRef === 'B20') cell.value = serviceTotal;
@@ -165,7 +165,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     cell.font = { name: 'Book Antiqua', size: 12 };
                 });
 
-                // 6. 稅額文字替換 (A28) -> 使用混排字體
+                // 6. 稅額文字替換 (A28) -> 混排字體
                 const cellTax = sheet1.getCell('A28');
                 if (taxAmount > 0) {
                     let text = cellTax.value ? cellTax.value.toString() : '';
@@ -173,18 +173,18 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                          text = `(本所依法自行繳納$((稅款))之扣繳稅款)`;
                     }
                     const finalStr = text.replace('((稅款))', taxAmount.toLocaleString());
-                    cellTax.value = createRichText(finalStr, 10); // 備註字體小一點
+                    cellTax.value = createRichText(finalStr, 10); // 備註字體設為 10
                 } else {
                     cellTax.value = ''; 
                 }
             }
 
             // ==========================================
-            // SHEET 2: 代墊單 (完全鎖定格式)
+            // SHEET 2: 代墊單 (完全鎖定格式，只填值)
             // ==========================================
             const sheet2 = workbook.worksheets[1]; 
             if (sheet2 && advances.length > 0) {
-                // 只填值，不設定任何 font/border，完全吃 Base64 裡的設定
+                // 填寫標題
                 sheet2.getCell('A1').value = `公司名稱 : ${clientName}`; 
 
                 const startRow = 4;
@@ -193,6 +193,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     const [y, m, d] = row.date.split('-');
                     const rocDate = `${Number(y)-1911}/${m}/${d}`;
                     
+                    // 只填值，保留該格子原本的框線和字體
                     sheet2.getCell(`A${currentRow}`).value = rocDate;
                     sheet2.getCell(`B${currentRow}`).value = Number(row.amount);
                     sheet2.getCell(`C${currentRow}`).value = row.category;
@@ -200,4 +201,83 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     sheet2.getCell(`E${currentRow}`).value = row.note;
                 });
 
-                const totalRowIndex = startRow +
+                // 填寫小計
+                const totalRowIndex = startRow + advances.length;
+                sheet2.getCell(`A${totalRowIndex}`).value = '小計';
+                sheet2.getCell(`B${totalRowIndex}`).value = advanceTotal;
+                
+                // 清除殘留值
+                for (let i = totalRowIndex + 1; i < totalRowIndex + 20; i++) {
+                     ['A','B','C','D','E'].forEach(col => {
+                         sheet2.getCell(`${col}${i}`).value = null;
+                     });
+                }
+            }
+
+            const outputBuffer = await workbook.xlsx.writeBuffer();
+            saveAs(new Blob([outputBuffer]), `${clientName}_請款單_${invoiceDate}.xlsx`);
+            
+        } catch (error: any) {
+            console.error(error);
+            alert(`生成失敗！錯誤原因：${error.message}`);
+        } finally {
+            setIsGenerating(false);
+        }
+    };
+
+    // --- Render ---
+    return (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 animate-fade-in">
+            <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
+                <div className="bg-gray-800 text-white p-4 flex justify-between items-center shrink-0">
+                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器 (字體完美版)</h2>
+                    <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1">✕</button>
+                </div>
+
+                <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
+                    <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
+                        <div className="space-y-4">
+                            <h3 className="font-bold text-gray-700 border-b pb-2">1. 載入資料</h3>
+                            <div className="flex gap-2">
+                                <input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="單號 (如 115R001)" className="flex-1 p-2 border rounded-lg font-mono font-bold" onKeyDown={e => e.key === 'Enter' && handleSearch()} />
+                                <button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold">載入</button>
+                            </div>
+                            <div className="grid grid-cols-2 gap-4">
+                                <div><label className="block text-sm font-bold text-gray-500 mb-1">客戶抬頭</label><input value={clientName} onChange={e => setClientName(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
+                                <div><label className="block text-sm font-bold text-gray-500 mb-1">請款日期</label><input value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
+                            </div>
+                            <div className="bg-white p-4 rounded-xl border shadow-sm">
+                                <div className="flex justify-between items-center mb-2"><h4 className="font-bold text-gray-700">代墊款明細</h4><span className="text-blue-600 font-bold text-xl">${advanceTotal.toLocaleString()}</span></div>
+                                <div className="max-h-40 overflow-y-auto text-sm border-t mt-2">
+                                    {advances.length > 0 ? (
+                                        <table className="w-full text-left mt-2"><thead className="text-gray-500"><tr><th>日期</th><th>項目</th><th className="text-right">金額</th></tr></thead><tbody>
+                                            {advances.map(r => (<tr key={r.id} className="border-b last:border-0"><td className="py-1 text-gray-500">{r.date.slice(5)}</td><td className="py-1">{r.description}</td><td className="py-1 text-right font-mono">${r.amount}</td></tr>))}
+                                        </tbody></table>
+                                    ) : <p className="text-gray-400 py-4 text-center">...</p>}
+                                </div>
+                            </div>
+                        </div>
+                        <div className="space-y-4">
+                            <h3 className="font-bold text-gray-700 border-b pb-2">2. 填寫業務費用</h3>
+                            <div className="bg-white p-4 rounded-xl border shadow-sm space-y-2">
+                                {items.map((item, idx) => (
+                                    <div key={idx} className="flex gap-2">
+                                        <span className="text-gray-400 py-2 w-4 text-center">{idx+1}.</span>
+                                        <input placeholder="項目名稱" value={item.description} onChange={e => {const n=[...items];n[idx].description=e.target.value;setItems(n)}} className="flex-1 p-2 border rounded" />
+                                        <input type="number" placeholder="$" value={item.amount || ''} onChange={e => {const n=[...items];n[idx].amount=Number(e.target.value);setItems(n)}} className="w-24 p-2 border rounded text-right font-mono" />
+                                    </div>
+                                ))}
+                                <div className="flex justify-between items-center pt-2 border-t mt-2"><span className="text-gray-500 font-bold">總計</span><span className="font-bold text-lg">${serviceTotal.toLocaleString()}</span></div>
+                            </div>
+                            <div><label className="block text-sm font-bold text-gray-500 mb-1">代繳稅款備註 (A28)</label><input type="number" value={taxAmount || ''} onChange={e => setTaxAmount(Number(e.target.value))} className="w-full p-2 border rounded-lg" /></div>
+                        </div>
+                    </div>
+                </div>
+                <div className="p-4 bg-white border-t flex justify-between items-center">
+                    <div className="text-xl font-bold text-gray-800">總應收：<span className="text-blue-600 text-2xl">${grandTotal.toLocaleString()}</span></div>
+                    <div className="flex gap-3"><button onClick={onClose} className="px-6 py-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">取消</button><button onClick={handleDownloadExcel} disabled={isGenerating} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-bold shadow-lg"><CloudArrowDownIcon className="w-6 h-6"/> 下載 Excel</button></div>
+                </div>
+            </div>
+        </div>
+    );
+};
