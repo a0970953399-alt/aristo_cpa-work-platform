@@ -1,30 +1,36 @@
-import { NotificationService } from './notificationService'; // 👈 新增這行
+// src/Dashboard.tsx
+
+import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { InvoiceGenerator } from './InvoiceGenerator';
-import { PrinterIcon, CloudArrowUpIcon } from './Icons'; // 記得確認 Icons 檔有這兩個，或用現有的 DocumentTextIcon 代替
-import { Message } from './types';
 import { MessageBoard } from './MessageBoard';
-import { ChatBubbleIcon } from './Icons'; // 記得引入 Icon
-import { RefreshSvg, FolderIcon, LightningIcon, TrashIcon, UserGroupIcon, TableCellsIcon, ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, LockClosedIcon, CalendarIcon, LightBulbIcon, ClockIcon, DocumentTextIcon,Squares2X2Icon } from './Icons';
-import { CheckInRecord } from './types'; // 記得加 CheckInRecord
-import { TimesheetView } from './TimesheetView'; // 引入新頁面
-// 在 Icons 引入區加入 ClockIcon (如果沒有這個icon，用 LightBulbIcon 代替也可以，或是加一個)
-import { ClockIcon } from './Icons';
-import React, { useState, useEffect, useRef } from 'react';
-import { User, TabCategory, ClientTask, UserRole, TaskStatusType, Client, Instruction, HistoryEntry, ClientProfile, CalendarEvent, EventType } from './types';
-import { TABS, MATRIX_TABS, COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, DUMMY_CLIENTS, YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS } from './constants';
-import { TaskService } from './taskService';
-import { RefreshSvg, FolderIcon, LightningIcon, TrashIcon, UserGroupIcon, TableCellsIcon, ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, LockClosedIcon, CalendarIcon, LightBulbIcon, ClockIcon } from './Icons';
+import { TimesheetView } from './TimesheetView'; 
 import { ClientDrawer } from './ClientDrawer';
 import { MatrixView } from './MatrixView';
 import { CalendarView } from './CalendarView';
 import { ListView } from './ListView';
-import * as XLSX from 'xlsx';
 import { MailLogView } from './MailLogView';
-import { MailRecord } from './types'; // 引入類型
 import { CashLogView } from './CashLogView';
-import { CashRecord } from './types';
+import { TaskService } from './taskService';
+import { NotificationService } from './notificationService'; // 👈 確保引入通知服務
+import * as XLSX from 'xlsx';
 
-const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款'];
+// Types & Icons
+import { 
+    User, TabCategory, ClientTask, UserRole, TaskStatusType, Client, Instruction, 
+    HistoryEntry, ClientProfile, CalendarEvent, EventType, 
+    CheckInRecord, MailRecord, CashRecord, Message 
+} from './types';
+
+import { 
+    RefreshSvg, FolderIcon, LightningIcon, TrashIcon, UserGroupIcon, TableCellsIcon, 
+    ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, LockClosedIcon, CalendarIcon, 
+    LightBulbIcon, ClockIcon, DocumentTextIcon, Squares2X2Icon, FunnelIcon, ChatBubbleIcon 
+} from './Icons';
+
+import { 
+    TABS, COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, 
+    YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS 
+} from './constants';
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const totalMinutes = i * 30;
@@ -41,21 +47,43 @@ interface DashboardProps {
 }
 
 const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onUserUpdate }) => {
-  // Global State
+  // --- Global State ---
   const [currentYear, setCurrentYear] = useState<string>(DEFAULT_YEAR);
   const [activeTab, setActiveTab] = useState<TabCategory>(TabCategory.ACCOUNTING);
   const [tasks, setTasks] = useState<ClientTask[]>([]);
-  const [events, setEvents] = useState<CalendarEvent[]>([]); // Calendar Events
-  const [clients, setClients] = useState<Client[]>([]); // Client List
+  const [events, setEvents] = useState<CalendarEvent[]>([]);
+  const [clients, setClients] = useState<Client[]>([]);
   const [isLoading, setIsLoading] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [permissionNeeded, setPermissionNeeded] = useState(false);
   const [currentTime, setCurrentTime] = useState(new Date());
 
+  // --- UI State ---
   const [isCalendarOpen, setIsCalendarOpen] = useState(false);
   const [currentMonth, setCurrentMonth] = useState(new Date());
-  
   const [isEventModalOpen, setIsEventModalOpen] = useState(false);
+  const [isDailyReminderOpen, setIsDailyReminderOpen] = useState(false);
+  const [showMyList, setShowMyList] = useState(false);
+  const [viewTargetId, setViewTargetId] = useState<string>('ALL');
+  const [showOverview, setShowOverview] = useState(false);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isDateModalOpen, setIsDateModalOpen] = useState(false);
+  const [isMiscModalOpen, setIsMiscModalOpen] = useState(false);
+  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
+  const [isNoteEditModalOpen, setIsNoteEditModalOpen] = useState(false);
+  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
+  const [isUserDeleteModalOpen, setIsUserDeleteModalOpen] = useState(false);
+  const [isClientDeleteModalOpen, setIsClientDeleteModalOpen] = useState(false);
+  const [isAppMenuOpen, setIsAppMenuOpen] = useState(false);
+  const [isMessageBoardOpen, setIsMessageBoardOpen] = useState(false);
+  const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
+  const [isTimesheetOpen, setIsTimesheetOpen] = useState(false);
+  const [isCheckOutModalOpen, setIsCheckOutModalOpen] = useState(false);
+  const [isEventDeleteModalOpen, setIsEventDeleteModalOpen] = useState(false);
+
+  // --- Data State ---
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>('');
   const [selectedEvent, setSelectedEvent] = useState<CalendarEvent | null>(null);
   const [newEventTitle, setNewEventTitle] = useState('');
@@ -64,69 +92,46 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [newEventDesc, setNewEventDesc] = useState('');
   const [shiftStart, setShiftStart] = useState('09:00');
   const [shiftEnd, setShiftEnd] = useState('18:00');
-  
-  const [isEventDeleteModalOpen, setIsEventDeleteModalOpen] = useState(false);
-
-  const [isDailyReminderOpen, setIsDailyReminderOpen] = useState(false);
   const [dailyReminders, setDailyReminders] = useState<CalendarEvent[]>([]);
   const [dontShowDailyAgain, setDontShowDailyAgain] = useState(false);
-
-  const dateStr = currentTime.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
-  const timeStr = currentTime.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
-  
-  const [showMyList, setShowMyList] = useState(false);
-  const [viewTargetId, setViewTargetId] = useState<string>('ALL');
-  const [showOverview, setShowOverview] = useState(false);
-  
-  const [searchQuery, setSearchQuery] = useState('');
-  
-  const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [selectedInstruction, setSelectedInstruction] = useState<Instruction | null>(null);
-
   const [selectedClientForDrawer, setSelectedClientForDrawer] = useState<Client | null>(null);
-
   const [selectedCell, setSelectedCell] = useState<{client: Client, column: string, task?: ClientTask} | null>(null);
   const [modalAssigneeId, setModalAssigneeId] = useState<string>('');
   const [modalNote, setModalNote] = useState('');
   const [modalDate, setModalDate] = useState('');
-  
-  const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
-  const [isDateModalOpen, setIsDateModalOpen] = useState(false);
-  const [isMiscModalOpen, setIsMiscModalOpen] = useState(false);
-  const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
   const [taskToDelete, setTaskToDelete] = useState<ClientTask | null>(null);
-  const [isNoteEditModalOpen, setIsNoteEditModalOpen] = useState(false);
   const [editingTask, setEditingTask] = useState<ClientTask | null>(null);
-  
-  // Settings / User / Client Management Modals
-  const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [settingsTab, setSettingsTab] = useState<'users' | 'clients'>('users');
   const [newUserName, setNewUserName] = useState('');
-  const [isUserDeleteModalOpen, setIsUserDeleteModalOpen] = useState(false);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [newUserPin, setNewUserPin] = useState('');
-  const fileInputRef = useRef<HTMLInputElement>(null);
-  
-  // Client Management States
   const [newClientCode, setNewClientCode] = useState('');
   const [newClientName, setNewClientName] = useState('');
   const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
-  const [isClientDeleteModalOpen, setIsClientDeleteModalOpen] = useState(false);
-  const excelInputRef = useRef<HTMLInputElement>(null);
-
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
-  const prevCompletedColsRef = useRef<Set<string>>(new Set());
+  const [checkInRecords, setCheckInRecords] = useState<CheckInRecord[]>([]);
+  const [messages, setMessages] = useState<Message[]>([]);
+  const [mailRecords, setMailRecords] = useState<MailRecord[]>([]);
+  const [cashRecords, setCashRecords] = useState<CashRecord[]>([]);
+  const [deductBreak, setDeductBreak] = useState(true);
 
+  // --- Refs ---
+  const fileInputRef = useRef<HTMLInputElement>(null);
+  const excelInputRef = useRef<HTMLInputElement>(null);
+  const prevCompletedColsRef = useRef<Set<string>>(new Set());
   const pollingRef = useRef<number | null>(null);
+  const appMenuRef = useRef<HTMLDivElement>(null);
+
+  // --- Computed ---
+  const dateStr = currentTime.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
+  const timeStr = currentTime.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
   const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
   const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
-  const [checkInRecords, setCheckInRecords] = useState<CheckInRecord[]>([]);
-  const [isTimesheetOpen, setIsTimesheetOpen] = useState(false);
-  const [isCheckOutModalOpen, setIsCheckOutModalOpen] = useState(false);
-  const [deductBreak, setDeductBreak] = useState(true); // 預設扣除午休
 
-// 🛠️ 修正日期格式邏輯：強制使用 YYYY-MM-DD，避免瀏覽器語系差異導致判定失敗
+  // -----------------------------------------------------------
+  // 🛠️ 修正日期格式邏輯：強制使用 YYYY-MM-DD，避免瀏覽器語系差異導致判定失敗
   const getTodayString = () => {
       const d = new Date();
       const year = d.getFullYear();
@@ -138,19 +143,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const todayStr = getTodayString(); // 今天的標準日期 (如 2026-02-18)
 
   const myTodayRecord = checkInRecords.find(r => {
-      // 1. 比對 User ID (轉成字串比對最保險)
+      if (!r || !r.userId) return false;
+      // 1. 比對 User ID
       const sameUser = String(r.userId) === String(currentUser.id);
-      
-      // 2. 比對日期 (相容 2026/02/18 和 2026-02-18)
-      const recordDate = r.date.replace(/\//g, '-'); // 把斜線全部換成減號
+      // 2. 比對日期 (相容 / 與 -)
+      const recordDate = (r.date || '').replace(/\//g, '-'); 
       const sameDate = recordDate === todayStr;
-      
       return sameUser && sameDate;
   });
 
   const isWorking = myTodayRecord && !myTodayRecord.endTime;
+  // -----------------------------------------------------------
 
-  // 點擊外部關閉選單的特效 (加在 useEffect 區域)
+  // --- Effects ---
+
   useEffect(() => {
       function handleClickOutside(event: MouseEvent) {
           if (appMenuRef.current && !appMenuRef.current.contains(event.target as Node)) {
@@ -176,11 +182,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   useEffect(() => { if (events.length > 0) checkDailyReminders(); }, [events]);
 
   const checkDailyReminders = () => {
-      const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-      const storageKey = `shuoye_dismissed_reminder_${todayStr}_${currentUser.id}`;
+      const d = new Date();
+      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const storageKey = `shuoye_dismissed_reminder_${today}_${currentUser.id}`;
       if (localStorage.getItem(storageKey) === 'true') return;
+      
       const reminders = events.filter(e => {
-          if (e.date !== todayStr) return false;
+          if (e.date !== today) return false;
           if (e.type === 'shift' && e.ownerId === currentUser.id) return true;
           if (e.type === 'reminder' && e.ownerId === currentUser.id) return true;
           return false;
@@ -190,20 +198,24 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
   const handleDismissDaily = () => {
       if (dontShowDailyAgain) {
-          const todayStr = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}-${String(new Date().getDate()).padStart(2, '0')}`;
-          const storageKey = `shuoye_dismissed_reminder_${todayStr}_${currentUser.id}`;
+          const d = new Date();
+          const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const storageKey = `shuoye_dismissed_reminder_${today}_${currentUser.id}`;
           localStorage.setItem(storageKey, 'true');
       }
       setIsDailyReminderOpen(false);
   };
 
+  // Auto-collapse columns logic
   useEffect(() => {
     let targetSubItems: string[] = [];
     if (activeTab === TabCategory.ACCOUNTING) targetSubItems = ACCOUNTING_SUB_ITEMS;
     else if (activeTab === TabCategory.TAX) targetSubItems = TAX_SUB_ITEMS;
     if (targetSubItems.length === 0) return;
+    
     const columns = COLUMN_CONFIG[activeTab] || [];
     const currentCompletedCols = new Set<string>();
+    
     columns.forEach(col => {
         const isColumnComplete = clients.every(client => {
             return targetSubItems.every(subItem => {
@@ -213,18 +225,35 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         });
         if (isColumnComplete) currentCompletedCols.add(col);
     });
+
     const colsToAutoCollapse: string[] = [];
     currentCompletedCols.forEach(col => { if (!prevCompletedColsRef.current.has(col)) colsToAutoCollapse.push(col); });
     prevCompletedColsRef.current = currentCompletedCols;
+    
     if (colsToAutoCollapse.length > 0) {
         setCollapsedColumns(prev => { const newSet = new Set(prev); colsToAutoCollapse.forEach(c => newSet.add(c)); return newSet; });
     }
   }, [tasks, activeTab, currentYear, clients]);
 
-  const startPolling = () => { if (pollingRef.current) return; pollingRef.current = window.setInterval(async () => { if (TaskService.isConnected() && !isAssignModalOpen && !isDateModalOpen && !isNoteEditModalOpen && !isMiscModalOpen && !isDeleteModalOpen && !isGalleryOpen && !selectedClientForDrawer && !isUserModalOpen && !isUserDeleteModalOpen && !isEventModalOpen && !isCalendarOpen && !isEventDeleteModalOpen && !isClientDeleteModalOpen) { try { await loadData(); } catch (e) { } } }, 3000); };
+  // Polling
+  const startPolling = () => { 
+      if (pollingRef.current) return; 
+      pollingRef.current = window.setInterval(async () => { 
+          if (TaskService.isConnected() && !hasOpenModal()) { 
+              try { await loadData(); } catch (e) { } 
+          } 
+      }, 3000); 
+  };
+  
+  const hasOpenModal = () => {
+      return isAssignModalOpen || isDateModalOpen || isNoteEditModalOpen || isMiscModalOpen || 
+             isDeleteModalOpen || isGalleryOpen || selectedClientForDrawer || isUserModalOpen || 
+             isUserDeleteModalOpen || isEventModalOpen || isCalendarOpen || isEventDeleteModalOpen || 
+             isClientDeleteModalOpen || isCheckOutModalOpen || isTimesheetOpen;
+  };
+
   const stopPolling = () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
-  const handleConnectDb = async () => { const success = await TaskService.connectDatabase(); if (success) { setDbConnected(true); setPermissionNeeded(false); await loadData(); startPolling(); } };
-  const handleRestoreClick = async () => { const status = await TaskService.restoreConnection(true); if (status === 'connected') { setDbConnected(true); setPermissionNeeded(false); await loadData(); startPolling(); } else handleConnectDb(); };
+
   const loadData = async () => { 
       if (!TaskService.isConnected()) return; 
       try { 
@@ -235,6 +264,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           const messageData = await TaskService.fetchMessages();
           const mailData = await TaskService.fetchMailRecords();
           const cashData = await TaskService.fetchCashRecords();
+          
           setTasks(prev => JSON.stringify(prev) !== JSON.stringify(tData) ? tData : prev); 
           setEvents(prev => JSON.stringify(prev) !== JSON.stringify(eData) ? eData : prev); 
           setClients(prev => JSON.stringify(prev) !== JSON.stringify(cData) ? cData : prev);
@@ -246,7 +276,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           setDbConnected(false); setPermissionNeeded(true); 
       } 
   };
-    
+
+  // --- Handlers ---
+  
+  // ✅ 上班打卡 (含通知)
   const handleCheckIn = async () => {
       if (!confirm(`現在時間 ${timeStr}，確定上班打卡？`)) return;
       setIsLoading(true);
@@ -255,21 +288,23 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           id: Date.now().toString(),
           userId: currentUser.id,
           userName: currentUser.name,
-          date: todayStr,
+          date: todayStr, // 使用標準日期
           startTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
           breakHours: 0,
           totalHours: 0
       };
-      await TaskService.addCheckIn(newRecord);
-
-      // 🔔 新增：發送上班通知給主管
-      NotificationService.send(currentUser.name, 'CLOCK_IN');
       
+      await TaskService.addCheckIn(newRecord);
+      
+      // 🔔 通知主管
+      NotificationService.send(currentUser.name, 'CLOCK_IN');
+
       await loadData();
       setIsLoading(false);
       alert("✅ 上班打卡成功！已通知主管。");
   };
 
+  // ✅ 下班打卡 (含通知)
   const handleCheckOut = async () => {
       if (!myTodayRecord) return;
       // 計算工時
@@ -290,133 +325,54 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           totalHours: finalHours
       };
       await TaskService.updateCheckIn(updatedRecord);
-
-      // 🔔 新增：發送下班審核請求給主管
+      
+      // 🔔 通知主管
       NotificationService.send(currentUser.name, 'CLOCK_OUT');
       
       setIsCheckOutModalOpen(false);
       await loadData();
       alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時\n主管審核後即可生效。`);
   };
-    
+
+  // Other Handlers
   const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => { stopPolling(); const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : ''; try { const updatedList = await TaskService.updateTaskStatus(task.id, newStatus, currentUser.name, completionDateStr); setTasks(updatedList); } catch (error) { alert("失敗"); } finally { startPolling(); } };
   const openInternNoteEdit = (task: ClientTask) => { setEditingTask(task); setModalNote(task.note); setIsNoteEditModalOpen(true); stopPolling(); };
   const handleInternNoteSubmit = async () => { if (!editingTask) return; setIsLoading(true); try { const updatedList = await TaskService.updateTaskNote(editingTask.id, modalNote, currentUser.name); setTasks(updatedList); setIsNoteEditModalOpen(false); setEditingTask(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
   const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
   const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } }
 
-// --- 📋 一鍵生成日報功能 (修正版) ---
   const handleGenerateDailyReport = async () => {
       const today = new Date();
-      // 格式化日期：2026/02/16
       const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
       const checkDate = today.toDateString();
-
-      // 1. 抓取今天的任務
       const myTasks = tasks.filter(t => {
           if (!t.lastUpdatedAt) return false;
           const updateDate = new Date(t.lastUpdatedAt).toDateString();
-          // 確保是「今天」且「最後更新者是我」
           return t.lastUpdatedBy === currentUser.name && updateDate === checkDate;
       });
-
-      if (myTasks.length === 0) {
-          alert("今天您還沒有更新任何工作紀錄喔！");
-          return;
-      }
-
-      // 2. 分類狀態
+      if (myTasks.length === 0) { alert("今天您還沒有更新任何工作紀錄喔！"); return; }
       const done = myTasks.filter(t => t.status === 'done' || t.isNA);
       const inProgress = myTasks.filter(t => t.status === 'in_progress');
       const todo = myTasks.filter(t => t.status === 'todo');
-
-      // 3. 準備標題
       let report = `📅 ${dateString} 工作匯報 - ${currentUser.name}\n\n`;
-
-      // ✨ 核心修改：定義每一行的文字格式
       const formatLine = (t: ClientTask) => {
-          // 判斷是否為行政交辦 (檢查 ID 開頭 或 Category)
           const isMisc = t.id.startsWith('misc_') || t.category === 'MISC_TASK';
-
-          if (isMisc) {
-              // 🔴 針對行政交辦：只顯示備註！
-              // 格式變成： "- 備註內容"
-              return `- ${t.note || '行政交辦 (無內容)'}\n`;
-          }
-
-          // 🔵 針對一般客戶任務：維持原本格式
-          // 格式： "- 客戶名：分類 工作項目"
+          if (isMisc) return `- ${t.note || '行政交辦 (無內容)'}\n`;
           return `- ${t.clientName}：${t.category} ${t.workItem} ${t.isNA ? '(N/A)' : ''}\n`;
       };
-
-      // 4. 組合內容
-      if (done.length > 0) {
-          report += `✅ 已完成：\n`;
-          done.forEach(t => { report += formatLine(t); });
-          report += `\n`;
-      }
-
-      if (inProgress.length > 0) {
-          report += `🔄 進行中：\n`;
-          inProgress.forEach(t => { report += formatLine(t); });
-          report += `\n`;
-      }
-
-      if (todo.length > 0) {
-          report += `📝 待辦：\n`;
-          todo.forEach(t => { report += formatLine(t); });
-          report += `\n`;
-      }
-
-      // 5. 複製到剪貼簿
-      try {
-          await navigator.clipboard.writeText(report);
-          alert("📋 工作匯報已複製到剪貼簿！");
-      } catch (err) {
-          console.error('Failed to copy: ', err);
-          alert("複製失敗，請手動複製");
-      }
-  };
-    
-  // Calendar Logic
-  const handleDayClick = (dateStr: string) => { 
-      if (!dbConnected) return; 
-      setSelectedCalendarDate(dateStr); 
-      setNewEventTitle(''); 
-      setNewEventDesc(''); 
-      setNewEventType('reminder'); 
-      setNewEventOwnerId(currentUser.id); 
-      setShiftStart('09:00'); 
-      setShiftEnd('18:00'); 
-      setSelectedEvent(null); 
-      setIsEventModalOpen(true); 
-      stopPolling(); 
+      if (done.length > 0) { report += `✅ 已完成：\n`; done.forEach(t => { report += formatLine(t); }); report += `\n`; }
+      if (inProgress.length > 0) { report += `🔄 進行中：\n`; inProgress.forEach(t => { report += formatLine(t); }); report += `\n`; }
+      if (todo.length > 0) { report += `📝 待辦：\n`; todo.forEach(t => { report += formatLine(t); }); report += `\n`; }
+      try { await navigator.clipboard.writeText(report); alert("📋 工作匯報已複製到剪貼簿！"); } catch (err) { console.error('Failed to copy: ', err); alert("複製失敗，請手動複製"); }
   };
 
-  const handleEventClick = (e: React.MouseEvent, event: CalendarEvent) => { 
-      e.stopPropagation(); 
-      if (!dbConnected) return; 
-      setSelectedCalendarDate(event.date); 
-      setNewEventTitle(event.title); 
-      setNewEventDesc(event.description || ''); 
-      setNewEventType(event.type); 
-      setNewEventOwnerId(event.ownerId); 
-      if (event.type === 'shift' && event.title.includes(' - ')) { 
-          const parts = event.title.split(' - '); 
-          if (parts.length === 2) { setShiftStart(parts[0]); setShiftEnd(parts[1]); } 
-          else { setShiftStart('09:00'); setShiftEnd('18:00'); } 
-      } else { 
-          setShiftStart('09:00'); setShiftEnd('18:00'); 
-      } 
-      setSelectedEvent(event); 
-      setIsEventModalOpen(true); 
-      stopPolling(); 
-  };
-
+  // Calendar
+  const handleDayClick = (dateStr: string) => { if (!dbConnected) return; setSelectedCalendarDate(dateStr); setNewEventTitle(''); setNewEventDesc(''); setNewEventType('reminder'); setNewEventOwnerId(currentUser.id); setShiftStart('09:00'); setShiftEnd('18:00'); setSelectedEvent(null); setIsEventModalOpen(true); stopPolling(); };
+  const handleEventClick = (e: React.MouseEvent, event: CalendarEvent) => { e.stopPropagation(); if (!dbConnected) return; setSelectedCalendarDate(event.date); setNewEventTitle(event.title); setNewEventDesc(event.description || ''); setNewEventType(event.type); setNewEventOwnerId(event.ownerId); if (event.type === 'shift' && event.title.includes(' - ')) { const parts = event.title.split(' - '); if (parts.length === 2) { setShiftStart(parts[0]); setShiftEnd(parts[1]); } else { setShiftStart('09:00'); setShiftEnd('18:00'); } } else { setShiftStart('09:00'); setShiftEnd('18:00'); } setSelectedEvent(event); setIsEventModalOpen(true); stopPolling(); };
   const handleEventSubmit = async () => { let finalTitle = newEventTitle; if (newEventType === 'shift') { finalTitle = `${shiftStart} - ${shiftEnd}`; } else { if (!newEventTitle.trim()) { alert("請輸入標題"); return; } } const owner = users.find(u => u.id === newEventOwnerId); if (newEventType === 'reminder' && newEventOwnerId !== currentUser.id) { alert("提醒事項只能設定給自己"); return; } setIsLoading(true); try { const eventPayload: CalendarEvent = { id: selectedEvent ? selectedEvent.id : Date.now().toString(), date: selectedCalendarDate, type: newEventType, title: finalTitle, description: newEventDesc, ownerId: newEventOwnerId, ownerName: owner?.name || '未知', creatorId: selectedEvent ? selectedEvent.creatorId : currentUser.id, createdAt: selectedEvent ? selectedEvent.createdAt : new Date().toISOString() }; let updatedList; if (selectedEvent) { updatedList = await TaskService.updateEvent(eventPayload); } else { updatedList = await TaskService.addEvent(eventPayload); } setEvents(updatedList); setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
   const handleEventDelete = () => { if (!selectedEvent) return; setIsEventDeleteModalOpen(true); };
   const handleConfirmEventDelete = async () => { if (!selectedEvent) return; setIsLoading(true); try { const updatedList = await TaskService.deleteEvent(selectedEvent.id); setEvents(updatedList); setIsEventDeleteModalOpen(false); setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
-  
+
   // User Mgmt
   const handleAddUser = () => { if (!newUserName.trim()) return; const newUser: User = { id: Date.now().toString(), name: newUserName.trim(), role: UserRole.INTERN, avatar: `https://api.dicebear.com/9.x/micah/svg?seed=${newUserName}&backgroundColor=c0aede&radius=50`, pin: '1234' }; const currentUsers = TaskService.getUsers(); const updatedUsers = [...currentUsers, newUser]; TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserName(''); };
   const handleDeleteUserClick = (user: User) => { setUserToDelete(user); setIsUserDeleteModalOpen(true); };
@@ -425,96 +381,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && editingUserId) { if (file.size > 500 * 1024) { alert("圖片大小請小於 500KB"); return; } const reader = new FileReader(); reader.onloadend = () => { const base64String = reader.result as string; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === editingUserId ? { ...u, avatar: base64String } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setEditingUserId(null); }; reader.readAsDataURL(file); } };
   const handleUpdatePin = () => { if (!newUserPin.trim()) return; if (newUserPin.length !== 4 || isNaN(Number(newUserPin))) { alert("請輸入 4 位數字密碼"); return; } const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === currentUser.id ? { ...u, pin: newUserPin.trim() } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserPin(''); alert("密碼已更新"); };
 
-  // Client Management
-  const handleAddClient = async () => {
-    if (!newClientCode.trim() || !newClientName.trim()) { alert("請輸入代號和名稱"); return; }
-    const newClient: Client = {
-        id: `c_${Date.now()}`,
-        code: newClientCode.trim(),
-        name: newClientName.trim()
-    };
-    const updatedClients = [...clients, newClient];
-    await TaskService.saveClients(updatedClients);
-    setClients(updatedClients);
-    setNewClientCode('');
-    setNewClientName('');
-  };
+  // Client Mgmt
+  const handleAddClient = async () => { if (!newClientCode.trim() || !newClientName.trim()) { alert("請輸入代號和名稱"); return; } const newClient: Client = { id: `c_${Date.now()}`, code: newClientCode.trim(), name: newClientName.trim() }; const updatedClients = [...clients, newClient]; await TaskService.saveClients(updatedClients); setClients(updatedClients); setNewClientCode(''); setNewClientName(''); };
+  const handleDeleteClientClick = (client: Client) => { setClientToDelete(client); setIsClientDeleteModalOpen(true); };
+  const handleConfirmDeleteClient = async () => { if (!clientToDelete) return; const updatedClients = clients.filter(c => c.id !== clientToDelete.id); await TaskService.saveClients(updatedClients); const currentTasks = await TaskService.fetchTasks(); const updatedTasks = currentTasks.filter(t => t.clientId !== clientToDelete.id); await TaskService.saveTasks(updatedTasks); setTasks(updatedTasks); setClients(updatedClients); setIsClientDeleteModalOpen(false); setClientToDelete(null); };
+  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (evt) => { try { const bstr = evt.target?.result; const wb = XLSX.read(bstr, { type: 'binary' }); const wsname = wb.SheetNames[0]; const ws = wb.Sheets[wsname]; const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][]; let startIndex = 0; if (data.length > 0 && (typeof data[0][0] === 'string' && (data[0][0].includes('代號') || data[0][0].includes('Code')))) { startIndex = 1; } const newClients: Client[] = []; for(let i = startIndex; i < data.length; i++) { const row = data[i]; if (row && row.length >= 2) { const code = String(row[0] || '').trim(); const name = String(row[1] || '').trim(); if (code && name) { newClients.push({ id: `c_${Date.now()}_${i}`, code, name }); } } } if (newClients.length > 0) { if(window.confirm(`解析出 ${newClients.length} 筆客戶資料，是否確定匯入？`)) { const updatedClients = [...clients, ...newClients]; await TaskService.saveClients(updatedClients); setClients(updatedClients); alert("匯入成功！"); } } else { alert("未讀取到有效資料"); } } catch(err) { console.error(err); alert("讀取 Excel 失敗"); } }; reader.readAsBinaryString(file); e.target.value = ''; };
 
-  const handleDeleteClientClick = (client: Client) => {
-      setClientToDelete(client);
-      setIsClientDeleteModalOpen(true);
-  };
-    
-    const handleConfirmDeleteClient = async () => {
-      if (!clientToDelete) return;
-      
-      // 1. 刪除客戶本體
-      const updatedClients = clients.filter(c => c.id !== clientToDelete.id);
-      await TaskService.saveClients(updatedClients);
-      
-      // 🔴 新增: 2. 連動刪除該客戶的所有任務 (Cascade Delete)
-      const currentTasks = await TaskService.fetchTasks();
-      const updatedTasks = currentTasks.filter(t => t.clientId !== clientToDelete.id);
-      await TaskService.saveTasks(updatedTasks);
-      setTasks(updatedTasks); // 更新畫面上的任務列表
-
-      setClients(updatedClients);
-      setIsClientDeleteModalOpen(false);
-      setClientToDelete(null);
-    };;
-
-  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-      const file = e.target.files?.[0];
-      if (!file) return;
-      const reader = new FileReader();
-      reader.onload = async (evt) => {
-          try {
-              const bstr = evt.target?.result;
-              const wb = XLSX.read(bstr, { type: 'binary' });
-              const wsname = wb.SheetNames[0];
-              const ws = wb.Sheets[wsname];
-              const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
-              
-              let startIndex = 0;
-              if (data.length > 0 && (typeof data[0][0] === 'string' && (data[0][0].includes('代號') || data[0][0].includes('Code')))) {
-                  startIndex = 1;
-              }
-
-              const newClients: Client[] = [];
-              for(let i = startIndex; i < data.length; i++) {
-                  const row = data[i];
-                  if (row && row.length >= 2) {
-                      const code = String(row[0] || '').trim();
-                      const name = String(row[1] || '').trim();
-                      if (code && name) {
-                          newClients.push({
-                              id: `c_${Date.now()}_${i}`,
-                              code,
-                              name
-                          });
-                      }
-                  }
-              }
-
-              if (newClients.length > 0) {
-                  if(window.confirm(`解析出 ${newClients.length} 筆客戶資料，是否確定匯入？\n(將附加在現有名單後)`)) {
-                      const updatedClients = [...clients, ...newClients];
-                      await TaskService.saveClients(updatedClients);
-                      setClients(updatedClients);
-                      alert("匯入成功！");
-                  }
-              } else {
-                  alert("未讀取到有效資料，請確認 Excel 格式 (第一欄:代號, 第二欄:名稱)");
-              }
-          } catch(err) {
-              console.error(err);
-              alert("讀取 Excel 失敗");
-          }
-      };
-      reader.readAsBinaryString(file);
-      e.target.value = ''; // Reset input
-  };
-  
   // Matrix Logic
   const handleCellClick = (client: Client, column: string, task?: ClientTask) => { if (!dbConnected) return; setSelectedCell({ client, column, task }); setModalNote(task?.note || ''); setModalAssigneeId(task?.assigneeId || ''); const canModify = isSupervisor; if (task && (task.status === 'done' || task.isNA)) { setModalDate(task.completionDate || ''); setIsDateModalOpen(true); stopPolling(); return; } if (task) { if (!canModify) { setModalDate(''); setIsDateModalOpen(true); stopPolling(); return; } setIsAssignModalOpen(true); stopPolling(); } else { if (canModify) { setIsAssignModalOpen(true); stopPolling(); } } };
   const handleClientNameClick = (client: Client) => { if (!dbConnected) return; setSelectedClientForDrawer(client); stopPolling(); };
@@ -525,20 +397,18 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   
   const toggleColumn = (col: string) => { const newSet = new Set(collapsedColumns); if (newSet.has(col)) newSet.delete(col); else newSet.add(col); setCollapsedColumns(newSet); };
 
+  // --- Render ---
+
   return (
     <div className="h-screen bg-gray-50 flex flex-col select-none overflow-hidden">
-      {/* 1. App Header - Fixed Top */}
+      {/* 1. App Header */}
       <header className="flex-none bg-white shadow-sm z-50 h-20 border-b border-gray-200">
         <div className="w-full px-6 h-full flex items-center justify-between">
           
-          {/* 左側：Logo 與 年份選擇 */}
+          {/* Left: Logo & Year */}
           <div className="flex items-center gap-6">
             <div className="flex items-center gap-3">
-                <img 
-                    src="/app-aristo mountain.png"
-                    alt="Logo" 
-                    className="w-10 h-10 object-contain"
-                />
+                <img src="/app-aristo mountain.png" alt="Logo" className="w-10 h-10 object-contain"/>
                 <h1 className="font-bold text-2xl text-gray-800 hidden md:block tracking-tight">碩業工作平台</h1>
             </div>
             <div className="flex items-center bg-gray-100 rounded-lg p-1">
@@ -548,16 +418,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             </div>
           </div>
 
-          {/* 右側：功能按鈕區 */}
+          {/* Right: Actions */}
           <div className="flex items-center gap-4">
             
-            {/* 時間顯示 */}
             <div className="flex flex-col items-end mr-2 leading-tight">
                 <span className="text-xs text-gray-400 font-medium">{dateStr}</span>
                 <span className="text-base font-bold text-gray-600 font-mono">{timeStr}</span>
             </div>
             
-            {/* 1. 臨時交辦 (高頻使用 - 主管限定) */}
+            {/* 1. Misc Task */}
             {isSupervisor && dbConnected && (
                 <button onClick={handleOpenMiscModal} className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl shadow-sm hover:bg-purple-700 transition-all active:scale-95 text-base font-bold">
                     <span className="hidden sm:inline">臨時交辦</span>
@@ -565,7 +434,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 </button>
             )}
 
-            {/* 2. 上班打卡 / 工作中 (高頻使用) */}
+            {/* 2. Check In/Out */}
             <button 
                 onClick={() => isWorking ? setIsCheckOutModalOpen(true) : handleCheckIn()} 
                 className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-base font-bold shadow-sm transition-all active:scale-95 ${
@@ -584,7 +453,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 )}
             </button>
 
-            {/* 3. 視圖切換 (每日進度/全所進度) */}
+            {/* 3. View Switch */}
             {isSupervisor ? (
                 <button onClick={() => setShowMyList(!showMyList)} className={`px-4 py-2 rounded-xl text-base font-medium transition-colors border flex items-center gap-2 ${showMyList ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
                     {showMyList ? <ReturnIcon className="w-5 h-5"/> : <><UserGroupIcon className="w-5 h-5"/><span>每日進度</span></>}
@@ -595,7 +464,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 </button>
             )}
 
-            {/* 4. ✨ 應用程式選單 (Windows 風格) - 收納所有次要功能 */}
+            {/* 4. App Menu */}
             <div className="relative" ref={appMenuRef}>
                 <button 
                     onClick={() => setIsAppMenuOpen(!isAppMenuOpen)} 
@@ -605,57 +474,41 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                     <Squares2X2Icon className="w-6 h-6" />
                 </button>
 
-                {/* 下拉選單內容 */}
                 {isAppMenuOpen && (
                     <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-fade-in p-2 grid grid-cols-2 gap-2">
-                        
-                        {/* 留言板 */}
                         <button onClick={() => { setIsMessageBoardOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-blue-50 rounded-xl text-gray-600 hover:text-blue-600 transition-colors">
                             <ChatBubbleIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">留言板</span>
                         </button>
-
-                        {/* 重新整理 */}
                         <button onClick={() => { loadData(); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-green-50 rounded-xl text-gray-600 hover:text-green-600 transition-colors">
                             <RefreshSvg className="w-6 h-6" />
                             <span className="text-xs font-bold">重新整理</span>
                         </button>
-
-                        {/* 懶人包 */}
                         <button onClick={() => { setIsGalleryOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-yellow-50 rounded-xl text-gray-600 hover:text-yellow-600 transition-colors">
                             <LightBulbIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">懶人包</span>
                         </button>
-
-                        {/* 設定 */}
                         <button onClick={() => { setIsUserModalOpen(true); setSettingsTab('users'); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-xl text-gray-600 hover:text-gray-900 transition-colors">
                             <GearIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">{isSupervisor ? "人員管理" : "個人設定"}</span>
                         </button>
-
-                        {/* 行事曆 */}
                         <button onClick={() => { setIsCalendarOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-purple-50 rounded-xl text-gray-600 hover:text-purple-600 transition-colors">
                             <CalendarIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">行事曆</span>
                         </button>
-
-                         {/* 工時紀錄 (碼表) */}
                          <button onClick={() => { setIsTimesheetOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-red-50 rounded-xl text-gray-600 hover:text-red-600 transition-colors">
                             <ClockIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">工時紀錄</span>
                         </button>
-
-                        {/* 生成請款單 */}
                         <button onClick={() => { setIsInvoiceOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-pink-50 rounded-xl text-gray-600 hover:text-pink-600 transition-colors">
-                            <DocumentTextIcon className="w-6 h-6" /> {/* 如果沒有 PrinterIcon 就用這個 */}
+                            <DocumentTextIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">請款單</span>
                         </button>
-
                     </div>
                 )}
             </div>
 
-            {/* 使用者頭像與登出 */}
+            {/* User Avatar */}
             <div className={`flex items-center gap-3 pr-4 pl-2 py-1.5 rounded-full ${isSupervisor ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
                 <img src={activeUser.avatar} alt="User" className="w-10 h-10 rounded-full border border-blue-100 object-cover" />
                 <span className="font-medium text-base hidden sm:inline">{currentUser.name}</span>
@@ -666,11 +519,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       </header>
 
-      {/* 2. Tabs - Fixed Below Header (Context Specific) */}
+      {/* 2. Tabs */}
       {((isSupervisor && !showMyList) || (!isSupervisor && showOverview)) ? (
           <div className="flex-none bg-white border-b border-gray-200 z-40">
               <div className="w-full px-6">
-                  <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar" aria-label="Tabs">
+                  <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar">
                       {TABS.map((tab) => (
                           <button key={tab} onClick={() => setActiveTab(tab)} className={`whitespace-nowrap py-4 px-4 border-b-4 font-medium text-xl transition-colors ${activeTab === tab ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
                               {tab}
@@ -681,14 +534,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       ) : null}
 
-{/* 3. Main Content - Scrollable Area */}
+      {/* 3. Main Content */}
       <main className="flex-1 overflow-hidden relative w-full bg-gray-50">
         {((isSupervisor && !showMyList) || (!isSupervisor && showOverview)) ? (
             <div className="absolute inset-0 px-6 py-6">
                 {!dbConnected ? (
                     <div className="text-center py-40 opacity-50"><p className="text-2xl">請先連結資料庫</p></div>
                 ) : 
-                /* 1. 判斷是否為「收發信件」 */
                 activeTab === '收發信件' ? (
                     <MailLogView 
                         records={mailRecords} 
@@ -696,7 +548,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         isSupervisor={isSupervisor}
                     />
                 ) : 
-                /* 2. 判斷是否為「零用金/代墊款」 (記得這裡前面要有冒號 : ) */
                 activeTab === '零用金/代墊款' ? (
                     <CashLogView 
                         records={cashRecords}
@@ -705,7 +556,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         isSupervisor={isSupervisor}
                     />
                 ) : (
-                /* 3. 都不是，就顯示原本的矩陣圖 (MatrixView) */
                     <MatrixView 
                         tasks={tasks}
                         activeTab={activeTab}
@@ -722,7 +572,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 )}
             </div>
         ) : (
-            /* 非總覽模式，顯示 ListView */
             <ListView 
                 tasks={tasks}
                 currentUser={currentUser}
@@ -878,7 +727,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       )}
 
-      {/* Settings / User / Client Management Modal */}
+      {/* Settings Modal */}
       {isUserModalOpen && (
           <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsUserModalOpen(false)}>
               <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -934,7 +783,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                             </div>
                         </>
                       ) : (
-                        /* User Management or Personal Settings */
                         isSupervisor ? (
                           <>
                               <div className="flex flex-col items-center p-6 bg-gray-50 rounded-xl border border-gray-100 mb-6">
@@ -1000,7 +848,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       )}
 
-      {/* User Delete Modal */}
+      {/* Delete Modals */}
       {isUserDeleteModalOpen && userToDelete && (
         <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center">
@@ -1015,7 +863,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       )}
 
-      {/* Client Delete Modal */}
       {isClientDeleteModalOpen && clientToDelete && (
         <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center">
@@ -1030,7 +877,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       )}
 
-      {/* Client Drawer */}
+      {/* Drawer */}
       {selectedClientForDrawer && (
           <ClientDrawer 
               client={selectedClientForDrawer} 
@@ -1043,7 +890,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           />
       )}
 
-      {/* Knowledge Gallery Modal */}
+      {/* Gallery Modal */}
       {isGalleryOpen && (
           <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onClick={() => setIsGalleryOpen(false)}>
               <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -1070,7 +917,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       )}
 
-      {/* Instruction Detail Modal */}
       {selectedInstruction && (
           <div className="fixed inset-0 bg-black/80 z-[80] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedInstruction(null)}>
               <div className="bg-white rounded-3xl max-w-4xl w-full flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
@@ -1089,7 +935,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       )}
 
-      {/* Regular Assignment Modal */}
+      {/* Assign Modal */}
       {isAssignModalOpen && selectedCell && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsAssignModalOpen(false)}>
               <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col animate-scale-up" onClick={e => e.stopPropagation()}>
@@ -1136,7 +982,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       )}
 
-      {/* Date/Completion Modal */}
+      {/* Completion Modal */}
       {isDateModalOpen && selectedCell && (
           <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => setIsDateModalOpen(false)}>
               <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full max-h-[90vh] flex flex-col animate-scale-up" onClick={e => e.stopPropagation()}>
@@ -1180,6 +1026,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       )}
 
+      {/* Misc Modal */}
       {isMiscModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
@@ -1196,6 +1043,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       )}
 
+      {/* Task Delete Modal */}
       {isDeleteModalOpen && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
             <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full text-center">
@@ -1210,6 +1058,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       )}
 
+      {/* Note Edit Modal */}
       {isNoteEditModalOpen && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
               <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
@@ -1223,7 +1072,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       )}
             
-      {/* Check Out Modal (下班確認視窗) */}
+      {/* Check Out Modal */}
       {isCheckOutModalOpen && (
           <div className="fixed inset-0 bg-black/50 z-[120] flex items-center justify-center p-4 animate-fade-in">
               <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-sm w-full">
@@ -1245,7 +1094,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
       )}
 
-      {/* Timesheet Modal (工時紀錄表視窗) */}
+      {/* Timesheet Modal */}
       {isTimesheetOpen && (
           <TimesheetView 
               currentUser={currentUser}
@@ -1255,9 +1104,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               onClose={() => setIsTimesheetOpen(false)}
           />
       )}
-      {/* ----------------------------------------------------------- */}
 
-        {/* Message Board Modal */}
+      {/* Message Board Modal */}
       {isMessageBoardOpen && (
           <MessageBoard 
               currentUser={currentUser}
@@ -1271,7 +1119,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       {isInvoiceOpen && (
           <InvoiceGenerator 
               onClose={() => setIsInvoiceOpen(false)}
-              cashRecords={cashRecords} // 把零用金資料傳進去
+              cashRecords={cashRecords}
           />
       )}
         
