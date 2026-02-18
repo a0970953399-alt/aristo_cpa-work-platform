@@ -20,7 +20,6 @@ interface InvoiceItem {
 }
 
 export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cashRecords }) => {
-    // --- State ---
     const [invoiceNo, setInvoiceNo] = useState('');
     const [clientName, setClientName] = useState('');
     const [invoiceDate, setInvoiceDate] = useState('');
@@ -37,14 +36,12 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     const [taxAmount, setTaxAmount] = useState<number>(0);
     const [isGenerating, setIsGenerating] = useState(false);
 
-    // --- Init ---
     useEffect(() => {
         const d = new Date();
         const year = d.getFullYear() - 1911;
         setInvoiceDate(`${year}年${d.getMonth() + 1}月${d.getDate()}日`);
     }, []);
 
-    // --- Logic ---
     const handleSearch = () => {
         if (!invoiceNo.trim()) { alert("請輸入單號"); return; }
         const found = cashRecords.filter(r => r.requestId === invoiceNo.trim());
@@ -65,7 +62,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     const serviceTotal = items.reduce((sum, item) => sum + Number(item.amount), 0);
     const grandTotal = serviceTotal + advanceTotal;
 
-    // 🔧 工具：Base64 淨化與解碼
+    // Base64 解碼工具
     const getCleanBuffer = (base64Str: string) => {
         try {
             let clean = base64Str.replace(/^data:.*;base64,/, '').replace(/\s/g, '');
@@ -78,13 +75,32 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
             return bytes.buffer;
         } catch (e) {
             console.error("Base64 解碼失敗:", e);
-            throw new Error("Base64 字串格式錯誤，請確認您複製的內容是否完整。");
+            throw new Error("Base64 字串格式錯誤。");
         }
+    };
+
+    // 中西文混排工具 (標楷體+Book Antiqua)
+    const createRichText = (text: string, fontSize: number = 12) => {
+        if (!text) return null;
+        const parts = text.split(/([\x00-\x7F]+)/g).filter(Boolean);
+        return {
+            richText: parts.map(part => {
+                const isAscii = /^[\x00-\x7F]/.test(part);
+                return {
+                    text: part,
+                    font: {
+                        name: isAscii ? 'Book Antiqua' : '標楷體',
+                        size: fontSize,
+                        family: isAscii ? 2 : 1, 
+                    }
+                };
+            })
+        };
     };
 
     const handleDownloadExcel = async () => {
         if (!TEMPLATE_BASE64 || TEMPLATE_BASE64.length < 100) {
-            alert("⚠️ 尚未設定模版！\n請將 Excel 轉成的 Base64 字串貼入程式碼最上方的 TEMPLATE_BASE64 變數中。");
+            alert("⚠️ 尚未設定模版！\n請貼上 Base64 字串。");
             return;
         }
 
@@ -95,83 +111,121 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
             await workbook.xlsx.load(templateBuffer);
 
             // ==========================================
-            // SHEET 1: 請款單 (完全尊重模版)
+            // SHEET 1: 請款單 (混排字體版)
             // ==========================================
             const sheet1 = workbook.worksheets[0]; 
             if (sheet1) {
-                const ROW_ITEMS = 12; // A12 開始
-                
-                // 1. 填寫基本資料
-                sheet1.getCell('A8').value = `${clientName}`; 
-                sheet1.getCell('C8').value = `日期：${invoiceDate}`; 
-                sheet1.getCell('C10').value = `單號：${invoiceNo}`;
+                const ROW_ITEMS = 12;
 
-                // 2. 清空舊承辦事項 (只清值，保留格式)
+                // 基本資料
+                sheet1.getCell('A8').value = createRichText(`${clientName}`, 14); 
+                sheet1.getCell('C8').value = createRichText(`日期：${invoiceDate}`);
+                sheet1.getCell('C10').value = createRichText(`單號：${invoiceNo}`);
+
+                // 清空承辦事項
                 for(let i=0; i<8; i++) {
                     sheet1.getCell(`A${ROW_ITEMS+i}`).value = null;
                     sheet1.getCell(`B${ROW_ITEMS+i}`).value = null;
                 }
                 
-                // 3. 填入承辦事項
+                // 填入承辦事項
                 items.forEach((item, index) => {
                     const row = ROW_ITEMS + index;
                     if (item.description) {
-                        // 只填入值，樣式完全依賴 Excel 模版設定
-                        sheet1.getCell(`A${row}`).value = `${index + 1}. ${item.description}`;
-                        sheet1.getCell(`B${row}`).value = item.amount;
+                        const cellDesc = sheet1.getCell(`A${row}`);
+                        cellDesc.value = createRichText(`${index + 1}. ${item.description}`, 12);
+                        cellDesc.alignment = { vertical: 'middle', horizontal: 'left', wrapText: true };
+
+                        const cellAmount = sheet1.getCell(`B${row}`);
+                        cellAmount.value = item.amount;
+                        cellAmount.font = { name: 'Book Antiqua', size: 12 };
+                        cellAmount.alignment = { vertical: 'middle', horizontal: 'right' };
                     }
                 });
 
-                // 4. 填寫金額統計
-                sheet1.getCell('B20').value = serviceTotal; 
-                sheet1.getCell('B23').value = advanceTotal;
-                sheet1.getCell('B27').value = grandTotal;
+                // 金額統計
+                ['B20', 'B23', 'B27'].forEach(cellRef => {
+                    const cell = sheet1.getCell(cellRef);
+                    if (cellRef === 'B20') cell.value = serviceTotal;
+                    if (cellRef === 'B23') cell.value = advanceTotal;
+                    if (cellRef === 'B27') cell.value = grandTotal;
+                    cell.font = { name: 'Book Antiqua', size: 12 };
+                });
 
-                // 5. 稅額文字替換 (A28)
+                // 稅額
                 const cellTax = sheet1.getCell('A28');
                 if (taxAmount > 0) {
-                    let originalText = cellTax.value ? cellTax.value.toString() : '';
-                    if (originalText.includes('((稅款))')) {
-                         cellTax.value = originalText.replace('((稅款))', taxAmount.toLocaleString());
-                    } else {
-                         // Fallback
-                         cellTax.value = `(本所依法自行繳納$${taxAmount.toLocaleString()}之扣繳稅款)`;
+                    let text = cellTax.value ? cellTax.value.toString() : '';
+                    if (!text.includes('((稅款))')) {
+                         text = `(本所依法自行繳納$((稅款))之扣繳稅款)`;
                     }
+                    const finalStr = text.replace('((稅款))', taxAmount.toLocaleString());
+                    cellTax.value = createRichText(finalStr, 10);
                 } else {
-                    cellTax.value = ''; // 清空
+                    cellTax.value = ''; 
                 }
             }
 
             // ==========================================
-            // SHEET 2: 代墊單 (完全尊重模版)
+            // SHEET 2: 代墊單 (動態延伸 + 樣式複製)
             // ==========================================
             const sheet2 = workbook.worksheets[1]; 
             if (sheet2 && advances.length > 0) {
                 sheet2.getCell('A1').value = `公司名稱 : ${clientName}`; 
-                
-                const startRow = 4;
+
+                const startRow = 4; // 資料起始行
+                const templateTotalRowIndex = 5; // 假設 Base64 模版裡，第 5 行是小計行
+                const cols = ['A','B','C','D','E'];
+
+                // 1. 偷學樣式 (Capture Styles)
+                // 從第 4 行偷學「資料列樣式」
+                const dataStyles = cols.map(col => sheet2.getCell(`${col}${startRow}`).style);
+                // 從第 5 行偷學「總計列樣式」(含雙框線)
+                const footerStyles = cols.map(col => sheet2.getCell(`${col}${templateTotalRowIndex}`).style);
+
+                // 2. 填入資料 (動態延伸)
                 advances.forEach((row, index) => {
                     const currentRow = startRow + index;
                     const [y, m, d] = row.date.split('-');
                     const rocDate = `${Number(y)-1911}/${m}/${d}`;
                     
-                    // 只填值
+                    // 填值
                     sheet2.getCell(`A${currentRow}`).value = rocDate;
                     sheet2.getCell(`B${currentRow}`).value = Number(row.amount);
                     sheet2.getCell(`C${currentRow}`).value = row.category;
                     sheet2.getCell(`D${currentRow}`).value = row.description;
                     sheet2.getCell(`E${currentRow}`).value = row.note;
+
+                    // ✨ 貼上樣式：把偷來的「資料列樣式」套用到這一行
+                    // 這樣不管有幾行，長得都跟第 4 行一樣
+                    cols.forEach((col, idx) => {
+                        sheet2.getCell(`${col}${currentRow}`).style = dataStyles[idx];
+                    });
                 });
 
-                // 填寫小計
-                const totalRowIndex = startRow + advances.length;
-                sheet2.getCell(`A${totalRowIndex}`).value = '小計';
-                sheet2.getCell(`B${totalRowIndex}`).value = advanceTotal;
+                // 3. 填寫總計 (永遠在最後一筆的下一行)
+                const newTotalRow = startRow + advances.length;
                 
-                // 清除殘留值
-                for (let i = totalRowIndex + 1; i < totalRowIndex + 20; i++) {
-                     ['A','B','C','D','E'].forEach(col => {
-                         sheet2.getCell(`${col}${i}`).value = null;
+                sheet2.getCell(`A${newTotalRow}`).value = '小計';
+                sheet2.getCell(`B${newTotalRow}`).value = advanceTotal;
+                sheet2.getCell(`C${newTotalRow}`).value = null;
+                sheet2.getCell(`D${newTotalRow}`).value = null;
+                sheet2.getCell(`E${newTotalRow}`).value = null;
+
+                // ✨ 貼上總計樣式：把偷來的「總計列樣式」套用到這一行
+                // 這樣雙框線就會跟著移動到這裡
+                cols.forEach((col, idx) => {
+                    sheet2.getCell(`${col}${newTotalRow}`).style = footerStyles[idx];
+                });
+
+                // 4. 清除殘留 (Clean up)
+                // 為了避免如果這次資料比上次少，下面會殘留舊的總計行
+                // 我們往下清空 20 行，並把樣式清空 (border = null)
+                for (let i = newTotalRow + 1; i < newTotalRow + 20; i++) {
+                     cols.forEach(col => {
+                         const cell = sheet2.getCell(`${col}${i}`);
+                         cell.value = null;
+                         cell.border = {}; // 移除框線，變成全白
                      });
                 }
             }
@@ -187,12 +241,11 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
         }
     };
 
-    // --- Render ---
     return (
         <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
                 <div className="bg-gray-800 text-white p-4 flex justify-between items-center shrink-0">
-                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器 (原始排版版)</h2>
+                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器 (動態完美版)</h2>
                     <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1">✕</button>
                 </div>
 
