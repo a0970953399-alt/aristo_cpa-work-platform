@@ -11,7 +11,7 @@ import { ListView } from './ListView';
 import { MailLogView } from './MailLogView';
 import { CashLogView } from './CashLogView';
 import { TaskService } from './taskService';
-import { NotificationService } from './notificationService'; // 👈 確保引入通知服務
+import { NotificationService } from './notificationService'; // 引入通知服務
 import * as XLSX from 'xlsx';
 
 // Types & Icons
@@ -131,7 +131,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
 
   // -----------------------------------------------------------
-  // 🛠️ 修正日期格式邏輯：強制使用 YYYY-MM-DD，避免瀏覽器語系差異導致判定失敗
+  // 🛠️ 修正日期格式邏輯：強制使用 YYYY-MM-DD，確保能抓到您截圖中的資料
   const getTodayString = () => {
       const d = new Date();
       const year = d.getFullYear();
@@ -146,13 +146,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       if (!r || !r.userId) return false;
       // 1. 比對 User ID
       const sameUser = String(r.userId) === String(currentUser.id);
+      
       // 2. 比對日期 (相容 / 與 -)
       const recordDate = (r.date || '').replace(/\//g, '-'); 
       const sameDate = recordDate === todayStr;
-      return sameUser && sameDate;
+
+      // 3. 關鍵：只找「還沒下班」的紀錄 (endTime 是空的)
+      // 這樣就算您按錯產生了很多筆，只要有一筆是沒下班的，按鈕就會變色
+      const isActive = !r.endTime || r.endTime === '';
+
+      return sameUser && sameDate && isActive;
   });
 
-  const isWorking = myTodayRecord && !myTodayRecord.endTime;
+  // 如果找到了「沒下班」的紀錄，就是工作中
+  const isWorking = !!myTodayRecord;
   // -----------------------------------------------------------
 
   // --- Effects ---
@@ -182,13 +189,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   useEffect(() => { if (events.length > 0) checkDailyReminders(); }, [events]);
 
   const checkDailyReminders = () => {
-      const d = new Date();
-      const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+      const today = getTodayString();
       const storageKey = `shuoye_dismissed_reminder_${today}_${currentUser.id}`;
       if (localStorage.getItem(storageKey) === 'true') return;
       
       const reminders = events.filter(e => {
-          if (e.date !== today) return false;
+          // 修正日期比對 (取代斜線)
+          const eventDate = e.date.replace(/\//g, '-');
+          if (eventDate !== today) return false;
           if (e.type === 'shift' && e.ownerId === currentUser.id) return true;
           if (e.type === 'reminder' && e.ownerId === currentUser.id) return true;
           return false;
@@ -198,8 +206,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
   const handleDismissDaily = () => {
       if (dontShowDailyAgain) {
-          const d = new Date();
-          const today = `${d.getFullYear()}-${String(d.getMonth() + 1).padStart(2, '0')}-${String(d.getDate()).padStart(2, '0')}`;
+          const today = getTodayString();
           const storageKey = `shuoye_dismissed_reminder_${today}_${currentUser.id}`;
           localStorage.setItem(storageKey, 'true');
       }
@@ -279,7 +286,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
   // --- Handlers ---
   
-  // ✅ 上班打卡 (含通知)
+  // ✅ 上班打卡 (強制使用 todayStr)
   const handleCheckIn = async () => {
       if (!confirm(`現在時間 ${timeStr}，確定上班打卡？`)) return;
       setIsLoading(true);
@@ -288,23 +295,21 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           id: Date.now().toString(),
           userId: currentUser.id,
           userName: currentUser.name,
-          date: todayStr, // 使用標準日期
+          date: todayStr, // 👈 關鍵：使用標準日期
           startTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
           breakHours: 0,
           totalHours: 0
       };
       
       await TaskService.addCheckIn(newRecord);
-      
-      // 🔔 通知主管
-      NotificationService.send(currentUser.name, 'CLOCK_IN');
+      NotificationService.send(currentUser.name, 'CLOCK_IN'); // 通知主管
 
       await loadData();
       setIsLoading(false);
-      alert("✅ 上班打卡成功！已通知主管。");
+      alert("✅ 上班打卡成功！");
   };
 
-  // ✅ 下班打卡 (含通知)
+  // ✅ 下班打卡 (讀取 myTodayRecord)
   const handleCheckOut = async () => {
       if (!myTodayRecord) return;
       // 計算工時
@@ -326,12 +331,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       };
       await TaskService.updateCheckIn(updatedRecord);
       
-      // 🔔 通知主管
-      NotificationService.send(currentUser.name, 'CLOCK_OUT');
+      NotificationService.send(currentUser.name, 'CLOCK_OUT'); // 通知主管審核
       
       setIsCheckOutModalOpen(false);
       await loadData();
-      alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時\n主管審核後即可生效。`);
+      alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時`);
   };
 
   // Other Handlers
