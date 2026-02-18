@@ -54,10 +54,10 @@ export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             status: 'PENDING' // ⚠️ 狀態：待周愉審核
         };
         saveLogs([newLog, ...logs]);
-        alert("⏳ 下班申請已送出！您可以先離開，待周榆主管審核。");
+        alert("⏳ 下班申請已送出！您可以先離開，待周愉主管審核。");
     };
 
-    // --- 主管(周榆)功能 ---
+    // --- 主管(周愉)功能 ---
 
     const handleApprove = (logId: string) => {
         const newLogs = logs.map(log => 
