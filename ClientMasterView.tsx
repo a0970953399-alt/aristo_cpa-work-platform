@@ -13,12 +13,14 @@ import * as XLSX from 'xlsx';
 interface ClientMasterViewProps {
     clients: Client[];
     onClose: () => void;
-    onUpdate: () => void; // 通知 Dashboard 重新讀取資料
+    onUpdate: () => void;
 }
 
 export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onClose, onUpdate }) => {
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    // 🆕 新增：控制總署牆面是否處於「刪除模式」
+    const [isDeleteMode, setIsDeleteMode] = useState(false);
 
     const handleChange = (field: keyof Client, value: any) => {
         if (selectedClient) {
@@ -26,14 +28,56 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         }
     };
 
+    // 🆕 新增客戶邏輯
+    const handleAddClient = () => {
+        const newClient: Partial<Client> = {
+            id: Date.now() + Math.random(), // 賦予新ID
+            name: '',
+            code: '',
+            year: '',
+            workNo: '',
+            // 預設將勾選項目設為 false
+            chkAccount: false, chkInvoice: false, chkVat: false, chkWithholding: false, chkHealth: false,
+            boxReview: false, boxAudit: false, boxCpa: false
+        };
+        setSelectedClient(newClient as Client);
+        setIsDeleteMode(false); // 確保新增時關閉刪除模式
+    };
+
+    // 🆕 刪除客戶邏輯 (通用的刪除功能)
+    const handleDeleteClient = async (id: number, clientName: string) => {
+        if (window.confirm(`⚠️ 確定要刪除客戶【${clientName || '未命名'}】嗎？\n刪除後資料將無法復原！`)) {
+            try {
+                // 過濾掉被刪除的客戶
+                const updatedClients = clients.filter(c => c.id !== id);
+                await TaskService.saveClients(updatedClients);
+                onUpdate();
+                
+                // 如果目前正打開這位客戶的資料卡，就把它關掉
+                if (selectedClient?.id === id) {
+                    setSelectedClient(null);
+                }
+            } catch (error) {
+                alert('❌ 刪除失敗，請重試。');
+            }
+        }
+    };
+
+    // 儲存邏輯 (已升級：可處理新增與修改)
     const handleSave = async () => {
         if (!selectedClient) return;
         setIsSaving(true);
         try {
-            const updatedClients = clients.map(c => c.id === selectedClient.id ? selectedClient : c);
+            // 判斷這是一筆「已存在」的客戶，還是剛按「新增」產生的新客戶
+            const isExisting = clients.some(c => c.id === selectedClient.id);
+            const updatedClients = isExisting 
+                ? clients.map(c => c.id === selectedClient.id ? selectedClient : c)
+                : [...clients, selectedClient]; // 如果是新的，就加進陣列後面
+                
             await TaskService.saveClients(updatedClients);
             onUpdate();
             alert('✅ 客戶資料已儲存！');
+            // 如果是新增客戶，存檔後可以選擇關閉或繼續編輯，這裡讓它保持開啟
         } catch (error) {
             alert('儲存失敗，請重試。');
         } finally {
@@ -41,7 +85,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         }
     };
 
-    // 📊 Excel 匯入核心邏輯 
+    // Excel 匯入邏輯 (保留您確認過的完美版)
     const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -55,11 +99,9 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                 const worksheet = workbook.Sheets[sheetName];
                 const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-                // 🛠️ 終極防呆打勾判斷：加入 P 與 ■ 的辨識！
                 const isChecked = (val: any) => {
                     if (val == null) return false;
                     const str = String(val).trim().toUpperCase();
-                    // 只要儲存格內容是 V, 1, Y, 是, ☑, 或者是 P (Wingdings2的勾), ■ (實心方塊)，都會自動打勾！
                     return ['V', '1', 'TRUE', 'Y', '是', '☑', 'P', '■'].includes(str);
                 };
 
@@ -72,10 +114,8 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         year: row['記帳年度'] != null ? String(row['記帳年度']) : '',
                         workNo: row['記帳工作'] != null ? String(row['記帳工作']) : '',
                         code: row['客戶編號'] != null ? String(row['客戶編號']) : '',
-                        
                         name: shortName,      
                         fullName: formalName, 
-                        
                         taxId: row['統一編號'] != null ? String(row['統一編號']) : '',
                         taxFileNo: row['稅籍編號'] != null ? String(row['稅籍編號']) : '',
                         owner: row['負責人'] != null ? String(row['負責人']) : '',
@@ -86,23 +126,16 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         regAddress: row['公司登記地址'] != null ? String(row['公司登記地址']) : '',
                         contactAddress: row['公司聯絡地址'] != null ? String(row['公司聯絡地址']) : '',
                         cpa: row['負責會計師'] != null ? String(row['負責會計師']) : '',
-                        
-                        // 委任事項 (只要 Excel 裡是 P，系統就會打勾)
                         chkAccount: isChecked(row['會計帳務']),
                         chkInvoice: isChecked(row['買發票']),
                         chkVat: isChecked(row['申報營業稅']),
                         chkWithholding: isChecked(row['扣繳申報']),
                         chkHealth: isChecked(row['補充保費']),
-                        
                         period: row['委任期限'] != null ? String(row['委任期限']) : '',
-                        
-                        // 公費與金額
-                        feeMonthly: row['每月公費'] != null ? String(row['每月公費']) : '',
+                        feeMonthly: row['委任公費'] != null ? String(row['委任公費']) : '',
                         feeWithholding: row['各類扣繳'] != null ? String(row['各類扣繳']) : '',
                         feeTax: row['結算申報'] != null ? String(row['結算申報']) : '',
                         fee22_1: row['22-1申報'] != null ? String(row['22-1申報']) : '',
-                        
-                        // 申報方式 (只要 Excel 裡是 ■，系統就會打勾)
                         boxReview: isChecked(row['書審']),
                         boxAudit: isChecked(row['查帳']),
                         boxCpa: isChecked(row['會計師簽證']),
@@ -116,7 +149,6 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                     alert("🎉 匯入成功！資料已同步至系統。");
                 }
             } catch (err) {
-                console.error("Excel Import Error:", err);
                 alert("❌ 匯入失敗，請確認 Excel 欄位名稱是否正確。");
             }
         };
@@ -132,14 +164,12 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
             for (let i = 0; i < binaryString.length; i++) {
                 bytes[i] = binaryString.charCodeAt(i);
             }
-
             const zip = new PizZip(bytes.buffer);
             const doc = new Docxtemplater(zip, {
                 paragraphLoop: true,
                 linebreaks: true,
                 delimiters: { start: "[[", end: "]]" },
             });
-
             const data = {
                 year: selectedClient.year || '',
                 workNo: selectedClient.workNo || '',
@@ -169,19 +199,13 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                 b2: selectedClient.boxAudit ? '■' : '□',
                 b3: selectedClient.boxCpa ? '■' : '□',
             };
-
             doc.render(data);
-
             const out = doc.getZip().generate({
                 type: 'blob',
                 mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
             });
-
-            const fileName = `記帳工作單_${selectedClient.year || ''}_${selectedClient.name}.docx`;
-            saveAs(out, fileName);
-
+            saveAs(out, `記帳工作單_${selectedClient.year || ''}_${selectedClient.name}.docx`);
         } catch (error: any) {
-            console.error("生成 Word 失敗詳細資訊:", error);
             alert("❌ 生成失敗，請確認模版格式。");
         }
     };
@@ -194,21 +218,31 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                     <h2 className="text-xl font-bold text-gray-800">客戶資訊總署 (Client Master)</h2>
                 </div>
                 
+                {/* 🆕 右上角按鈕：新增 -> 刪除 -> 匯入 -> 關閉 */}
                 <div className="flex gap-2">
+                    <button 
+                        onClick={handleAddClient}
+                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold transition-colors"
+                    >
+                        ➕ 新增
+                    </button>
+                    
+                    <button 
+                        onClick={() => setIsDeleteMode(!isDeleteMode)}
+                        className={`${isDeleteMode ? 'bg-red-600 text-white shadow-inner' : 'bg-red-50 text-red-600 hover:bg-red-100'} px-4 py-2 rounded-lg flex items-center gap-2 font-bold transition-all`}
+                    >
+                        🗑️ {isDeleteMode ? '取消刪除模式' : '刪除'}
+                    </button>
+
                     <button 
                         onClick={() => document.getElementById('excel-upload')?.click()}
                         className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold transition-colors"
                     >
-                        📊 匯入事務所 Excel
+                        📊 匯入 EXCEL
                     </button>
-                    <input 
-                        type="file" 
-                        id="excel-upload" 
-                        className="hidden" 
-                        accept=".xlsx, .xls" 
-                        onChange={handleExcelImport} 
-                    />
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800 font-bold text-lg px-4 py-2 bg-gray-100 rounded-lg">✕ 關閉</button>
+                    <input type="file" id="excel-upload" className="hidden" accept=".xlsx, .xls" onChange={handleExcelImport} />
+                    
+                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800 font-bold px-4 py-2 bg-gray-100 rounded-lg">✕ 關閉</button>
                 </div>
             </div>
 
@@ -217,12 +251,22 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                     {clients.map(client => (
                         <div 
                             key={client.id} 
-                            onClick={() => setSelectedClient(client)}
-                            className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all cursor-pointer aspect-square flex flex-col items-center justify-center p-4 border border-gray-100 group relative"
+                            /* 🆕 根據是否在「刪除模式」來決定點擊行為 */
+                            onClick={() => isDeleteMode ? handleDeleteClient(client.id, client.name) : setSelectedClient(client)}
+                            className={`bg-white rounded-2xl shadow-sm transition-all cursor-pointer aspect-square flex flex-col items-center justify-center p-4 border relative group overflow-hidden ${isDeleteMode ? 'border-red-400 hover:bg-red-50 hover:shadow-red-200' : 'border-gray-100 hover:shadow-xl'}`}
                         >
+                            {/* 狀態燈號 */}
                             <div className={`absolute top-3 right-3 w-3 h-3 rounded-full ${client.taxId ? 'bg-green-400' : 'bg-red-400 animate-pulse'}`}></div>
+                            
+                            {/* 🆕 刪除模式的紅色蒙版特效 */}
+                            {isDeleteMode && (
+                                <div className="absolute inset-0 bg-red-500/10 flex items-center justify-center opacity-0 group-hover:opacity-100 transition-opacity">
+                                    <span className="text-4xl">🗑️</span>
+                                </div>
+                            )}
+
                             <span className="font-mono text-gray-400 font-bold mb-3 text-lg">{client.code}</span>
-                            <span className="font-bold text-gray-800 text-2xl group-hover:text-indigo-600 transition-colors text-center">{client.name}</span>
+                            <span className={`font-bold text-2xl transition-colors text-center ${isDeleteMode ? 'group-hover:text-red-600 text-gray-800' : 'group-hover:text-indigo-600 text-gray-800'}`}>{client.name}</span>
                         </div>
                     ))}
                 </div>
@@ -234,8 +278,9 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         
                         <div className="p-6 border-b flex justify-between items-center bg-gray-50 rounded-t-3xl">
                             <h3 className="text-2xl font-black text-gray-800 flex items-center gap-3">
-                                <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-lg font-mono">{selectedClient.code}</span>
-                                {selectedClient.name}
+                                {/* 新增時如果是空資料，顯示 "新增客戶" */}
+                                <span className="bg-indigo-100 text-indigo-800 px-3 py-1 rounded-lg font-mono">{selectedClient.code || 'NEW'}</span>
+                                {selectedClient.name || '新增客戶資料'}
                             </h3>
                             <button onClick={() => setSelectedClient(null)} className="text-gray-400 hover:text-gray-800 text-2xl">✕</button>
                         </div>
@@ -298,19 +343,29 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
 
                         {/* 底部操作區 */}
                         <div className="p-4 bg-gray-50 border-t rounded-b-3xl flex justify-between items-center">
+                            {/* 🆕 單筆刪除按鈕 (位於左側) */}
                             <button 
-                                onClick={handleSave} 
-                                disabled={isSaving}
-                                className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg shadow-indigo-200"
+                                onClick={() => handleDeleteClient(selectedClient.id, selectedClient.name)}
+                                className="px-4 py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-600 hover:text-white transition-colors"
                             >
-                                {isSaving ? '儲存中...' : '💾 儲存資料'}
+                                🗑️ 刪除此客戶
                             </button>
-                            <button 
-                                onClick={handleGenerateWord}
-                                className="px-6 py-3 bg-black text-white font-bold rounded-xl hover:bg-gray-800 shadow-lg"
-                            >
-                                🖨️ 生成記帳工作單
-                            </button>
+                            
+                            <div className="flex gap-3">
+                                <button 
+                                    onClick={handleSave} 
+                                    disabled={isSaving}
+                                    className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg"
+                                >
+                                    {isSaving ? '儲存中...' : '💾 儲存資料'}
+                                </button>
+                                <button 
+                                    onClick={handleGenerateWord}
+                                    className="px-6 py-3 bg-black text-white font-bold rounded-xl hover:bg-gray-800 shadow-lg"
+                                >
+                                    🖨️ 生成記帳工作單
+                                </button>
+                            </div>
                         </div>
                     </div>
                 </div>
