@@ -20,14 +20,12 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [isSaving, setIsSaving] = useState(false);
 
-    // 處理欄位變更 (保留您原本的手動輸入邏輯)
     const handleChange = (field: keyof Client, value: any) => {
         if (selectedClient) {
             setSelectedClient({ ...selectedClient, [field]: value });
         }
     };
 
-    // 儲存客戶資料 (保留手動儲存)
     const handleSave = async () => {
         if (!selectedClient) return;
         setIsSaving(true);
@@ -43,7 +41,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         }
     };
 
-    // 📊 Excel 匯入核心邏輯 (超強防呆升級版)
+    // 📊 Excel 匯入核心邏輯 
     const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -57,17 +55,16 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                 const worksheet = workbook.Sheets[sheetName];
                 const json: any[] = XLSX.utils.sheet_to_json(worksheet);
 
-                // 🛠️ 超強防呆打勾判斷 (無視大小寫、無視前後空白)
+                // 🛠️ 終極防呆打勾判斷：加入 P 與 ■ 的辨識！
                 const isChecked = (val: any) => {
                     if (val == null) return false;
                     const str = String(val).trim().toUpperCase();
-                    return str === 'V' || str === '1' || str === 'TRUE' || str === 'Y' || str === '是' || str === '☑';
+                    // 只要儲存格內容是 V, 1, Y, 是, ☑, 或者是 P (Wingdings2的勾), ■ (實心方塊)，都會自動打勾！
+                    return ['V', '1', 'TRUE', 'Y', '是', '☑', 'P', '■'].includes(str);
                 };
 
                 const newClients: Client[] = json.map((row) => {
-                    // 取得 Excel 中的原始完整名稱
                     const formalName = String(row['客戶名稱'] || '').trim();
-                    // 🪄 魔法：自動砍掉冗長的字眼當作牆面上的「簡稱」
                     const shortName = formalName.replace(/(股份有限公司|有限公司|企業社|商行|實業|國際|廣告)/g, '').trim();
 
                     return {
@@ -76,9 +73,8 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         workNo: row['記帳工作'] != null ? String(row['記帳工作']) : '',
                         code: row['客戶編號'] != null ? String(row['客戶編號']) : '',
                         
-                        // 這裡完美解決了您的需求！
-                        name: shortName,      // 顯示在資訊牆上的簡稱
-                        fullName: formalName, // 輸出至 Word 上的正式全名
+                        name: shortName,      
+                        fullName: formalName, 
                         
                         taxId: row['統一編號'] != null ? String(row['統一編號']) : '',
                         taxFileNo: row['稅籍編號'] != null ? String(row['稅籍編號']) : '',
@@ -91,7 +87,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         contactAddress: row['公司聯絡地址'] != null ? String(row['公司聯絡地址']) : '',
                         cpa: row['負責會計師'] != null ? String(row['負責會計師']) : '',
                         
-                        // 委任事項 (精準打勾)
+                        // 委任事項 (只要 Excel 裡是 P，系統就會打勾)
                         chkAccount: isChecked(row['會計帳務']),
                         chkInvoice: isChecked(row['買發票']),
                         chkVat: isChecked(row['申報營業稅']),
@@ -100,13 +96,13 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         
                         period: row['委任期限'] != null ? String(row['委任期限']) : '',
                         
-                        // 公費與金額 (防呆讀取，即使是 0 也能讀到)
+                        // 公費與金額
                         feeMonthly: row['委任公費'] != null ? String(row['委任公費']) : '',
                         feeWithholding: row['各類扣繳'] != null ? String(row['各類扣繳']) : '',
                         feeTax: row['結算申報'] != null ? String(row['結算申報']) : '',
                         fee22_1: row['22-1申報'] != null ? String(row['22-1申報']) : '',
                         
-                        // 申報方式 (精準打勾)
+                        // 申報方式 (只要 Excel 裡是 ■，系統就會打勾)
                         boxReview: isChecked(row['書審']),
                         boxAudit: isChecked(row['查帳']),
                         boxCpa: isChecked(row['會計師簽證']),
@@ -127,7 +123,6 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         reader.readAsBinaryString(file);
     };
 
-    // 🖨️ 一鍵生成 Word 核心邏輯
     const handleGenerateWord = () => {
         if (!selectedClient) return;
 
@@ -149,7 +144,6 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                 year: selectedClient.year || '',
                 workNo: selectedClient.workNo || '',
                 clientCode: selectedClient.code || '',
-                // 這裡會優先抓取 fullName (正式名稱) 填入 Word 中！
                 clientName: selectedClient.fullName || selectedClient.name || '',
                 taxId: selectedClient.taxId || '',
                 taxFileNo: selectedClient.taxFileNo || '',
@@ -194,7 +188,6 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
 
     return (
         <div className="fixed inset-0 bg-gray-100 z-[100] overflow-hidden flex flex-col animate-fade-in">
-            {/* 頂部導航列 */}
             <div className="bg-white shadow-sm p-4 flex justify-between items-center z-10">
                 <div className="flex items-center gap-3">
                     <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 text-xl">🏢</div>
@@ -219,7 +212,6 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                 </div>
             </div>
 
-            {/* 客戶方塊牆 */}
             <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                 <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
                     {clients.map(client => (
@@ -230,14 +222,12 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         >
                             <div className={`absolute top-3 right-3 w-3 h-3 rounded-full ${client.taxId ? 'bg-green-400' : 'bg-red-400 animate-pulse'}`}></div>
                             <span className="font-mono text-gray-400 font-bold mb-3 text-lg">{client.code}</span>
-                            {/* 牆面上顯示的是乾淨的「簡稱」 */}
                             <span className="font-bold text-gray-800 text-2xl group-hover:text-indigo-600 transition-colors text-center">{client.name}</span>
                         </div>
                     ))}
                 </div>
             </div>
 
-            {/* 詳細資料卡彈窗 (UI 完全保留原樣) */}
             {selectedClient && (
                 <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedClient(null)}>
                     <div className="bg-white rounded-3xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
@@ -252,7 +242,6 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
 
                         <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
                             <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-                                {/* 左側：基本資料 */}
                                 <div className="space-y-4">
                                     <h4 className="font-bold text-indigo-600 border-b pb-2">📂 基本資料</h4>
                                     <div className="grid grid-cols-3 gap-3 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
@@ -275,7 +264,6 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                     <div><label className="text-xs text-gray-500 font-bold">聯絡地址</label><input type="text" value={selectedClient.contactAddress || ''} onChange={e => handleChange('contactAddress', e.target.value)} className="w-full border p-2 rounded-lg" /></div>
                                 </div>
 
-                                {/* 右側：委任資訊 & 選項 */}
                                 <div className="space-y-4">
                                     <h4 className="font-bold text-indigo-600 border-b pb-2">💼 委任與公費</h4>
                                     <div className="grid grid-cols-2 gap-3">
