@@ -13,7 +13,6 @@ import { MailLogView } from './MailLogView';
 import { CashLogView } from './CashLogView';
 import { TaskService } from './taskService';
 import { NotificationService } from './notificationService';
-import * as XLSX from 'xlsx';
 
 // Types & Icons
 import { 
@@ -28,13 +27,11 @@ import {
     LightBulbIcon, ClockIcon, DocumentTextIcon, Squares2X2Icon, FunnelIcon, ChatBubbleIcon 
 } from './Icons';
 
-// 🔴 注意：這裡移除了 TABS，改用下方定義的 const TABS
 import { 
     COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, 
     YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS 
 } from './constants';
 
-// ✅ 這是正確的完整標籤清單
 const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款'];
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
@@ -80,7 +77,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [isNoteEditModalOpen, setIsNoteEditModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isUserDeleteModalOpen, setIsUserDeleteModalOpen] = useState(false);
-  const [isClientDeleteModalOpen, setIsClientDeleteModalOpen] = useState(false);
   const [isAppMenuOpen, setIsAppMenuOpen] = useState(false);
   const [isMessageBoardOpen, setIsMessageBoardOpen] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -108,14 +104,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [modalDate, setModalDate] = useState('');
   const [taskToDelete, setTaskToDelete] = useState<ClientTask | null>(null);
   const [editingTask, setEditingTask] = useState<ClientTask | null>(null);
-  const [settingsTab, setSettingsTab] = useState<'users' | 'clients'>('users');
   const [newUserName, setNewUserName] = useState('');
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [newUserPin, setNewUserPin] = useState('');
-  const [newClientCode, setNewClientCode] = useState('');
-  const [newClientName, setNewClientName] = useState('');
-  const [clientToDelete, setClientToDelete] = useState<Client | null>(null);
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
   const [checkInRecords, setCheckInRecords] = useState<CheckInRecord[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -125,7 +117,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
   // --- Refs ---
   const fileInputRef = useRef<HTMLInputElement>(null);
-  const excelInputRef = useRef<HTMLInputElement>(null);
   const prevCompletedColsRef = useRef<Set<string>>(new Set());
   const pollingRef = useRef<number | null>(null);
   const appMenuRef = useRef<HTMLDivElement>(null);
@@ -137,7 +128,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
 
   // -----------------------------------------------------------
-  // 🛠️ 修正日期格式邏輯：強制使用 YYYY-MM-DD，確保能抓到您截圖中的資料
   const getTodayString = () => {
       const d = new Date();
       const year = d.getFullYear();
@@ -146,30 +136,21 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       return `${year}-${month}-${day}`;
   };
   
-  const todayStr = getTodayString(); // 今天的標準日期 (如 2026-02-18)
+  const todayStr = getTodayString();
 
   const myTodayRecord = checkInRecords.find(r => {
       if (!r || !r.userId) return false;
-      // 1. 比對 User ID
       const sameUser = String(r.userId) === String(currentUser.id);
-      
-      // 2. 比對日期 (相容 / 與 -)
       const recordDate = (r.date || '').replace(/\//g, '-'); 
       const sameDate = recordDate === todayStr;
-
-      // 3. 關鍵：只找「還沒下班」的紀錄 (endTime 是空的)
-      // 這樣就算您按錯產生了很多筆，只要有一筆是沒下班的，按鈕就會變色
       const isActive = !r.endTime || r.endTime === '';
-
       return sameUser && sameDate && isActive;
   });
 
-  // 如果找到了「沒下班」的紀錄，就是工作中
   const isWorking = !!myTodayRecord;
   // -----------------------------------------------------------
 
   // --- Effects ---
-
   useEffect(() => {
       function handleClickOutside(event: MouseEvent) {
           if (appMenuRef.current && !appMenuRef.current.contains(event.target as Node)) {
@@ -200,7 +181,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       if (localStorage.getItem(storageKey) === 'true') return;
       
       const reminders = events.filter(e => {
-          // 修正日期比對 (取代斜線)
           const eventDate = e.date.replace(/\//g, '-');
           if (eventDate !== today) return false;
           if (e.type === 'shift' && e.ownerId === currentUser.id) return true;
@@ -219,7 +199,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       setIsDailyReminderOpen(false);
   };
 
-  // Auto-collapse columns logic
   useEffect(() => {
     let targetSubItems: string[] = [];
     if (activeTab === TabCategory.ACCOUNTING) targetSubItems = ACCOUNTING_SUB_ITEMS;
@@ -248,7 +227,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     }
   }, [tasks, activeTab, currentYear, clients]);
 
-  // Polling
   const startPolling = () => { 
       if (pollingRef.current) return; 
       pollingRef.current = window.setInterval(async () => { 
@@ -262,7 +240,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       return isAssignModalOpen || isDateModalOpen || isNoteEditModalOpen || isMiscModalOpen || 
              isDeleteModalOpen || isGalleryOpen || selectedClientForDrawer || isUserModalOpen || 
              isUserDeleteModalOpen || isEventModalOpen || isCalendarOpen || isEventDeleteModalOpen || 
-             isClientDeleteModalOpen || isCheckOutModalOpen || isTimesheetOpen;
+             isCheckOutModalOpen || isTimesheetOpen || isClientMasterOpen;
   };
 
   const stopPolling = () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
@@ -291,8 +269,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
 
   // --- Handlers ---
-  
-  // ✅ 上班打卡 (強制使用 todayStr)
   const handleCheckIn = async () => {
       if (!confirm(`現在時間 ${timeStr}，確定上班打卡？`)) return;
       setIsLoading(true);
@@ -301,24 +277,22 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           id: Date.now().toString(),
           userId: currentUser.id,
           userName: currentUser.name,
-          date: todayStr, // 👈 關鍵：使用標準日期
+          date: todayStr,
           startTime: new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' }),
           breakHours: 0,
           totalHours: 0
       };
       
       await TaskService.addCheckIn(newRecord);
-      NotificationService.send(currentUser.name, 'CLOCK_IN'); // 通知主管
+      NotificationService.send(currentUser.name, 'CLOCK_IN');
 
       await loadData();
       setIsLoading(false);
       alert("✅ 上班打卡成功！");
   };
 
-  // ✅ 下班打卡 (讀取 myTodayRecord)
   const handleCheckOut = async () => {
       if (!myTodayRecord) return;
-      // 計算工時
       const endTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       const [sh, sm] = myTodayRecord.startTime.split(':').map(Number);
       const [eh, em] = endTime.split(':').map(Number);
@@ -327,7 +301,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       const breakH = deductBreak ? 1 : 0;
       let hours = minutes / 60 - breakH;
       if (hours < 0) hours = 0;
-      const finalHours = Math.floor(hours * 2) / 2; // 無條件捨去至 0.5
+      const finalHours = Math.floor(hours * 2) / 2;
 
       const updatedRecord: CheckInRecord = {
           ...myTodayRecord,
@@ -337,14 +311,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       };
       await TaskService.updateCheckIn(updatedRecord);
       
-      NotificationService.send(currentUser.name, 'CLOCK_OUT'); // 通知主管審核
+      NotificationService.send(currentUser.name, 'CLOCK_OUT');
       
       setIsCheckOutModalOpen(false);
       await loadData();
       alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時`);
   };
 
-  // Other Handlers
   const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => { stopPolling(); const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : ''; try { const updatedList = await TaskService.updateTaskStatus(task.id, newStatus, currentUser.name, completionDateStr); setTasks(updatedList); } catch (error) { alert("失敗"); } finally { startPolling(); } };
   const openInternNoteEdit = (task: ClientTask) => { setEditingTask(task); setModalNote(task.note); setIsNoteEditModalOpen(true); stopPolling(); };
   const handleInternNoteSubmit = async () => { if (!editingTask) return; setIsLoading(true); try { const updatedList = await TaskService.updateTaskNote(editingTask.id, modalNote, currentUser.name); setTasks(updatedList); setIsNoteEditModalOpen(false); setEditingTask(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
@@ -390,12 +363,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleAvatarClick = (userId: string) => { setEditingUserId(userId); if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && editingUserId) { if (file.size > 500 * 1024) { alert("圖片大小請小於 500KB"); return; } const reader = new FileReader(); reader.onloadend = () => { const base64String = reader.result as string; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === editingUserId ? { ...u, avatar: base64String } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setEditingUserId(null); }; reader.readAsDataURL(file); } };
   const handleUpdatePin = () => { if (!newUserPin.trim()) return; if (newUserPin.length !== 4 || isNaN(Number(newUserPin))) { alert("請輸入 4 位數字密碼"); return; } const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === currentUser.id ? { ...u, pin: newUserPin.trim() } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserPin(''); alert("密碼已更新"); };
-
-  // Client Mgmt
-  const handleAddClient = async () => { if (!newClientCode.trim() || !newClientName.trim()) { alert("請輸入代號和名稱"); return; } const newClient: Client = { id: `c_${Date.now()}`, code: newClientCode.trim(), name: newClientName.trim() }; const updatedClients = [...clients, newClient]; await TaskService.saveClients(updatedClients); setClients(updatedClients); setNewClientCode(''); setNewClientName(''); };
-  const handleDeleteClientClick = (client: Client) => { setClientToDelete(client); setIsClientDeleteModalOpen(true); };
-  const handleConfirmDeleteClient = async () => { if (!clientToDelete) return; const updatedClients = clients.filter(c => c.id !== clientToDelete.id); await TaskService.saveClients(updatedClients); const currentTasks = await TaskService.fetchTasks(); const updatedTasks = currentTasks.filter(t => t.clientId !== clientToDelete.id); await TaskService.saveTasks(updatedTasks); setTasks(updatedTasks); setClients(updatedClients); setIsClientDeleteModalOpen(false); setClientToDelete(null); };
-  const handleExcelUpload = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (!file) return; const reader = new FileReader(); reader.onload = async (evt) => { try { const bstr = evt.target?.result; const wb = XLSX.read(bstr, { type: 'binary' }); const wsname = wb.SheetNames[0]; const ws = wb.Sheets[wsname]; const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][]; let startIndex = 0; if (data.length > 0 && (typeof data[0][0] === 'string' && (data[0][0].includes('代號') || data[0][0].includes('Code')))) { startIndex = 1; } const newClients: Client[] = []; for(let i = startIndex; i < data.length; i++) { const row = data[i]; if (row && row.length >= 2) { const code = String(row[0] || '').trim(); const name = String(row[1] || '').trim(); if (code && name) { newClients.push({ id: `c_${Date.now()}_${i}`, code, name }); } } } if (newClients.length > 0) { if(window.confirm(`解析出 ${newClients.length} 筆客戶資料，是否確定匯入？`)) { const updatedClients = [...clients, ...newClients]; await TaskService.saveClients(updatedClients); setClients(updatedClients); alert("匯入成功！"); } } else { alert("未讀取到有效資料"); } } catch(err) { console.error(err); alert("讀取 Excel 失敗"); } }; reader.readAsBinaryString(file); e.target.value = ''; };
 
   // Matrix Logic
   const handleCellClick = (client: Client, column: string, task?: ClientTask) => { if (!dbConnected) return; setSelectedCell({ client, column, task }); setModalNote(task?.note || ''); setModalAssigneeId(task?.assigneeId || ''); const canModify = isSupervisor; if (task && (task.status === 'done' || task.isNA)) { setModalDate(task.completionDate || ''); setIsDateModalOpen(true); stopPolling(); return; } if (task) { if (!canModify) { setModalDate(''); setIsDateModalOpen(true); stopPolling(); return; } setIsAssignModalOpen(true); stopPolling(); } else { if (canModify) { setIsAssignModalOpen(true); stopPolling(); } } };
@@ -498,7 +465,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                             <LightBulbIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">懶人包</span>
                         </button>
-                        <button onClick={() => { setIsUserModalOpen(true); setSettingsTab('users'); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-xl text-gray-600 hover:text-gray-900 transition-colors">
+                        <button onClick={() => { setIsUserModalOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-xl text-gray-600 hover:text-gray-900 transition-colors">
                             <GearIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">{isSupervisor ? "人員管理" : "個人設定"}</span>
                         </button>
@@ -741,63 +708,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         </div>
       )}
 
-      {/* Settings Modal */}
+      {/* Settings Modal (純人員設定) */}
       {isUserModalOpen && (
           <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsUserModalOpen(false)}>
               <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
                   <div className="p-6 border-b">
-                      <div className="flex items-center justify-between mb-2">
-                        <h3 className="text-xl font-bold flex items-center gap-2 text-gray-800"><GearIcon className="w-6 h-6 text-gray-600" />設定</h3>
+                      <div className="flex items-center justify-between">
+                        <h3 className="text-xl font-bold flex items-center gap-2 text-gray-800"><GearIcon className="w-6 h-6 text-gray-600" />{isSupervisor ? '人員管理' : '個人設定'}</h3>
                         <button onClick={() => setIsUserModalOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
                       </div>
-                      
-                      {isSupervisor && (
-                          <div className="flex p-1 bg-gray-100 rounded-xl">
-                              <button onClick={() => setSettingsTab('users')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${settingsTab === 'users' ? 'bg-white shadow text-gray-800' : 'text-gray-500 hover:bg-gray-200'}`}>人員管理</button>
-                              <button onClick={() => setSettingsTab('clients')} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${settingsTab === 'clients' ? 'bg-white shadow text-blue-800' : 'text-gray-500 hover:bg-gray-200'}`}>客戶管理</button>
-                          </div>
-                      )}
                   </div>
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/png, image/jpeg, image/gif" onChange={handleFileChange} />
-                  <input type="file" ref={excelInputRef} className="hidden" accept=".xlsx, .xls" onChange={handleExcelUpload} />
 
                   <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-                      {isSupervisor && settingsTab === 'clients' ? (
-                        <>
-                            <div className="mb-6 grid grid-cols-2 gap-3">
-                                <button onClick={() => excelInputRef.current?.click()} className="flex items-center justify-center gap-2 py-3 bg-green-500 hover:bg-green-600 text-white rounded-xl font-bold shadow-md transition-colors">
-                                    <TableCellsIcon className="w-5 h-5" /> 匯入 Excel
-                                </button>
-                                <div className="text-xs text-gray-400 flex items-center justify-center text-center leading-tight">格式: A欄代號, B欄名稱</div>
-                            </div>
-
-                            <div className="mb-6 p-4 bg-blue-50 rounded-xl border border-blue-100">
-                                <h4 className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-2">手動新增客戶</h4>
-                                <div className="flex gap-2 mb-2">
-                                    <input type="text" placeholder="代號 (A01)" value={newClientCode} onChange={e => setNewClientCode(e.target.value)} className="w-1/3 p-2 border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-base bg-white" />
-                                    <input type="text" placeholder="客戶名稱" value={newClientName} onChange={e => setNewClientName(e.target.value)} className="flex-1 p-2 border border-blue-200 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-base bg-white" onKeyDown={e => e.key === 'Enter' && handleAddClient()} />
-                                </div>
-                                <button onClick={handleAddClient} disabled={!newClientCode.trim() || !newClientName.trim()} className="w-full bg-blue-600 text-white py-2 rounded-lg font-bold text-sm hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">新增</button>
-                            </div>
-
-                            <div className="border-t border-gray-100 pt-4">
-                                <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">現有客戶名單 ({clients.length})</h4>
-                                <div className="space-y-2 max-h-60 overflow-y-auto custom-scrollbar">
-                                    {clients.map(client => (
-                                        <div key={client.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100 group">
-                                            <div className="flex items-center gap-3 overflow-hidden">
-                                                <span className="font-mono font-bold text-gray-500 bg-gray-200 px-2 py-0.5 rounded text-sm">{client.code}</span>
-                                                <span className="font-bold text-gray-700 text-base truncate">{client.name}</span>
-                                            </div>
-                                            <button onClick={() => handleDeleteClientClick(client)} className="text-gray-300 hover:text-red-500 p-1.5 hover:bg-red-50 rounded transition-colors" title="刪除"><TrashIcon className="w-4 h-4" /></button>
-                                        </div>
-                                    ))}
-                                    {clients.length === 0 && <p className="text-gray-400 text-center text-sm py-4">暫無客戶資料</p>}
-                                </div>
-                            </div>
-                        </>
-                      ) : (
-                        isSupervisor ? (
+                      {isSupervisor ? (
                           <>
                               <div className="flex flex-col items-center p-6 bg-gray-50 rounded-xl border border-gray-100 mb-6">
                                   <div className="relative w-24 h-24 mb-4 cursor-pointer group" onClick={() => handleAvatarClick(currentUser.id)}>
@@ -854,8 +778,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                                   </div>
                               </div>
                           </div>
-                      )
-                    )}
+                      )}
                   </div>
                   <div className="p-4 border-t bg-white flex justify-end"><button onClick={() => setIsUserModalOpen(false)} className="text-gray-500 hover:text-gray-700 font-medium px-4 py-2 text-base">關閉</button></div>
               </div>
@@ -872,20 +795,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 <div className="flex gap-3">
                     <button onClick={() => setIsUserDeleteModalOpen(false)} className="flex-1 py-2.5 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors text-base">取消</button>
                     <button onClick={handleConfirmDeleteUser} className="flex-1 py-2.5 text-white font-bold bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-lg shadow-red-200 text-base">確認刪除</button>
-                </div>
-            </div>
-        </div>
-      )}
-
-      {isClientDeleteModalOpen && clientToDelete && (
-        <div className="fixed inset-0 bg-black/50 z-[110] flex items-center justify-center p-4 animate-fade-in">
-            <div className="bg-white rounded-2xl shadow-2xl max-w-sm w-full p-6 text-center">
-                <div className="w-16 h-16 bg-red-100 rounded-full flex items-center justify-center mx-auto mb-4"><TrashIcon className="w-8 h-8 text-red-600" /></div>
-                <h3 className="text-xl font-bold text-gray-800 mb-2">確認刪除客戶？</h3>
-                <p className="text-base text-gray-500 mb-6">您確定要刪除 <span className="font-bold text-gray-800">{clientToDelete.name}</span> 嗎？<br/>注意：這不會刪除已存在的歷史任務。</p>
-                <div className="flex gap-3">
-                    <button onClick={() => setIsClientDeleteModalOpen(false)} className="flex-1 py-2.5 text-gray-600 font-bold bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors text-base">取消</button>
-                    <button onClick={handleConfirmDeleteClient} className="flex-1 py-2.5 text-white font-bold bg-red-600 hover:bg-red-700 rounded-xl transition-colors shadow-lg shadow-red-200 text-base">確認刪除</button>
                 </div>
             </div>
         </div>
