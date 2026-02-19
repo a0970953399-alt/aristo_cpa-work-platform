@@ -37,7 +37,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         }
     };
 
-    // 一鍵生成 Word (下一階段實作，先做按鈕)
+    // 一鍵生成 Word
     const handleGenerateWord = () => {
         alert('🖨️ 準備生成記帳工作單...\n(此功能將在下一步引入 docxtemplater 後啟用！)');
     };
@@ -60,10 +60,9 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         <div 
                             key={client.id} 
                             onClick={() => setSelectedClient(client)}
-                            // 這裡加上 aspect-square 讓它變成正方形
                             className="bg-white rounded-2xl shadow-sm hover:shadow-xl transition-all cursor-pointer aspect-square flex flex-col items-center justify-center p-4 border border-gray-100 group relative overflow-hidden"
                         >
-                            {/* 狀態燈號 (如果缺統編就亮紅燈，這是一個小巧思) */}
+                            {/* 狀態燈號：只要有統編就亮綠燈，否則紅燈 */}
                             <div className={`absolute top-3 right-3 w-3 h-3 rounded-full ${client.taxId ? 'bg-green-400' : 'bg-red-400 animate-pulse'}`}></div>
                             
                             <span className="font-mono text-gray-400 font-bold mb-3 text-lg">{client.code}</span>
@@ -96,7 +95,17 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                 {/* 左側：基本資料 */}
                                 <div className="space-y-4">
                                     <h4 className="font-bold text-indigo-600 border-b pb-2">📂 基本資料</h4>
-                                    <div><label className="text-xs text-gray-500 font-bold">公司全名</label><input type="text" value={selectedClient.fullName || ''} onChange={e => handleChange('fullName', e.target.value)} className="w-full border p-2 rounded-lg bg-gray-50 focus:bg-white" /></div>
+                                    
+                                    {/* 🆕 補上年度、工作編號與客戶編號 */}
+                                    <div className="grid grid-cols-3 gap-3 bg-indigo-50 p-3 rounded-lg border border-indigo-100">
+                                        <div><label className="text-xs text-indigo-800 font-bold">客戶編號</label><input type="text" value={selectedClient.code || ''} onChange={e => handleChange('code', e.target.value)} className="w-full border border-indigo-200 p-2 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 font-mono" /></div>
+                                        <div><label className="text-xs text-indigo-800 font-bold">記帳年度</label><input type="text" placeholder="例: 114" value={selectedClient.year || ''} onChange={e => handleChange('year', e.target.value)} className="w-full border border-indigo-200 p-2 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 font-mono" /></div>
+                                        <div><label className="text-xs text-indigo-800 font-bold">記帳工作</label><input type="text" placeholder="例: 114B044" value={selectedClient.workNo || ''} onChange={e => handleChange('workNo', e.target.value)} className="w-full border border-indigo-200 p-2 rounded-lg bg-white focus:ring-2 focus:ring-indigo-500 font-mono" /></div>
+                                    </div>
+
+                                    <div><label className="text-xs text-gray-500 font-bold">公司簡稱 (系統顯示用)</label><input type="text" value={selectedClient.name || ''} onChange={e => handleChange('name', e.target.value)} className="w-full border p-2 rounded-lg bg-gray-50 focus:bg-white" /></div>
+                                    <div><label className="text-xs text-gray-500 font-bold">公司全名 (表單用)</label><input type="text" value={selectedClient.fullName || ''} onChange={e => handleChange('fullName', e.target.value)} className="w-full border p-2 rounded-lg bg-gray-50 focus:bg-white" /></div>
+                                    
                                     <div className="grid grid-cols-2 gap-3">
                                         <div><label className="text-xs text-gray-500 font-bold">統一編號</label><input type="text" value={selectedClient.taxId || ''} onChange={e => handleChange('taxId', e.target.value)} className="w-full border p-2 rounded-lg bg-gray-50 focus:bg-white" /></div>
                                         <div><label className="text-xs text-gray-500 font-bold">稅籍編號</label><input type="text" value={selectedClient.taxFileNo || ''} onChange={e => handleChange('taxFileNo', e.target.value)} className="w-full border p-2 rounded-lg bg-gray-50 focus:bg-white" /></div>
