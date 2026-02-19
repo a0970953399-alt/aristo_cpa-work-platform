@@ -4,6 +4,11 @@ import React, { useState } from 'react';
 import { Client } from './types';
 import { TaskService } from './taskService';
 
+import PizZip from 'pizzip';
+import Docxtemplater from 'docxtemplater';
+import { saveAs } from 'file-saver';
+import { WORK_ORDER_TEMPLATE_BASE64 } from './wordTemplate';
+
 interface ClientMasterViewProps {
     clients: Client[];
     onClose: () => void;
@@ -37,9 +42,82 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         }
     };
 
-    // 一鍵生成 Word
+    // 🖨️ 一鍵生成 Word 核心邏輯
     const handleGenerateWord = () => {
-        alert('🖨️ 準備生成記帳工作單...\n(此功能將在下一步引入 docxtemplater 後啟用！)');
+        if (!selectedClient) return;
+
+        try {
+            // 1. 將 Base64 轉成二進位資料
+            const binaryString = window.atob(WORK_ORDER_TEMPLATE_BASE64);
+            const len = binaryString.length;
+            const bytes = new Uint8Array(len);
+            for (let i = 0; i < len; i++) {
+                bytes[i] = binaryString.charCodeAt(i);
+            }
+
+            // 2. 載入 Zip (Word 本質上是個 Zip 檔)
+            const zip = new PizZip(bytes.buffer);
+
+            // 3. 初始化 Docxtemplater
+            const doc = new Docxtemplater(zip, {
+                paragraphLoop: true,
+                linebreaks: true,
+            });
+
+            // 4. 準備要替換的資料字典 (將資料庫格式轉為 Word 變數)
+            const data = {
+                year: selectedClient.year || '',
+                workNo: selectedClient.workNo || '',
+                clientCode: selectedClient.code || '',
+                clientName: selectedClient.fullName || selectedClient.name || '',
+                taxId: selectedClient.taxId || '',
+                taxFileNo: selectedClient.taxFileNo || '',
+                owner: selectedClient.owner || '',
+                contact: selectedClient.contact || '',
+                phone: selectedClient.phone || '',
+                fax: selectedClient.fax || '',
+                email: selectedClient.email || '',
+                regAddress: selectedClient.regAddress || '',
+                contactAddress: selectedClient.contactAddress || '',
+                cpa: selectedClient.cpa || '',
+                period: selectedClient.period || '',
+                
+                // 金額欄位
+                feeMonthly: selectedClient.feeMonthly || '',
+                f1: selectedClient.feeWithholding || '',
+                f2: selectedClient.feeTax || '',
+                f3: selectedClient.fee22_1 || '',
+                
+                // 邏輯判斷：打勾與空白 (c1 ~ c5)
+                c1: selectedClient.chkAccount ? '☑' : '☐',
+                c2: selectedClient.chkInvoice ? '☑' : '☐',
+                c3: selectedClient.chkVat ? '☑' : '☐',
+                c4: selectedClient.chkWithholding ? '☑' : '☐',
+                c5: selectedClient.chkHealth ? '☑' : '☐',
+                
+                // 邏輯判斷：實心與空心方塊 (b1 ~ b3)
+                b1: selectedClient.boxReview ? '■' : '□',
+                b2: selectedClient.boxAudit ? '■' : '□',
+                b3: selectedClient.boxCpa ? '■' : '□',
+            };
+
+            // 5. 執行替換
+            doc.render(data);
+
+            // 6. 產出檔案並觸發下載
+            const out = doc.getZip().generate({
+                type: 'blob',
+                mimeType: 'application/vnd.openxmlformats-officedocument.wordprocessingml.document',
+            });
+            
+            // 檔名自動套用：記帳工作單_114_叁个山.docx
+            const fileName = `記帳工作單_${selectedClient.year || ''}_${selectedClient.name}.docx`;
+            saveAs(out, fileName);
+
+        } catch (error) {
+            console.error("生成 Word 失敗:", error);
+            alert("生成失敗，請確認模版 Base64 是否正確！");
+        }
     };
 
     return (
