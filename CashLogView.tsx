@@ -194,16 +194,20 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
                         {clients.map(client => (
-                            <button 
-                                key={client.id}
-                                onClick={() => { setSelectedClient(client); setViewMode('client_detail'); }}
-                                className="bg-white rounded-xl shadow p-4 border cursor-pointer hover:shadow-md aspect-square flex flex-col items-center justify-center"
-                              >
-                                <span className="bg-gray-100 text-gray-600 font-mono font-bold text-xs px-2 py-0.5 rounded group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors">
-                                    {client.code}
-                                </span>
-                                <span className="font-bold text-gray-800 text-sm line-clamp-2">{client.name}</span>
-                            </button>
+                        <button 
+                            key={client.id}
+                            onClick={() => { setSelectedClient(client); setViewMode('client_detail'); }}
+                            className="bg-white rounded-xl shadow p-4 border cursor-pointer hover:shadow-md aspect-square flex flex-col items-center justify-center gap-2"
+                          >
+                            {/* ✨ 修改：將編號放大為 text-base，並稍微加寬 padding */}
+                            <span className="bg-gray-100 text-gray-600 font-mono font-bold text-base px-3 py-1 rounded group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors">
+                                {client.code}
+                            </span>
+                            {/* ✨ 修改：將名稱放大為 text-lg (如果你覺得不夠大，可以改成 text-xl) */}
+                            <span className="font-bold text-gray-800 text-lg line-clamp-2 text-center">
+                                {client.name}
+                            </span>
+                        </button>
                         ))}
                     </div>
                 </div>
