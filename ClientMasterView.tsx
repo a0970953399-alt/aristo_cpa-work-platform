@@ -97,7 +97,17 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                 const workbook = XLSX.read(bstr, { type: 'binary' });
                 const sheetName = workbook.SheetNames[0];
                 const worksheet = workbook.Sheets[sheetName];
-                const json: any[] = XLSX.utils.sheet_to_json(worksheet);
+
+                // 1. 先讀取原始資料
+                const rawJson: any[] = XLSX.utils.sheet_to_json(worksheet);
+                // 🧹 2. 啟動「空白吸塵器」：把 Excel 所有標題的頭尾空白全部清掉！
+                const json = rawJson.map(row => {
+                    const cleanRow: any = {};
+                    Object.keys(row).forEach(key => {
+                        cleanRow[key.trim()] = row[key]; // 去除標題空白
+                    });
+                    return cleanRow;
+                });
 
                 const isChecked = (val: any) => {
                     if (val == null) return false;
