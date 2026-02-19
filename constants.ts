@@ -2,7 +2,7 @@
 import { UserRole, TabCategory } from './types';
 import type { User, Client, Instruction } from './types';
 
-export const SUPERVISOR_NAME = "周愉";
+export const SUPERVISOR_NAME = "周榆";
 export const DEFAULT_PIN = "1234";
 
 export const USERS: User[] = [
@@ -10,7 +10,7 @@ export const USERS: User[] = [
     id: 'u1',
     name: SUPERVISOR_NAME,
     role: UserRole.SUPERVISOR,
-    avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=周愉&backgroundColor=ffdfbf&radius=50',
+    avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=周榆&backgroundColor=ffdfbf&radius=50',
     pin: DEFAULT_PIN
   },
   {

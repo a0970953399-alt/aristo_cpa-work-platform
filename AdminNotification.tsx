@@ -11,9 +11,9 @@ interface Props {
 export const AdminNotification: React.FC<Props> = ({ currentUser }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // 只有主管 (周愉) 或 管理員才需要執行這個檢查
-  // 假設主管的角色是 'admin' 或是名字叫 '周愉'
-  const isSupervisor = currentUser.role === 'admin' || currentUser.name === '周愉';
+  // 只有主管 (周榆) 或 管理員才需要執行這個檢查
+  // 假設主管的角色是 'admin' 或是名字叫 '周榆'
+  const isSupervisor = currentUser.role === 'admin' || currentUser.name === '周榆';
 
   useEffect(() => {
     if (!isSupervisor) return;

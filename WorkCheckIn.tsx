@@ -14,7 +14,7 @@ interface WorkLog {
 }
 
 export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
-    // 身份切換：工讀生 vs 主管(周愉)
+    // 身份切換：工讀生 vs 主管(周榆)
     const [currentRole, setCurrentRole] = useState<'INTERN' | 'SUPERVISOR'>('INTERN');
     
     // 資料庫 (暫存於 localStorage)
@@ -58,7 +58,7 @@ export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
             name: '工讀生A',
             type: 'CLOCK_OUT',
             timestamp: now,
-            status: 'PENDING' // ⚠️ 狀態：待周愉審核
+            status: 'PENDING' // ⚠️ 狀態：待周榆審核
         };
         saveLogs([newLog, ...logs]);
 
@@ -68,7 +68,7 @@ export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
         alert("⏳ 下班申請已送出！已通知主管，您可以先行離開。");
     };
 
-    // --- 主管(周愉)功能 ---
+    // --- 主管(周榆)功能 ---
 
     const handleApprove = (logId: string) => {
         const newLogs = logs.map(log => 
@@ -109,7 +109,7 @@ export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                             onClick={() => setCurrentRole('SUPERVISOR')}
                             className={`px-4 py-1 rounded-md transition-all ${currentRole === 'SUPERVISOR' ? 'bg-white shadow text-purple-600 font-bold' : 'text-gray-500'}`}
                         >
-                            我是周愉 (主管)
+                            我是周榆 (主管)
                         </button>
                     </div>
                 </div>
@@ -155,7 +155,7 @@ export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                         <span className="font-mono text-gray-600">{formatTime(log.timestamp)}</span>
                                     </div>
                                     <div>
-                                        {log.status === 'PENDING' && <span className="text-yellow-600 font-bold text-sm bg-yellow-50 px-2 py-1 rounded">⏳ 待周愉審核</span>}
+                                        {log.status === 'PENDING' && <span className="text-yellow-600 font-bold text-sm bg-yellow-50 px-2 py-1 rounded">⏳ 待周榆審核</span>}
                                         {log.status === 'APPROVED' && <span className="text-green-600 font-bold text-sm">✅ 已確認</span>}
                                         {log.status === 'REJECTED' && <span className="text-red-500 font-bold text-sm">❌ 被駁回</span>}
                                     </div>
@@ -165,14 +165,14 @@ export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                     </div>
                 )}
 
-                {/* ================= 主管介面 (周愉) ================= */}
+                {/* ================= 主管介面 (周榆) ================= */}
                 {currentRole === 'SUPERVISOR' && (
                     <div className="space-y-6">
                         
                         {/* ⚠️ 待審核區域 (黃色框框) */}
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-800 text-lg flex items-center gap-2">
-                                🔔 待辦事項 (我是周愉)
+                                🔔 待辦事項 (我是周榆)
                                 {logs.filter(l => l.status === 'PENDING').length > 0 && (
                                     <span className="bg-red-500 text-white text-xs px-2 py-1 rounded-full">{logs.filter(l => l.status === 'PENDING').length}</span>
                                 )}
@@ -236,7 +236,7 @@ export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                             </td>
                                             <td className="p-3 font-mono">{formatTime(log.timestamp)}</td>
                                             <td className="p-3">
-                                                {log.status === 'APPROVED' ? <span className="text-green-600 text-sm">● 周愉已核准</span> : 
+                                                {log.status === 'APPROVED' ? <span className="text-green-600 text-sm">● 周榆已核准</span> : 
                                                  log.status === 'REJECTED' ? <span className="text-red-500 text-sm">● 已駁回</span> :
                                                  <span className="text-yellow-600 text-sm">● 待審核</span>}
                                             </td>
