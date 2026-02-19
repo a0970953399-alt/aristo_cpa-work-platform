@@ -227,7 +227,7 @@ export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                 </thead>
                                 <tbody className="divide-y">
                                     {logs.map(log => (
-                                        <tr key={log.id} className="hover:bg-gray-50">
+                        <tr key={log.id} className="hover:bg-gray-50">
                                             <td className="p-3">{log.name}</td>
                                             <td className="p-3">
                                                 <span className={`text-xs px-2 py-1 rounded ${log.type === 'CLOCK_IN' ? 'bg-green-100 text-green-700' : 'bg-gray-100 text-gray-700'}`}>
@@ -236,7 +236,8 @@ export const WorkCheckIn: React.FC<{ onClose: () => void }> = ({ onClose }) => {
                                             </td>
                                             <td className="p-3 font-mono">{formatTime(log.timestamp)}</td>
                                             <td className="p-3">
-                                                {log.status === 'APPROVED' ? <span className="text-green-600 text-sm">● 周榆已核准</span> : 
+                                                {/* ✨ 修改這裡：將「周榆已核准」改為「已核准」 */}
+                                                {log.status === 'APPROVED' ? <span className="text-green-600 text-sm">● 已核准</span> : 
                                                  log.status === 'REJECTED' ? <span className="text-red-500 text-sm">● 已駁回</span> :
                                                  <span className="text-yellow-600 text-sm">● 待審核</span>}
                                             </td>
