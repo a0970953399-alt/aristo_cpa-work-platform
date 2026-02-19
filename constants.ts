@@ -1,4 +1,3 @@
-
 import { UserRole, TabCategory } from './types';
 import type { User, Client, Instruction } from './types';
 
@@ -6,10 +5,18 @@ export const SUPERVISOR_NAME = "周榆";
 export const DEFAULT_PIN = "1234";
 
 export const USERS: User[] = [
+  // ✨ 新增 Brandon 在第一位，這樣登入畫面他就會在最左邊
+  {
+    id: 'u0', // 給老闆一個獨立的 ID
+    name: "Brandon",
+    role: UserRole.SUPERVISOR, // 賦予主管權限
+    avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Brandon&backgroundColor=ffd5dc&radius=50', // 隨機生成一個專屬頭像
+    pin: DEFAULT_PIN
+  },
   {
     id: 'u1',
     name: SUPERVISOR_NAME,
-    role: UserRole.SUPERVISOR,
+    role: UserRole.SUPERVISOR, // 確保原本的主管也是這個權限設定
     avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=周榆&backgroundColor=ffdfbf&radius=50',
     pin: DEFAULT_PIN
   },
