@@ -1,7 +1,8 @@
 // src/AdminNotification.tsx
 
 import React, { useState, useEffect } from 'react';
-import { User } from './types';
+// ✨ 修改 1：記得從 types 引入 UserRole
+import { User, UserRole } from './types'; 
 import { NotificationService, Notification } from './notificationService';
 
 interface Props {
@@ -11,9 +12,8 @@ interface Props {
 export const AdminNotification: React.FC<Props> = ({ currentUser }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // 只有主管 (周榆) 或 管理員才需要執行這個檢查
-  // 假設主管的角色是 'admin' 或是名字叫 '周榆'
-  const isSupervisor = currentUser.role === 'admin' || currentUser.name === '周榆';
+  // ✨ 修改 2：改成純粹依賴角色權限來判斷是否為主管
+  const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
 
   useEffect(() => {
     if (!isSupervisor) return;
