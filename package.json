@@ -16,6 +16,9 @@
     "lucide-react": "^0.344.0",
     "exceljs": "^4.4.0",
     "file-saver": "^2.0.5"
+    "docxtemplater": "^3.x.x",
+    "file-saver": "^2.x.x",
+    "pizzip": "^3.x.x",
   },
   "devDependencies": {
     "@types/react": "^18.2.66",
