@@ -268,6 +268,26 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       } 
   };
 
+  const handleConnectDB = async () => {
+      setIsLoading(true);
+      // 傳入 true 代表主動跳出視窗要求使用者授權
+      const status = await TaskService.restoreConnection(true); 
+      if (status === 'connected') { 
+          setDbConnected(true); 
+          setPermissionNeeded(false); 
+          await loadData(); 
+          startPolling(); 
+      } else if (status === 'permission_needed') { 
+          setDbConnected(false); 
+          setPermissionNeeded(true); 
+      } else { 
+          setDbConnected(false); 
+          setPermissionNeeded(false); 
+      }
+      setIsLoading(false);
+      setIsAppMenuOpen(false); // 點擊後自動關閉選單
+  };
+
   // --- Handlers ---
   const handleCheckIn = async () => {
       if (!confirm(`現在時間 ${timeStr}，確定上班打卡？`)) return;
@@ -457,10 +477,18 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                             <ChatBubbleIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">留言板</span>
                         </button>
-                        <button onClick={() => { loadData(); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-green-50 rounded-xl text-gray-600 hover:text-green-600 transition-colors">
-                            <RefreshSvg className="w-6 h-6" />
-                            <span className="text-xs font-bold">重新整理</span>
-                        </button>
+                        {/* ✨ 修改：依據 dbConnected 狀態來決定顯示哪一顆按鈕 */}
+                        {dbConnected ? (
+                            <button onClick={() => { loadData(); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-green-50 rounded-xl text-gray-600 hover:text-green-600 transition-colors">
+                                <RefreshSvg className="w-6 h-6" />
+                                <span className="text-xs font-bold">重新整理</span>
+                            </button>
+                        ) : (
+                            <button onClick={handleConnectDB} className="flex flex-col items-center justify-center gap-1 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-blue-600 hover:text-blue-700 transition-colors shadow-sm">
+                                <FolderIcon className="w-6 h-6 animate-pulse" />
+                                <span className="text-xs font-bold">連結資料庫</span>
+                            </button>
+                        )}
                         <button onClick={() => { setIsGalleryOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-yellow-50 rounded-xl text-gray-600 hover:text-yellow-600 transition-colors">
                             <LightBulbIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">懶人包</span>
@@ -520,8 +548,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         {((isSupervisor && !showMyList) || (!isSupervisor && showOverview)) ? (
             <div className="absolute inset-0 px-6 py-6">
                 {!dbConnected ? (
-                    <div className="text-center py-40 opacity-50"><p className="text-2xl">請先連結資料庫</p></div>
-                ) : 
+                    <div className="flex flex-col items-center justify-center py-40 gap-5">
+                        <p className="text-2xl font-bold text-gray-400">系統尚未取得本地資料庫授權</p>
+                        <button onClick={handleConnectDB} className="flex items-center gap-2 px-8 py-3 bg-blue-600 text-white rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 hover:scale-105 transition-all font-bold text-lg">
+                            <FolderIcon className="w-6 h-6" />
+                            點此連結資料庫
+                        </button>
+                    </div>
+                ) :
                 activeTab === '收發信件' ? (
                     <MailLogView 
                         records={mailRecords} 
