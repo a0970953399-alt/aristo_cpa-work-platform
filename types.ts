@@ -66,7 +66,40 @@ export interface ClientProfile {
     specialNotes: string;
     accountingNotes: string;
     tags?: string[];
+  
+    // --- 新增：記帳工作單詳細資料 ---
+    fullName?: string; // 公司全名
+    taxId?: string; // 統一編號
+    taxFileNo?: string; // 稅籍編號
+    owner?: string; // 負責人
+    contact?: string; // 聯絡人
+    phone?: string; // 聯絡電話
+    fax?: string; // 傳真
+    email?: string; // E-mail
+    regAddress?: string; // 登記地址
+    contactAddress?: string; // 聯絡地址
+    cpa?: string; // 負責會計師
+    period?: string; // 委任期限 (如 114/01-114/12)
+    
+    // 金額欄位 (對應 Word 的 f1, f2, f3)
+    feeMonthly?: string; // 每月公費
+    feeWithholding?: string; // 各類扣繳
+    feeTax?: string; // 結算申報
+    fee22_1?: string; // 22-1申報
+    
+    // 打勾狀態 (對應 Word 的 c1 ~ c5)
+    chkAccount?: boolean; // 會計帳務
+    chkInvoice?: boolean; // 買發票
+    chkVat?: boolean; // 申報營業稅
+    chkWithholding?: boolean; // 扣繳申報
+    chkHealth?: boolean; // 補充保費
+    
+    // 方塊狀態 (對應 Word 的 b1 ~ b3)
+    boxReview?: boolean; // 書審
+    boxAudit?: boolean; // 查帳
+    boxCpa?: boolean; // 會計師簽證
 }
+
 
 export interface Instruction {
     id: string;
