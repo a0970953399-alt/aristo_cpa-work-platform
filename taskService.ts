@@ -85,18 +85,37 @@ export const TaskService = {
   isUsingLocalStorage(): boolean {
     return useLocalStorage;
   },
+    
+    getUsers: (): User[] => {
+      const cached = localStorage.getItem(USERS_STORAGE_KEY);
+      if (cached) {
+          let parsedUsers: User[] = JSON.parse(cached);
+          
+          // ✨ B 方案防呆邏輯：檢查快取中是否缺少 constants.ts 裡定義的人（例如新加的 Brandon）
+          let hasNewUser = false;
+          
+          // 這裡的 DEFAULT_USERS 是從 constants.ts import 進來的 USERS
+          DEFAULT_USERS.forEach(defaultUser => {
+              const userExists = parsedUsers.find(u => u.id === defaultUser.id);
+              if (!userExists) {
+                  // 發現快取裡沒有這個人 (例如 u0 的 Brandon)
+                  // 因為你想讓他排在第一位，所以我們用 unshift 把他插隊到陣列最前面
+                  parsedUsers.unshift(defaultUser);
+                  hasNewUser = true;
+              }
+          });
 
-  getUsers(): User[] {
-      const stored = localStorage.getItem(USERS_STORAGE_KEY);
-      if (stored) {
-          try {
-              return JSON.parse(stored);
-          } catch (e) {
-              return DEFAULT_USERS;
+          // 如果有發現新名單並加入，就立刻更新瀏覽器的快取
+          if (hasNewUser) {
+              localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(parsedUsers));
           }
+
+          return parsedUsers;
       }
-      return DEFAULT_USERS;
-  },
+        // 如果完全沒有快取（例如第一次使用），就直接寫入預設名單
+        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
+        return DEFAULT_USERS;
+    },
 
   saveUsers(users: User[]): void {
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
