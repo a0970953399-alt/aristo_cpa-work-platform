@@ -270,20 +270,25 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
   const handleConnectDB = async () => {
       setIsLoading(true);
-      // 傳入 true 代表主動跳出視窗要求使用者授權
-      const status = await TaskService.connectDB(); // 替換成實際找到的函數名稱
-      if (status === 'connected') { 
+      
+  // ✨ 修改：手動觸發資料庫連結與授權的函數 (改呼叫 connectDatabase)
+  const handleConnectDB = async () => {
+      setIsLoading(true);
+      
+      // 呼叫真正會跳出「選擇檔案」視窗的函數
+      const success = await TaskService.connectDatabase(); 
+      
+      if (success) { 
           setDbConnected(true); 
           setPermissionNeeded(false); 
           await loadData(); 
           startPolling(); 
-      } else if (status === 'permission_needed') { 
+      } else { 
+          // 如果使用者在選檔案視窗按了「取消」
           setDbConnected(false); 
           setPermissionNeeded(true); 
-      } else { 
-          setDbConnected(false); 
-          setPermissionNeeded(false); 
       }
+      
       setIsLoading(false);
       setIsAppMenuOpen(false); // 點擊後自動關閉選單
   };
