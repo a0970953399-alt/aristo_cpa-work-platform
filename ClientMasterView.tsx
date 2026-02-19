@@ -113,10 +113,20 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
             // 檔名自動套用：記帳工作單_114_叁个山.docx
             const fileName = `記帳工作單_${selectedClient.year || ''}_${selectedClient.name}.docx`;
             saveAs(out, fileName);
-
-        } catch (error) {
-            console.error("生成 Word 失敗:", error);
-            alert("生成失敗，請確認模版 Base64 是否正確！");
+        
+        } catch (error: any) {
+            console.error("生成 Word 失敗詳細資訊:", error);
+            
+            // 專門捕捉 Word 變數打錯的錯誤
+            if (error.properties && error.properties.errors) {
+                const errorDetails = error.properties.errors
+                    .map((e: any) => `• 出錯的標籤：${e.properties.id || '未知'} \n  詳細原因：${e.properties.explanation}`)
+                    .join('\n\n');
+                alert("❌ Word 模版裡的變數括號有錯誤！請打開 Word 檢查：\n\n" + errorDetails);
+            } else {
+                // 捕捉其他系統錯誤
+                alert("❌ 執行發生錯誤：\n" + error.message + "\n\n(請按 F12 切換到 Console 截圖紅字給我看！)");
+            }
         }
     };
 
