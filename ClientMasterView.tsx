@@ -90,11 +90,11 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                 f3: selectedClient.fee22_1 || '',
                 
                 // 邏輯判斷：打勾與空白 (c1 ~ c5)
-                c1: selectedClient.chkAccount ? "✓" : "✕",
-                c2: selectedClient.chkInvoice ? "✓" : "✕",
-                c3: selectedClient.chkVat ? "✓" : "✕",
-                c4: selectedClient.chkWithholding ? "✓" : "✕",
-                c5: selectedClient.chkHealth ? "✓" : "✕",
+                c1: selectedClient.chkAccount ? "P" : "O",
+                c2: selectedClient.chkInvoice ? "P" : "O",
+                c3: selectedClient.chkVat ? "P" : "O",
+                c4: selectedClient.chkWithholding ? "P" : "O",
+                c5: selectedClient.chkHealth ? "P" : "O",
                 
                 // 邏輯判斷：實心與空心方塊 (b1 ~ b3)
                 b1: selectedClient.boxReview ? '■' : '□',
