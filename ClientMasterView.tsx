@@ -62,6 +62,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
             const doc = new Docxtemplater(zip, {
                 paragraphLoop: true,
                 linebreaks: true,
+                delimiters: { start: "[[", end: "]]" }, // 強制改用方括號
             });
 
             // 4. 準備要替換的資料字典 (將資料庫格式轉為 Word 變數)
