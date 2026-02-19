@@ -197,8 +197,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             <button 
                                 key={client.id}
                                 onClick={() => { setSelectedClient(client); setViewMode('client_detail'); }}
-                                className="bg-white p-4 rounded-xl border border-gray-200 hover:border-blue-400 hover:shadow-md transition-all flex flex-col items-center text-center gap-2 group"
-                            >
+                                className="bg-white rounded-xl shadow p-4 border cursor-pointer hover:shadow-md aspect-square flex flex-col items-center justify-center"
+                              >
                                 <span className="bg-gray-100 text-gray-600 font-mono font-bold text-xs px-2 py-0.5 rounded group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors">
                                     {client.code}
                                 </span>
