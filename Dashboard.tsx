@@ -268,9 +268,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       } 
   };
 
-  const handleConnectDB = async () => {
-      setIsLoading(true);
-      
   // ✨ 修改：手動觸發資料庫連結與授權的函數 (改呼叫 connectDatabase)
   const handleConnectDB = async () => {
       setIsLoading(true);
