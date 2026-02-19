@@ -271,7 +271,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleConnectDB = async () => {
       setIsLoading(true);
       // 傳入 true 代表主動跳出視窗要求使用者授權
-      const status = await TaskService.restoreConnection(true); 
+      const status = await TaskService.connectDB(); // 替換成實際找到的函數名稱
       if (status === 'connected') { 
           setDbConnected(true); 
           setPermissionNeeded(false); 
