@@ -97,7 +97,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         period: row['委任期限'] != null ? String(row['委任期限']) : '',
                         
                         // 公費與金額
-                        feeMonthly: row['委任公費'] != null ? String(row['委任公費']) : '',
+                        feeMonthly: row['每月公費'] != null ? String(row['每月公費']) : '',
                         feeWithholding: row['各類扣繳'] != null ? String(row['各類扣繳']) : '',
                         feeTax: row['結算申報'] != null ? String(row['結算申報']) : '',
                         fee22_1: row['22-1申報'] != null ? String(row['22-1申報']) : '',
