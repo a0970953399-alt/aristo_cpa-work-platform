@@ -67,6 +67,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                     year: String(row['記帳年度'] || ''),
                     workNo: String(row['記帳工作'] || ''),
                     code: String(row['客戶編號'] || ''),
+                    name: String(row['客戶名稱'] || ''), // 簡寫與全名暫時共用此欄位
                     fullName: String(row['客戶名稱'] || ''),
                     taxId: String(row['統一編號'] || ''),
                     taxFileNo: String(row['稅籍編號'] || ''),
