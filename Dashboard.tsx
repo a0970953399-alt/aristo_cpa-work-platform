@@ -1,5 +1,6 @@
 // src/Dashboard.tsx
 
+import { ClientMasterView } from './ClientMasterView'; 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { InvoiceGenerator } from './InvoiceGenerator';
 import { MessageBoard } from './MessageBoard';
@@ -86,6 +87,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [isTimesheetOpen, setIsTimesheetOpen] = useState(false);
   const [isCheckOutModalOpen, setIsCheckOutModalOpen] = useState(false);
   const [isEventDeleteModalOpen, setIsEventDeleteModalOpen] = useState(false);
+  const [isClientMasterOpen, setIsClientMasterOpen] = useState(false);
 
   // --- Data State ---
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>('');
@@ -511,6 +513,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         <button onClick={() => { setIsInvoiceOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-pink-50 rounded-xl text-gray-600 hover:text-pink-600 transition-colors">
                             <DocumentTextIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">請款單</span>
+                        </button>
+                        <button onClick={() => { setIsClientMasterOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-indigo-50 rounded-xl text-gray-600 hover:text-indigo-600 transition-colors">
+                            <div className="w-6 h-6 flex items-center justify-center text-lg">🏢</div>
+                            <span className="text-xs font-bold">客戶總署</span>
                         </button>
                     </div>
                 )}
@@ -1129,6 +1135,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               onClose={() => setIsInvoiceOpen(false)}
               cashRecords={cashRecords}
           />
+      )}
+
+      {/* Client Master Modal */}
+        {isClientMasterOpen && (
+        <ClientMasterView 
+            clients={clients} 
+            onClose={() => setIsClientMasterOpen(false)} 
+            onUpdate={loadData} 
+            />
       )}
         
       <style>{`
