@@ -204,7 +204,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 {client.code}
                             </span>
                             {/* ✨ 修改：將名稱放大為 text-lg (如果你覺得不夠大，可以改成 text-xl) */}
-                            <span className="font-bold text-gray-800 text-xl line-clamp-2 text-center">
+                            <span className="font-bold text-gray-800 text-2xl line-clamp-2 text-center">
                                 {client.name}
                             </span>
                         </button>
