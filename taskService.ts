@@ -1,7 +1,7 @@
 
 import { TabCategory } from './types';
 import type { ClientTask, TaskStatusType, HistoryEntry, ClientProfile, User, CalendarEvent, Client } from './types';
-import { INITIAL_TASKS, DEFAULT_YEAR, USERS as DEFAULT_USERS, DUMMY_CLIENTS } from './constants';
+import { INITIAL_TASKS, DEFAULT_YEAR, USERS as DEFAULT_USERS, DUMMY_CLIENTS, INSTRUCTIONS } from './constants';
 
 const DB_NAME = 'ShuoyeTaskDB';
 const STORE_NAME = 'file_handles';
