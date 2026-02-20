@@ -40,6 +40,9 @@ export const ListView: React.FC<ListViewProps> = ({
     }, [isFilterOpen, isStatusFilterOpen]);
 
     const filteredTasks = React.useMemo(() => { 
+        // ✨ 取得「今天」的日期字串 (例如: "Fri Feb 20 2026")
+        const todayStr = new Date().toDateString();
+
         return tasks.filter(t => { 
             if (t.year !== currentYear) return false; 
             if (isSupervisor) { 
@@ -50,6 +53,21 @@ export const ListView: React.FC<ListViewProps> = ({
             if (filterStatus !== 'ALL') { 
                 if (t.status !== filterStatus) return false; 
             } 
+
+            // ✨ 新增邏輯：隱藏昨天以前「已完成」的工作
+            if (t.status === 'done' || t.isNA) {
+                if (t.lastUpdatedAt) {
+                    const taskUpdateDate = new Date(t.lastUpdatedAt).toDateString();
+                    // 如果任務的最後更新日期「不是今天」，就不顯示
+                    if (taskUpdateDate !== todayStr) {
+                        return false;
+                    }
+                } else {
+                    // 如果沒有時間戳記 (舊資料保護)，直接隱藏
+                    return false;
+                }
+            }
+
             return true; 
         }); 
     }, [tasks, currentYear, isSupervisor, viewTargetId, currentUser.id, filterStatus]);
