@@ -596,15 +596,15 @@ async fetchClients(): Promise<Client[]> {
       return data.cashRecords;
   },
 
-async fetchInstructions(): Promise<Instruction[]> {
+  async fetchInstructions(): Promise<Instruction[]> {
       const data = await this.loadFullData();
-      // 如果資料庫裡還沒有懶人包，就先讀取常數檔裡的預設值
-      return data.instructions && data.instructions.length > 0 ? data.instructions : INSTRUCTIONS;
+      // ✨ 拿掉 INSTRUCTIONS 預設值，如果是空的就乖乖回傳空陣列
+      return data.instructions || [];
   },
 
   async addInstruction(instruction: Instruction): Promise<Instruction[]> {
       const data = await this.loadFullData();
-      if (!data.instructions) data.instructions = [...INSTRUCTIONS]; // 若為空，先帶入預設
+      if (!data.instructions) data.instructions = []; // ✨ 改為空陣列
       data.instructions.push(instruction);
       await this.saveFullData(data);
       return data.instructions;
@@ -612,7 +612,7 @@ async fetchInstructions(): Promise<Instruction[]> {
 
   async updateInstruction(updated: Instruction): Promise<Instruction[]> {
       const data = await this.loadFullData();
-      if (!data.instructions) data.instructions = [...INSTRUCTIONS];
+      if (!data.instructions) data.instructions = []; // ✨ 改為空陣列
       const idx = data.instructions.findIndex(i => i.id === updated.id);
       if (idx !== -1) {
           data.instructions[idx] = updated;
@@ -623,7 +623,7 @@ async fetchInstructions(): Promise<Instruction[]> {
 
   async deleteInstruction(id: string): Promise<Instruction[]> {
       const data = await this.loadFullData();
-      if (!data.instructions) data.instructions = [...INSTRUCTIONS];
+      if (!data.instructions) data.instructions = []; // ✨ 改為空陣列
       data.instructions = data.instructions.filter(i => i.id !== id);
       await this.saveFullData(data);
       return data.instructions;
