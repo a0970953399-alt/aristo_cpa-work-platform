@@ -55,6 +55,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [tasks, setTasks] = useState<ClientTask[]>([]);
   const [events, setEvents] = useState<CalendarEvent[]>([]);
   const [clients, setClients] = useState<Client[]>([]);
+  const [instructions, setInstructions] = useState<Instruction[]>([]); // ✨ 新增：動態懶人包資料
   const [isLoading, setIsLoading] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [permissionNeeded, setPermissionNeeded] = useState(false);
@@ -70,6 +71,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [showOverview, setShowOverview] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
+  const [isInstructionModalOpen, setIsInstructionModalOpen] = useState(false); // ✨ 新增：懶人包編輯視窗狀態
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
   const [isDateModalOpen, setIsDateModalOpen] = useState(false);
   const [isMiscModalOpen, setIsMiscModalOpen] = useState(false);
@@ -97,6 +99,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [dailyReminders, setDailyReminders] = useState<CalendarEvent[]>([]);
   const [dontShowDailyAgain, setDontShowDailyAgain] = useState(false);
   const [selectedInstruction, setSelectedInstruction] = useState<Instruction | null>(null);
+  const [editingInstruction, setEditingInstruction] = useState<Partial<Instruction> | null>(null); // ✨ 新增：正在編輯的懶人包
   const [selectedClientForDrawer, setSelectedClientForDrawer] = useState<Client | null>(null);
   const [selectedCell, setSelectedCell] = useState<{client: Client, column: string, task?: ClientTask} | null>(null);
   const [modalAssigneeId, setModalAssigneeId] = useState<string>('');
@@ -117,6 +120,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
   // --- Refs ---
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const instructionFileInputRef = useRef<HTMLInputElement>(null); // ✨ 新增：懶人包圖片上傳的 Ref
   const prevCompletedColsRef = useRef<Set<string>>(new Set());
   const pollingRef = useRef<number | null>(null);
   const appMenuRef = useRef<HTMLDivElement>(null);
@@ -240,7 +244,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       return isAssignModalOpen || isDateModalOpen || isNoteEditModalOpen || isMiscModalOpen || 
              isDeleteModalOpen || isGalleryOpen || selectedClientForDrawer || isUserModalOpen || 
              isUserDeleteModalOpen || isEventModalOpen || isCalendarOpen || isEventDeleteModalOpen || 
-             isCheckOutModalOpen || isTimesheetOpen || isClientMasterOpen;
+             isCheckOutModalOpen || isTimesheetOpen || isClientMasterOpen || isInstructionModalOpen;
   };
 
   const stopPolling = () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
@@ -255,6 +259,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           const messageData = await TaskService.fetchMessages();
           const mailData = await TaskService.fetchMailRecords();
           const cashData = await TaskService.fetchCashRecords();
+          const instData = await TaskService.fetchInstructions(); // ✨ 新增：讀取懶人包
           
           setTasks(prev => JSON.stringify(prev) !== JSON.stringify(tData) ? tData : prev); 
           setEvents(prev => JSON.stringify(prev) !== JSON.stringify(eData) ? eData : prev); 
@@ -263,31 +268,27 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           setMessages(prev => JSON.stringify(prev) !== JSON.stringify(messageData) ? messageData : prev);
           setMailRecords(prev => JSON.stringify(prev) !== JSON.stringify(mailData) ? mailData : prev);
           setCashRecords(prev => JSON.stringify(prev) !== JSON.stringify(cashData) ? cashData : prev);
+          setInstructions(prev => JSON.stringify(prev) !== JSON.stringify(instData) ? instData : prev); // ✨ 新增：更新懶人包狀態
       } catch (error) { 
           setDbConnected(false); setPermissionNeeded(true); 
       } 
   };
 
-  // ✨ 修改：手動觸發資料庫連結與授權的函數 (改呼叫 connectDatabase)
+  // 🔌 連線邏輯
   const handleConnectDB = async () => {
       setIsLoading(true);
-      
-      // 呼叫真正會跳出「選擇檔案」視窗的函數
       const success = await TaskService.connectDatabase(); 
-      
       if (success) { 
           setDbConnected(true); 
           setPermissionNeeded(false); 
           await loadData(); 
           startPolling(); 
       } else { 
-          // 如果使用者在選檔案視窗按了「取消」
           setDbConnected(false); 
           setPermissionNeeded(true); 
       }
-      
       setIsLoading(false);
-      setIsAppMenuOpen(false); // 點擊後自動關閉選單
+      setIsAppMenuOpen(false);
   };
 
   // --- Handlers ---
@@ -377,6 +378,68 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleEventSubmit = async () => { let finalTitle = newEventTitle; if (newEventType === 'shift') { finalTitle = `${shiftStart} - ${shiftEnd}`; } else { if (!newEventTitle.trim()) { alert("請輸入標題"); return; } } const owner = users.find(u => u.id === newEventOwnerId); if (newEventType === 'reminder' && newEventOwnerId !== currentUser.id) { alert("提醒事項只能設定給自己"); return; } setIsLoading(true); try { const eventPayload: CalendarEvent = { id: selectedEvent ? selectedEvent.id : Date.now().toString(), date: selectedCalendarDate, type: newEventType, title: finalTitle, description: newEventDesc, ownerId: newEventOwnerId, ownerName: owner?.name || '未知', creatorId: selectedEvent ? selectedEvent.creatorId : currentUser.id, createdAt: selectedEvent ? selectedEvent.createdAt : new Date().toISOString() }; let updatedList; if (selectedEvent) { updatedList = await TaskService.updateEvent(eventPayload); } else { updatedList = await TaskService.addEvent(eventPayload); } setEvents(updatedList); setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
   const handleEventDelete = () => { if (!selectedEvent) return; setIsEventDeleteModalOpen(true); };
   const handleConfirmEventDelete = async () => { if (!selectedEvent) return; setIsLoading(true); try { const updatedList = await TaskService.deleteEvent(selectedEvent.id); setEvents(updatedList); setIsEventDeleteModalOpen(false); setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
+
+  // ✨ 懶人包 (Instructions) 專用 Handlers
+  const handleInstructionSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
+      e.preventDefault();
+      setIsLoading(true);
+      const formData = new FormData(e.currentTarget);
+      
+      const newInst: Instruction = {
+          id: editingInstruction?.id || Date.now().toString(),
+          title: formData.get('title') as string,
+          description: formData.get('description') as string,
+          category: formData.get('category') as string,
+          imageUrl: editingInstruction?.imageUrl || ''
+      };
+
+      try {
+          if (editingInstruction && editingInstruction.id) {
+              await TaskService.updateInstruction(newInst);
+          } else {
+              await TaskService.addInstruction(newInst);
+          }
+          await loadData();
+          setIsInstructionModalOpen(false);
+          setEditingInstruction(null);
+      } catch (error) {
+          alert("儲存失敗，請重試");
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  const handleInstructionDelete = async (id: string) => {
+      if (!confirm("確定要刪除這個懶人包嗎？此動作無法復原。")) return;
+      setIsLoading(true);
+      try {
+          await TaskService.deleteInstruction(id);
+          await loadData();
+          setSelectedInstruction(null);
+      } catch (error) {
+          alert("刪除失敗");
+      } finally {
+          setIsLoading(false);
+      }
+  };
+
+  const handleInstructionImageChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+      const file = e.target.files?.[0];
+      if (file) {
+          if (file.size > 2 * 1024 * 1024) { // 限制 2MB
+              alert("圖片大小請小於 2MB，以免拖慢系統效能！");
+              return;
+          }
+          const reader = new FileReader();
+          reader.onloadend = () => {
+              setEditingInstruction(prev => ({
+                  ...prev,
+                  imageUrl: reader.result as string
+              }));
+          };
+          reader.readAsDataURL(file);
+      }
+  };
 
   // User Mgmt
   const handleAddUser = () => { if (!newUserName.trim()) return; const newUser: User = { id: Date.now().toString(), name: newUserName.trim(), role: UserRole.INTERN, avatar: `https://api.dicebear.com/9.x/micah/svg?seed=${newUserName}&backgroundColor=c0aede&radius=50`, pin: '1234' }; const currentUsers = TaskService.getUsers(); const updatedUsers = [...currentUsers, newUser]; TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserName(''); };
@@ -479,7 +542,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                             <ChatBubbleIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">留言板</span>
                         </button>
-                        {/* ✨ 修改：依據 dbConnected 狀態來決定顯示哪一顆按鈕 */}
                         {dbConnected ? (
                             <button onClick={() => { loadData(); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-green-50 rounded-xl text-gray-600 hover:text-green-600 transition-colors">
                                 <RefreshSvg className="w-6 h-6" />
@@ -849,39 +911,61 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           />
       )}
 
-      {/* Gallery Modal */}
+      {/* ✨ Gallery Modal (懶人包總覽) */}
       {isGalleryOpen && (
           <div className="fixed inset-0 bg-black/60 z-[70] flex items-center justify-center p-4 backdrop-blur-sm animate-fade-in" onClick={() => setIsGalleryOpen(false)}>
               <div className="bg-white rounded-2xl shadow-2xl max-w-6xl w-full max-h-[90vh] flex flex-col overflow-hidden" onClick={e => e.stopPropagation()}>
                   <div className="p-6 border-b bg-gray-50 flex items-center justify-between">
-                      <div className="flex items-center gap-3 text-yellow-600"><LightBulbIcon className="w-8 h-8" /><h3 className="text-2xl font-black">碩業知識庫：一圖流懶人包</h3></div>
-                      <button onClick={() => setIsGalleryOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
+                      <div className="flex items-center gap-3 text-yellow-600">
+                          <LightBulbIcon className="w-8 h-8" />
+                          <h3 className="text-2xl font-black">碩業知識庫：一圖流懶人包</h3>
+                      </div>
+                      <div className="flex items-center gap-4">
+                          {isSupervisor && (
+                              <button onClick={() => { setEditingInstruction({}); setIsInstructionModalOpen(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-colors">
+                                  + 新增懶人包
+                              </button>
+                          )}
+                          <button onClick={() => setIsGalleryOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
+                      </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-6 grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6 custom-scrollbar">
-                      {INSTRUCTIONS.map(inst => (
-                          <div key={inst.id} className="group bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer" onClick={() => setSelectedInstruction(inst)}>
-                              <div className="h-48 overflow-hidden relative">
+                      {instructions.map(inst => (
+                          <div key={inst.id} className="group bg-white rounded-xl border border-gray-200 overflow-hidden shadow-sm hover:shadow-xl transition-all cursor-pointer flex flex-col" onClick={() => setSelectedInstruction(inst)}>
+                              <div className="h-48 overflow-hidden relative shrink-0">
                                   <img src={inst.imageUrl} alt={inst.title} className="w-full h-full object-cover group-hover:scale-110 transition-transform duration-500" />
                                   <div className="absolute inset-0 bg-black/20 group-hover:bg-black/0 transition-colors" />
                                   <div className="absolute top-2 left-2"><span className="bg-yellow-400 text-yellow-900 text-xs font-bold px-2 py-1 rounded shadow-sm">{inst.category}</span></div>
                               </div>
-                              <div className="p-4">
+                              <div className="p-4 flex-1">
                                   <h4 className="font-bold text-gray-800 mb-2 group-hover:text-blue-600 transition-colors text-lg">{inst.title}</h4>
                                   <p className="text-sm text-gray-500 line-clamp-2">{inst.description}</p>
                               </div>
                           </div>
                       ))}
+                      {instructions.length === 0 && (
+                          <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg">目前尚無懶人包資料</div>
+                      )}
                   </div>
               </div>
           </div>
       )}
 
+      {/* ✨ 懶人包詳細內容 Modal */}
       {selectedInstruction && (
           <div className="fixed inset-0 bg-black/80 z-[80] flex items-center justify-center p-4 animate-fade-in" onClick={() => setSelectedInstruction(null)}>
               <div className="bg-white rounded-3xl max-w-4xl w-full flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
                   <div className="p-5 border-b flex justify-between items-center">
                       <h3 className="text-xl font-bold">{selectedInstruction.title}</h3>
-                      <button onClick={() => setSelectedInstruction(null)} className="p-2 hover:bg-gray-100 rounded-full text-xl">✕</button>
+                      <div className="flex items-center gap-3">
+                          {isSupervisor && (
+                              <>
+                                  <button onClick={() => { setEditingInstruction(selectedInstruction); setIsInstructionModalOpen(true); setSelectedInstruction(null); }} className="text-blue-600 hover:bg-blue-50 font-bold text-sm px-4 py-2 border border-blue-200 rounded-xl transition-colors">編輯</button>
+                                  <button onClick={() => handleInstructionDelete(selectedInstruction.id)} className="text-red-600 hover:bg-red-50 font-bold text-sm px-4 py-2 border border-red-200 rounded-xl transition-colors">刪除</button>
+                              </>
+                          )}
+                          <button onClick={() => setSelectedInstruction(null)} className="p-2 hover:bg-gray-100 rounded-full text-xl ml-2">✕</button>
+                      </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
                       <img src={selectedInstruction.imageUrl} className="w-full rounded-2xl shadow-lg border border-gray-100" />
@@ -890,6 +974,58 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           <p className="text-gray-700 leading-relaxed whitespace-pre-wrap text-base">{selectedInstruction.description}</p>
                       </div>
                   </div>
+              </div>
+          </div>
+      )}
+
+      {/* ✨ 懶人包 新增/編輯 Modal */}
+      {isInstructionModalOpen && (
+          <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsInstructionModalOpen(false)}>
+              <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full overflow-hidden" onClick={e => e.stopPropagation()}>
+                  <form onSubmit={handleInstructionSubmit}>
+                      <div className="p-5 border-b bg-yellow-50 flex justify-between items-center">
+                          <h3 className="text-xl font-bold text-yellow-800 flex items-center gap-2">
+                              <LightBulbIcon className="w-6 h-6" />
+                              {editingInstruction?.id ? '編輯懶人包' : '新增懶人包'}
+                          </h3>
+                          <button type="button" onClick={() => setIsInstructionModalOpen(false)} className="text-yellow-600 hover:text-yellow-800 text-xl">✕</button>
+                      </div>
+                      <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto custom-scrollbar">
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-1">標題</label>
+                              <input name="title" required defaultValue={editingInstruction?.title} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 outline-none" placeholder="輸入標題..." />
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-1">分類標籤</label>
+                              <input name="category" required defaultValue={editingInstruction?.category} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-yellow-500 outline-none" placeholder="例如：報稅、行政、請款..." />
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-1">重點說明</label>
+                              <textarea name="description" required defaultValue={editingInstruction?.description} className="w-full p-2.5 border border-gray-300 rounded-xl h-24 resize-none focus:ring-2 focus:ring-yellow-500 outline-none" placeholder="輸入詳細說明..."></textarea>
+                          </div>
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-1">圖片上傳 (建議比例 16:9)</label>
+                              <div className="border-2 border-dashed border-gray-300 rounded-xl p-4 text-center hover:bg-gray-50 cursor-pointer transition-colors flex flex-col items-center justify-center min-h-[160px]" onClick={() => instructionFileInputRef.current?.click()}>
+                                  {editingInstruction?.imageUrl ? (
+                                      <img src={editingInstruction.imageUrl} alt="預覽" className="max-h-40 mx-auto rounded-lg shadow-sm" />
+                                  ) : (
+                                      <div className="text-gray-400 flex flex-col items-center gap-2">
+                                          <CameraIcon className="w-10 h-10" />
+                                          <span className="font-bold text-sm">點擊選擇圖片</span>
+                                          <span className="text-xs">請保持在 2MB 以內</span>
+                                      </div>
+                                  )}
+                              </div>
+                              <input type="file" ref={instructionFileInputRef} className="hidden" accept="image/png, image/jpeg, image/webp" onChange={handleInstructionImageChange} />
+                          </div>
+                      </div>
+                      <div className="p-4 border-t bg-gray-50 flex justify-end gap-3">
+                          <button type="button" onClick={() => setIsInstructionModalOpen(false)} className="px-5 py-2.5 bg-gray-100 text-gray-600 font-bold rounded-xl hover:bg-gray-200 transition-colors">取消</button>
+                          <button type="submit" disabled={isLoading || (!editingInstruction?.imageUrl)} className="px-5 py-2.5 bg-yellow-500 text-white font-bold rounded-xl hover:bg-yellow-600 shadow-sm disabled:opacity-50 disabled:cursor-not-allowed transition-all">
+                              儲存
+                          </button>
+                      </div>
+                  </form>
               </div>
           </div>
       )}
