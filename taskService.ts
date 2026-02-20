@@ -26,6 +26,7 @@ interface DataStore {
     messages?: Message[];
     mailRecords?: MailRecord[];
     cashRecords?: CashRecord[];
+    instructions?: Instruction[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -77,7 +78,9 @@ const normalizeData = (raw: any): DataStore => {
         checkIns: Array.isArray(raw.checkIns) ? raw.checkIns : [],
         messages: Array.isArray(raw.messages) ? raw.messages : [],
         mailRecords: Array.isArray(raw.mailRecords) ? raw.mailRecords : [],
-        cashRecords: Array.isArray(raw.cashRecords) ? raw.cashRecords : []
+        cashRecords: Array.isArray(raw.cashRecords) ? raw.cashRecords : [],
+        instructions: Array.isArray(raw.instructions) ? raw.instructions : []
+
     };
 };
 
@@ -591,6 +594,39 @@ async fetchClients(): Promise<Client[]> {
       data.cashRecords = data.cashRecords.filter(r => r.id !== id);
       await this.saveFullData(data);
       return data.cashRecords;
+  },
+
+async fetchInstructions(): Promise<Instruction[]> {
+      const data = await this.loadFullData();
+      // 如果資料庫裡還沒有懶人包，就先讀取常數檔裡的預設值
+      return data.instructions && data.instructions.length > 0 ? data.instructions : INSTRUCTIONS;
+  },
+
+  async addInstruction(instruction: Instruction): Promise<Instruction[]> {
+      const data = await this.loadFullData();
+      if (!data.instructions) data.instructions = [...INSTRUCTIONS]; // 若為空，先帶入預設
+      data.instructions.push(instruction);
+      await this.saveFullData(data);
+      return data.instructions;
+  },
+
+  async updateInstruction(updated: Instruction): Promise<Instruction[]> {
+      const data = await this.loadFullData();
+      if (!data.instructions) data.instructions = [...INSTRUCTIONS];
+      const idx = data.instructions.findIndex(i => i.id === updated.id);
+      if (idx !== -1) {
+          data.instructions[idx] = updated;
+          await this.saveFullData(data);
+      }
+      return data.instructions;
+  },
+
+  async deleteInstruction(id: string): Promise<Instruction[]> {
+      const data = await this.loadFullData();
+      if (!data.instructions) data.instructions = [...INSTRUCTIONS];
+      data.instructions = data.instructions.filter(i => i.id !== id);
+      await this.saveFullData(data);
+      return data.instructions;
   }
 
 }; // 👈 TaskService 結束
