@@ -347,54 +347,97 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
   const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } }
 
-    const handleGenerateDailyReport = async () => {
-      const today = new Date();
-      const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
-      const todayStr = today.toDateString();
+ // 假設這是用來產生報表的 onClick 處理函式
+  const generateDailyReport = () => {
+    // 1. 取得登入者的名字（這會是報表標題的一部分）
+    const myName = currentUser?.name || '未知使用者'; 
+    const today = new Date().toLocaleDateString('zh-TW');
 
-      // ✨ 核心過濾邏輯：只抓「負責人是登入者自己」的任務，不隨畫面切換而改變
-      const myTasks = tasks.filter(t => {
-          // 條件 1：負責人必須是我
-          if (t.assigneeId !== currentUser.id) return false;
+    // 2. 過濾出屬於「我自己」且在「今天內」被更新過的事項
+    const myTodayTasks = tasks.filter(task => {
+      if (task.assigneeId !== currentUser?.id) return false;
+      if (!task.lastUpdatedAt) return false;
 
-          // 條件 2：如果是「已完成」或「N/A」，必須是今天更新的才算進今日日報
-          if (t.status === 'done' || t.isNA) {
-              if (!t.lastUpdatedAt) return false;
-              const updateDate = new Date(t.lastUpdatedAt).toDateString();
-              return updateDate === todayStr;
-          }
+      const taskDate = new Date(task.lastUpdatedAt).toLocaleDateString('zh-TW');
+      return taskDate === today;
+    });
 
-          // 條件 3：其他「未完成」或「進行中」的任務，一律納入待辦
-          return true;
+    // 3. 把過濾出來的任務，先區分為「已完成」和其他狀態
+    const completedTasks = myTodayTasks.filter(task => 
+      task.status === '已完成' || task.status === 'N/A'
+    );
+    const inProgressTasks = myTodayTasks.filter(task => 
+      task.status === '進行中'
+    );
+    const pendingTasks = myTodayTasks.filter(task => 
+      task.status === '待處理'
+    );
+
+    // ======== 核心修改：將「已完成」的任務按客戶 (ClientName) 進行分組 ========
+    // 這會創造一個像這樣的結構: { "A公司": [任務1, 任務2], "B公司": [任務3] }
+    const groupedCompletedTasks = completedTasks.reduce((groups, task) => {
+      // 如果任務有帶入客戶名稱，則使用該名稱；若無，歸類為 '事務所行政/其他'
+      const clientName = task.clientName || '事務所行政/其他'; 
+      if (!groups[clientName]) {
+        groups[clientName] = [];
+      }
+      groups[clientName].push(task);
+      return groups;
+    }, {} as Record<string, typeof tasks>); // 請依據你實際的 task 型別調整
+    // =========================================================================
+
+    // 4. 開始組合純文字報表內容
+    let reportText = `📅 日期：${today}\n👤 負責人：${myName}\n\n`;
+
+    // 組合已完成區塊（以客戶為單位）
+    reportText += `✅ 【今日已完成事項】\n`;
+    if (completedTasks.length === 0) {
+      reportText += `無\n\n`;
+    } else {
+      // 遍歷我們剛剛建立的分組物件
+      Object.entries(groupedCompletedTasks).forEach(([clientName, clientTasks]) => {
+        // 客戶名稱只印一次
+        reportText += `📌 ${clientName}：\n`; 
+        
+        // 印出該客戶底下的所有完成事項
+        clientTasks.forEach(task => {
+           // 針對 MISC (事務所行政) 的特殊格式判斷
+           const displayTitle = task.type === 'MISC' ? `[行] ${task.title}` : `[帳] ${task.title}`;
+           // 組合完成的字串，例如:   - [帳] 1-2月營業稅 (備註內容...)
+           reportText += `   - ${displayTitle} ${task.notes ? `(${task.notes})` : ''}\n`;
+        });
       });
+      reportText += `\n`;
+    }
 
-      if (myTasks.length === 0) { 
-          alert("目前沒有指派給您的工作項目喔！"); 
-          return; 
-      }
+    // 組合進行中區塊 (如果進行中不需要按客戶分組，可保持原樣)
+    reportText += `🔄 【進行中事項】\n`;
+    if (inProgressTasks.length === 0) {
+      reportText += `無\n\n`;
+    } else {
+      inProgressTasks.forEach(task => {
+        // 為了避免混淆，這裡可以把客戶名字加在標題前面
+        const clientPrefix = task.clientName ? `[${task.clientName}] ` : '';
+        reportText += `   - ${clientPrefix}${task.title} ${task.notes ? `(${task.notes})` : ''}\n`;
+      });
+      reportText += `\n`;
+    }
 
-      const done = myTasks.filter(t => t.status === 'done' || t.isNA);
-      const inProgress = myTasks.filter(t => t.status === 'in_progress');
-      const todo = myTasks.filter(t => t.status === 'todo');
+    // 組合待辦區塊
+    reportText += `📝 【待辦事項】\n`;
+    if (pendingTasks.length === 0) {
+      reportText += `無\n`;
+    } else {
+      pendingTasks.forEach(task => {
+        const clientPrefix = task.clientName ? `[${task.clientName}] ` : '';
+        reportText += `   - ${clientPrefix}${task.title}\n`;
+      });
+    }
 
-      let report = `📅 ${dateString} 工作匯報 - ${currentUser.name}\n\n`;
-      const formatLine = (t: ClientTask) => {
-          const isMisc = t.id.startsWith('misc_') || t.category === 'MISC_TASK';
-          if (isMisc) return `- ${t.note || '行政交辦 (無內容)'}\n`;
-          return `- ${t.clientName}：${t.category} ${t.workItem} ${t.isNA ? '(N/A)' : ''}\n`;
-      };
-
-      if (done.length > 0) { report += `✅ 已完成：\n`; done.forEach(t => { report += formatLine(t); }); report += `\n`; }
-      if (inProgress.length > 0) { report += `🔄 進行中：\n`; inProgress.forEach(t => { report += formatLine(t); }); report += `\n`; }
-      if (todo.length > 0) { report += `📝 待辦：\n`; todo.forEach(t => { report += formatLine(t); }); report += `\n`; }
-
-      try { 
-          await navigator.clipboard.writeText(report); 
-          alert("📋 您專屬的工作匯報已複製到剪貼簿！"); 
-      } catch (err) { 
-          console.error('Failed to copy: ', err); 
-          alert("複製失敗，請手動複製"); 
-      }
+    // 5. 將結果複製到剪貼簿 (假設你有對應的 UI 通知)
+    navigator.clipboard.writeText(reportText).then(() => {
+       alert("工作匯報已成功複製到剪貼簿！"); // 或換成你專案中使用的 toast 元件
+    });
   };
 
   // Calendar
