@@ -347,12 +347,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
   const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } }
 
-    // 修正後的「按客戶與標籤分組」工作匯報功能
+// 修正後的「精簡版」工作匯報功能
   const handleGenerateDailyReport = () => {
     const myName = currentUser?.name || '未知使用者'; 
     const today = new Date().toLocaleDateString('zh-TW');
 
-    // 1. 過濾出屬於「我自己」且在「今天內」更新過的事項
+    // 1. 過濾屬於自己的今日事項
     const myTodayTasks = tasks.filter(task => {
       if (task.assigneeId !== currentUser?.id) return false;
       if (!task.lastUpdatedAt) return false;
@@ -360,50 +360,50 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       return taskDate === today;
     });
 
-    // 2. 依照狀態拆分 (使用你系統定義的 'done', 'in_progress', 'todo')
+    // 2. 依照狀態拆分
     const completedTasks = myTodayTasks.filter(task => task.status === 'done' || task.isNA);
     const inProgressTasks = myTodayTasks.filter(task => task.status === 'in_progress');
     const pendingTasks = myTodayTasks.filter(task => task.status === 'todo');
 
-    // 3. 核心修改：針對「已完成」事項進行【雙重分組】 (客戶 + 標籤)
-    // 結構會變成: { "A客戶 - 帳務處理": [任務1, 任務2], "B客戶 - 營業稅": [任務3] }
+    // 3. 雙重分組 (客戶 + 類別)，並優化類別顯示名稱
     const groupedCompleted = completedTasks.reduce((groups, task) => {
-      const client = task.clientName || '事務所行政/其他';
-      const category = task.category || '一般事項';
-      const groupKey = `📌 ${client} [${category}]`; // 這是你的合併標題
+      const client = task.clientName || '事務所行政';
+      // 如果是 MISC_TASK 則顯示「行政交辦」，否則顯示原本的 category 名稱
+      const categoryLabel = task.category === 'MISC_TASK' ? '行政交辦' : (task.category || '一般事項');
+      const groupKey = `📌 ${client} [${categoryLabel}]`; 
       
       if (!groups[groupKey]) groups[groupKey] = [];
       groups[groupKey].push(task);
       return groups;
     }, {} as Record<string, ClientTask[]>);
 
-    // 4. 開始組裝報表內容
+    // 4. 開始組裝文字
     let reportText = `📅 日期：${today}\n👤 負責人：${myName}\n\n`;
 
     // --- 已完成區塊 (只在有資料時顯示) ---
     if (completedTasks.length > 0) {
       reportText += `✅ 【今日已完成事項】\n`;
       Object.entries(groupedCompleted).forEach(([groupHeader, clientTasks]) => {
-        reportText += `${groupHeader}：\n`; // A客戶的帳務處理 只出現一次
+        reportText += `${groupHeader}：\n`;
         clientTasks.forEach(task => {
-          const typeLabel = task.isMisc ? '[行]' : '[帳]';
-          reportText += `   - ${typeLabel} ${task.workItem} ${task.note ? `(${task.note})` : ''}\n`;
+          // ✨ 移除原本的 [帳] / [行] 標籤，直接顯示工作內容與備註
+          reportText += `   - ${task.workItem}${task.note ? ` (${task.note})` : ''}\n`;
         });
       });
       reportText += `\n`;
     }
 
-    // --- 進行中區塊 (如果沒資料就不出現) ---
+    // --- 進行中區塊 (不出現「無」，沒資料就隱藏) ---
     if (inProgressTasks.length > 0) {
       reportText += `🔄 【進行中事項】\n`;
       inProgressTasks.forEach(task => {
         const clientPrefix = task.clientName ? `[${task.clientName}] ` : '';
-        reportText += `   - ${clientPrefix}${task.workItem} ${task.note ? `(${task.note})` : ''}\n`;
+        reportText += `   - ${clientPrefix}${task.workItem}${task.note ? ` (${task.note})` : ''}\n`;
       });
       reportText += `\n`;
     }
 
-    // --- 待辦區塊 (如果沒資料就不出現) ---
+    // --- 待辦區塊 (不出現「無」，沒資料就隱藏) ---
     if (pendingTasks.length > 0) {
       reportText += `📝 【待辦事項】\n`;
       pendingTasks.forEach(task => {
@@ -412,14 +412,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       });
     }
 
-    // 5. 複製到剪貼簿
+    // 5. 複製功能
     if (myTodayTasks.length === 0) {
-      alert("今天尚未有任何工作紀錄可供複製。");
+      alert("今天尚未有任何工作紀錄。");
       return;
     }
 
     navigator.clipboard.writeText(reportText).then(() => {
-      alert("工作匯報已成功按客戶分類複製！");
+      alert("工作匯報已成功複製！已移除冗餘標籤並精簡排版。");
     });
   };
     
