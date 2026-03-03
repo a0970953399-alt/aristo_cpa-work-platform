@@ -347,29 +347,54 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
   const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } }
 
-  const handleGenerateDailyReport = async () => {
+    const handleGenerateDailyReport = async () => {
       const today = new Date();
       const dateString = today.toLocaleDateString('zh-TW', { year: 'numeric', month: '2-digit', day: '2-digit' });
-      const checkDate = today.toDateString();
+      const todayStr = today.toDateString();
+
+      // ✨ 核心過濾邏輯：只抓「負責人是登入者自己」的任務，不隨畫面切換而改變
       const myTasks = tasks.filter(t => {
-          if (!t.lastUpdatedAt) return false;
-          const updateDate = new Date(t.lastUpdatedAt).toDateString();
-          return t.lastUpdatedBy === currentUser.name && updateDate === checkDate;
+          // 條件 1：負責人必須是我
+          if (t.assigneeId !== currentUser.id) return false;
+
+          // 條件 2：如果是「已完成」或「N/A」，必須是今天更新的才算進今日日報
+          if (t.status === 'done' || t.isNA) {
+              if (!t.lastUpdatedAt) return false;
+              const updateDate = new Date(t.lastUpdatedAt).toDateString();
+              return updateDate === todayStr;
+          }
+
+          // 條件 3：其他「未完成」或「進行中」的任務，一律納入待辦
+          return true;
       });
-      if (myTasks.length === 0) { alert("今天您還沒有更新任何工作紀錄喔！"); return; }
+
+      if (myTasks.length === 0) { 
+          alert("目前沒有指派給您的工作項目喔！"); 
+          return; 
+      }
+
       const done = myTasks.filter(t => t.status === 'done' || t.isNA);
       const inProgress = myTasks.filter(t => t.status === 'in_progress');
       const todo = myTasks.filter(t => t.status === 'todo');
+
       let report = `📅 ${dateString} 工作匯報 - ${currentUser.name}\n\n`;
       const formatLine = (t: ClientTask) => {
           const isMisc = t.id.startsWith('misc_') || t.category === 'MISC_TASK';
           if (isMisc) return `- ${t.note || '行政交辦 (無內容)'}\n`;
           return `- ${t.clientName}：${t.category} ${t.workItem} ${t.isNA ? '(N/A)' : ''}\n`;
       };
+
       if (done.length > 0) { report += `✅ 已完成：\n`; done.forEach(t => { report += formatLine(t); }); report += `\n`; }
       if (inProgress.length > 0) { report += `🔄 進行中：\n`; inProgress.forEach(t => { report += formatLine(t); }); report += `\n`; }
       if (todo.length > 0) { report += `📝 待辦：\n`; todo.forEach(t => { report += formatLine(t); }); report += `\n`; }
-      try { await navigator.clipboard.writeText(report); alert("📋 工作匯報已複製到剪貼簿！"); } catch (err) { console.error('Failed to copy: ', err); alert("複製失敗，請手動複製"); }
+
+      try { 
+          await navigator.clipboard.writeText(report); 
+          alert("📋 您專屬的工作匯報已複製到剪貼簿！"); 
+      } catch (err) { 
+          console.error('Failed to copy: ', err); 
+          alert("複製失敗，請手動複製"); 
+      }
   };
 
   // Calendar
