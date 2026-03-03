@@ -627,6 +627,21 @@ async fetchClients(): Promise<Client[]> {
       data.instructions = data.instructions.filter(i => i.id !== id);
       await this.saveFullData(data);
       return data.instructions;
+  },
+
+    // 清除 IndexedDB 裡的檔案記憶
+  async disconnectDatabase(): Promise<void> {
+    const db = await initDB();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.delete(KEY_NAME); // 把記憶刪掉
+      req.onsuccess = () => {
+        fileHandle = null; // 清空當前檔案
+        resolve();
+      };
+      req.onerror = () => reject(req.error);
+    });
   }
 
 }; // 👈 TaskService 結束
