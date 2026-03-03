@@ -347,99 +347,80 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
   const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } }
 
- // 假設這是用來產生報表的 onClick 處理函式
-  const generateDailyReport = () => {
-    // 1. 取得登入者的名字（這會是報表標題的一部分）
+// 修正後的函式名稱與內部欄位
+  const handleGenerateDailyReport = () => {
     const myName = currentUser?.name || '未知使用者'; 
     const today = new Date().toLocaleDateString('zh-TW');
 
-    // 2. 過濾出屬於「我自己」且在「今天內」被更新過的事項
     const myTodayTasks = tasks.filter(task => {
       if (task.assigneeId !== currentUser?.id) return false;
       if (!task.lastUpdatedAt) return false;
-
       const taskDate = new Date(task.lastUpdatedAt).toLocaleDateString('zh-TW');
       return taskDate === today;
     });
 
-    // 3. 把過濾出來的任務，先區分為「已完成」和其他狀態
     const completedTasks = myTodayTasks.filter(task => 
-      task.status === '已完成' || task.status === 'N/A'
+      task.status === 'done' || task.isNA  // 修正：對應你的 TaskStatusType
     );
     const inProgressTasks = myTodayTasks.filter(task => 
-      task.status === '進行中'
+      task.status === 'in_progress'
     );
     const pendingTasks = myTodayTasks.filter(task => 
-      task.status === '待處理'
+      task.status === 'todo'
     );
 
-    // ======== 核心修改：將「已完成」的任務按客戶 (ClientName) 進行分組 ========
-    // 這會創造一個像這樣的結構: { "A公司": [任務1, 任務2], "B公司": [任務3] }
+    // 按客戶分組
     const groupedCompletedTasks = completedTasks.reduce((groups, task) => {
-      // 如果任務有帶入客戶名稱，則使用該名稱；若無，歸類為 '事務所行政/其他'
       const clientName = task.clientName || '事務所行政/其他'; 
       if (!groups[clientName]) {
         groups[clientName] = [];
       }
       groups[clientName].push(task);
       return groups;
-    }, {} as Record<string, typeof tasks>); // 請依據你實際的 task 型別調整
-    // =========================================================================
+    }, {} as Record<string, ClientTask[]>);
 
-    // 4. 開始組合純文字報表內容
     let reportText = `📅 日期：${today}\n👤 負責人：${myName}\n\n`;
 
-    // 組合已完成區塊（以客戶為單位）
     reportText += `✅ 【今日已完成事項】\n`;
     if (completedTasks.length === 0) {
       reportText += `無\n\n`;
     } else {
-      // 遍歷我們剛剛建立的分組物件
       Object.entries(groupedCompletedTasks).forEach(([clientName, clientTasks]) => {
-        // 客戶名稱只印一次
         reportText += `📌 ${clientName}：\n`; 
-        
-        // 印出該客戶底下的所有完成事項
         clientTasks.forEach(task => {
-           // 針對 MISC (事務所行政) 的特殊格式判斷
-           const displayTitle = task.type === 'MISC' ? `[行] ${task.title}` : `[帳] ${task.title}`;
-           // 組合完成的字串，例如:   - [帳] 1-2月營業稅 (備註內容...)
-           reportText += `   - ${displayTitle} ${task.notes ? `(${task.notes})` : ''}\n`;
+           // 修正：將 title 改為 workItem，notes 改為 note
+           const displayTitle = task.isMisc ? `[行] ${task.workItem}` : `[帳] ${task.workItem}`;
+           reportText += `   - ${displayTitle} ${task.note ? `(${task.note})` : ''}\n`;
         });
       });
       reportText += `\n`;
     }
 
-    // 組合進行中區塊 (如果進行中不需要按客戶分組，可保持原樣)
     reportText += `🔄 【進行中事項】\n`;
     if (inProgressTasks.length === 0) {
       reportText += `無\n\n`;
     } else {
       inProgressTasks.forEach(task => {
-        // 為了避免混淆，這裡可以把客戶名字加在標題前面
         const clientPrefix = task.clientName ? `[${task.clientName}] ` : '';
-        reportText += `   - ${clientPrefix}${task.title} ${task.notes ? `(${task.notes})` : ''}\n`;
+        reportText += `   - ${clientPrefix}${task.workItem} ${task.note ? `(${task.note})` : ''}\n`;
       });
       reportText += `\n`;
     }
 
-    // 組合待辦區塊
     reportText += `📝 【待辦事項】\n`;
     if (pendingTasks.length === 0) {
       reportText += `無\n`;
     } else {
       pendingTasks.forEach(task => {
         const clientPrefix = task.clientName ? `[${task.clientName}] ` : '';
-        reportText += `   - ${clientPrefix}${task.title}\n`;
+        reportText += `   - ${clientPrefix}${task.workItem}\n`;
       });
     }
 
-    // 5. 將結果複製到剪貼簿 (假設你有對應的 UI 通知)
     navigator.clipboard.writeText(reportText).then(() => {
-       alert("工作匯報已成功複製到剪貼簿！"); // 或換成你專案中使用的 toast 元件
+       alert("工作匯報已按客戶分類並複製成功！");
     });
   };
-
   // Calendar
   const handleDayClick = (dateStr: string) => { if (!dbConnected) return; setSelectedCalendarDate(dateStr); setNewEventTitle(''); setNewEventDesc(''); setNewEventType('reminder'); setNewEventOwnerId(currentUser.id); setShiftStart('09:00'); setShiftEnd('18:00'); setSelectedEvent(null); setIsEventModalOpen(true); stopPolling(); };
   const handleEventClick = (e: React.MouseEvent, event: CalendarEvent) => { e.stopPropagation(); if (!dbConnected) return; setSelectedCalendarDate(event.date); setNewEventTitle(event.title); setNewEventDesc(event.description || ''); setNewEventType(event.type); setNewEventOwnerId(event.ownerId); if (event.type === 'shift' && event.title.includes(' - ')) { const parts = event.title.split(' - '); if (parts.length === 2) { setShiftStart(parts[0]); setShiftEnd(parts[1]); } else { setShiftStart('09:00'); setShiftEnd('18:00'); } } else { setShiftStart('09:00'); setShiftEnd('18:00'); } setSelectedEvent(event); setIsEventModalOpen(true); stopPolling(); };
