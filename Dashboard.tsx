@@ -419,7 +419,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     }
 
     navigator.clipboard.writeText(reportText).then(() => {
-      alert("工作匯報已成功複製！已移除冗餘標籤並精簡排版。");
+      alert("工作匯報已成功複製！");
     });
   };
     
