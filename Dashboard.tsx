@@ -347,11 +347,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
   const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } }
 
-// 修正後的函式名稱與內部欄位
+    // 修正後的「按客戶與標籤分組」工作匯報功能
   const handleGenerateDailyReport = () => {
     const myName = currentUser?.name || '未知使用者'; 
     const today = new Date().toLocaleDateString('zh-TW');
 
+    // 1. 過濾出屬於「我自己」且在「今天內」更新過的事項
     const myTodayTasks = tasks.filter(task => {
       if (task.assigneeId !== currentUser?.id) return false;
       if (!task.lastUpdatedAt) return false;
@@ -359,47 +360,42 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       return taskDate === today;
     });
 
-    const completedTasks = myTodayTasks.filter(task => 
-      task.status === 'done' || task.isNA  // 修正：對應你的 TaskStatusType
-    );
-    const inProgressTasks = myTodayTasks.filter(task => 
-      task.status === 'in_progress'
-    );
-    const pendingTasks = myTodayTasks.filter(task => 
-      task.status === 'todo'
-    );
+    // 2. 依照狀態拆分 (使用你系統定義的 'done', 'in_progress', 'todo')
+    const completedTasks = myTodayTasks.filter(task => task.status === 'done' || task.isNA);
+    const inProgressTasks = myTodayTasks.filter(task => task.status === 'in_progress');
+    const pendingTasks = myTodayTasks.filter(task => task.status === 'todo');
 
-    // 按客戶分組
-    const groupedCompletedTasks = completedTasks.reduce((groups, task) => {
-      const clientName = task.clientName || '事務所行政/其他'; 
-      if (!groups[clientName]) {
-        groups[clientName] = [];
-      }
-      groups[clientName].push(task);
+    // 3. 核心修改：針對「已完成」事項進行【雙重分組】 (客戶 + 標籤)
+    // 結構會變成: { "A客戶 - 帳務處理": [任務1, 任務2], "B客戶 - 營業稅": [任務3] }
+    const groupedCompleted = completedTasks.reduce((groups, task) => {
+      const client = task.clientName || '事務所行政/其他';
+      const category = task.category || '一般事項';
+      const groupKey = `📌 ${client} [${category}]`; // 這是你的合併標題
+      
+      if (!groups[groupKey]) groups[groupKey] = [];
+      groups[groupKey].push(task);
       return groups;
     }, {} as Record<string, ClientTask[]>);
 
+    // 4. 開始組裝報表內容
     let reportText = `📅 日期：${today}\n👤 負責人：${myName}\n\n`;
 
-    reportText += `✅ 【今日已完成事項】\n`;
-    if (completedTasks.length === 0) {
-      reportText += `無\n\n`;
-    } else {
-      Object.entries(groupedCompletedTasks).forEach(([clientName, clientTasks]) => {
-        reportText += `📌 ${clientName}：\n`; 
+    // --- 已完成區塊 (只在有資料時顯示) ---
+    if (completedTasks.length > 0) {
+      reportText += `✅ 【今日已完成事項】\n`;
+      Object.entries(groupedCompleted).forEach(([groupHeader, clientTasks]) => {
+        reportText += `${groupHeader}：\n`; // A客戶的帳務處理 只出現一次
         clientTasks.forEach(task => {
-           // 修正：將 title 改為 workItem，notes 改為 note
-           const displayTitle = task.isMisc ? `[行] ${task.workItem}` : `[帳] ${task.workItem}`;
-           reportText += `   - ${displayTitle} ${task.note ? `(${task.note})` : ''}\n`;
+          const typeLabel = task.isMisc ? '[行]' : '[帳]';
+          reportText += `   - ${typeLabel} ${task.workItem} ${task.note ? `(${task.note})` : ''}\n`;
         });
       });
       reportText += `\n`;
     }
 
-    reportText += `🔄 【進行中事項】\n`;
-    if (inProgressTasks.length === 0) {
-      reportText += `無\n\n`;
-    } else {
+    // --- 進行中區塊 (如果沒資料就不出現) ---
+    if (inProgressTasks.length > 0) {
+      reportText += `🔄 【進行中事項】\n`;
       inProgressTasks.forEach(task => {
         const clientPrefix = task.clientName ? `[${task.clientName}] ` : '';
         reportText += `   - ${clientPrefix}${task.workItem} ${task.note ? `(${task.note})` : ''}\n`;
@@ -407,20 +403,26 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       reportText += `\n`;
     }
 
-    reportText += `📝 【待辦事項】\n`;
-    if (pendingTasks.length === 0) {
-      reportText += `無\n`;
-    } else {
+    // --- 待辦區塊 (如果沒資料就不出現) ---
+    if (pendingTasks.length > 0) {
+      reportText += `📝 【待辦事項】\n`;
       pendingTasks.forEach(task => {
         const clientPrefix = task.clientName ? `[${task.clientName}] ` : '';
         reportText += `   - ${clientPrefix}${task.workItem}\n`;
       });
     }
 
+    // 5. 複製到剪貼簿
+    if (myTodayTasks.length === 0) {
+      alert("今天尚未有任何工作紀錄可供複製。");
+      return;
+    }
+
     navigator.clipboard.writeText(reportText).then(() => {
-       alert("工作匯報已按客戶分類並複製成功！");
+      alert("工作匯報已成功按客戶分類複製！");
     });
   };
+    
   // Calendar
   const handleDayClick = (dateStr: string) => { if (!dbConnected) return; setSelectedCalendarDate(dateStr); setNewEventTitle(''); setNewEventDesc(''); setNewEventType('reminder'); setNewEventOwnerId(currentUser.id); setShiftStart('09:00'); setShiftEnd('18:00'); setSelectedEvent(null); setIsEventModalOpen(true); stopPolling(); };
   const handleEventClick = (e: React.MouseEvent, event: CalendarEvent) => { e.stopPropagation(); if (!dbConnected) return; setSelectedCalendarDate(event.date); setNewEventTitle(event.title); setNewEventDesc(event.description || ''); setNewEventType(event.type); setNewEventOwnerId(event.ownerId); if (event.type === 'shift' && event.title.includes(' - ')) { const parts = event.title.split(' - '); if (parts.length === 2) { setShiftStart(parts[0]); setShiftEnd(parts[1]); } else { setShiftStart('09:00'); setShiftEnd('18:00'); } } else { setShiftStart('09:00'); setShiftEnd('18:00'); } setSelectedEvent(event); setIsEventModalOpen(true); stopPolling(); };
