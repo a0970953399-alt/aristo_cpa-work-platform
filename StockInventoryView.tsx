@@ -220,7 +220,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto pb-6">
         {displayClients.map(client => (
           <div 
-            key={client.id} 
+            key= 
             onClick={() => setSelectedClient(client)} 
             className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square relative overflow-hidden"
           >
@@ -229,7 +229,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
             {/* 客戶編號 */}
             <p className="text-gray-400 font-mono text-sm sm:text-base font-bold tracking-widest mb-1 group-hover:text-blue-500 transition-colors">
-              {client.id}
+              {client.taxId}
             </p>
 
             {/* 客戶名稱 (放大、加粗、置中) */}
@@ -279,7 +279,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             <p className="text-sm text-gray-500 mb-4">請勾選要關閉進銷存功能的客戶：</p>
             <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-xl mb-6 bg-gray-50 p-2 space-y-2 custom-scrollbar">
               {displayClients.map(client => (
-                <label key={client.id} className="flex items-center p-3 bg-white rounded-lg border border-gray-100 cursor-pointer hover:bg-red-50 transition-colors">
+                <label key={client.taxId} className="flex items-center p-3 bg-white rounded-lg border border-gray-100 cursor-pointer hover:bg-red-50 transition-colors">
                   <input type="checkbox" checked={clientsToDelete.includes(String(client.id))} onChange={() => toggleClientDelete(String(client.id))} className="w-5 h-5 text-red-600 rounded focus:ring-red-500 border-gray-300" />
                   <span className="ml-3 font-bold text-gray-700">{client.name}</span>
                 </label>
