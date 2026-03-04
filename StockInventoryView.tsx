@@ -1,32 +1,24 @@
-import React, { useState } from 'react';
-import { Client } from './types';
+import React, { useState, useEffect } from 'react';
+import { Client, StockClientConfig, StockTarget } from './types';
+import { TaskService } from './taskService'; // ✨ 引入我們剛才寫好的 API 服務
 
 interface StockInventoryViewProps {
   clients: Client[];
 }
 
-interface Stock {
-  id: string;
-  code: string;
-  name: string;
-}
-
 export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients }) => {
   // --- 狀態管理 (State) ---
   
-  // ✨ 修改 1：預設為空陣列，沒有任何客戶自動開通進銷存
-  const [enabledClientIds, setEnabledClientIds] = useState<string[]>([]);
-
-  // ✨ 修改 2：預設為空物件，沒有任何預設的股票資料
-  const [clientStocks, setClientStocks] = useState<Record<string, Stock[]>>({});
+  // ✨ 改用從資料庫抓回來的真實資料
+  const [stockClients, setStockClients] = useState<StockClientConfig[]>([]);
+  const [stockTargets, setStockTargets] = useState<StockTarget[]>([]);
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-  const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
+  const [selectedStock, setSelectedStock] = useState<StockTarget | null>(null);
 
   // --- 彈跳視窗狀態 ---
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false);
-  
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
   const [isDeleteStockModalOpen, setIsDeleteStockModalOpen] = useState(false);
 
@@ -34,61 +26,93 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const [newClientSelectId, setNewClientSelectId] = useState('');
   const [newStockCode, setNewStockCode] = useState('');
   const [newStockName, setNewStockName] = useState('');
-  
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
   const [stocksToDelete, setStocksToDelete] = useState<string[]>([]);
 
-  // --- 操作邏輯 (Handlers) ---
+  // ==========================================
+  // ✨ 生命週期與資料載入 (對接 Firebase / JSON)
+  // ==========================================
+  
+  // 當一進入這個頁面時，立刻去資料庫抓資料
+  useEffect(() => {
+    loadData();
+  }, []);
 
-  const handleAddClient = () => {
+  const loadData = async () => {
+    const fetchedClients = await TaskService.fetchStockClients();
+    const fetchedTargets = await TaskService.fetchStockTargets();
+    setStockClients(fetchedClients);
+    setStockTargets(fetchedTargets);
+  };
+
+  // ==========================================
+  // ✨ 操作邏輯 (改寫為呼叫 TaskService)
+  // ==========================================
+
+  const handleAddClient = async () => {
     if (!newClientSelectId) return;
-    setEnabledClientIds(prev => [...prev, newClientSelectId]);
+    const newConfig: StockClientConfig = {
+        id: Date.now().toString(), // 產生唯一碼
+        clientId: newClientSelectId,
+        createdAt: new Date().toISOString()
+    };
+    // 呼叫 API 寫入資料庫，並用回傳的新資料更新畫面
+    const updated = await TaskService.addStockClient(newConfig);
+    setStockClients(updated);
     setIsAddClientModalOpen(false);
     setNewClientSelectId('');
   };
 
-  const toggleClientDelete = (id: string) => {
-    setClientsToDelete(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
-  };
-  
-  const handleConfirmDeleteClients = () => {
-    setEnabledClientIds(prev => prev.filter(id => !clientsToDelete.includes(id)));
+  const handleConfirmDeleteClients = async () => {
+    // 找出對應的資料庫 ID 並刪除
+    for (const clientId of clientsToDelete) {
+        const targetConfig = stockClients.find(sc => sc.clientId === clientId);
+        if (targetConfig) {
+            await TaskService.deleteStockClient(targetConfig.id);
+        }
+    }
+    await loadData(); // 刪除完後重新抓取最新資料
     setIsDeleteClientModalOpen(false);
     setClientsToDelete([]);
   };
 
-  const handleAddStock = () => {
+  const handleAddStock = async () => {
     if (!newStockCode.trim() || !selectedClient) return;
-    const newStock: Stock = { id: Date.now().toString(), code: newStockCode.trim(), name: newStockName.trim() };
-    const clientIdStr = String(selectedClient.id);
-    setClientStocks(prev => {
-      const existing = prev[clientIdStr] || [];
-      return { ...prev, [clientIdStr]: [...existing, newStock] };
-    });
+    const newTarget: StockTarget = { 
+        id: Date.now().toString(), 
+        clientId: String(selectedClient.id),
+        code: newStockCode.trim(), 
+        name: newStockName.trim(),
+        createdAt: new Date().toISOString()
+    };
+    const updated = await TaskService.addStockTarget(newTarget);
+    setStockTargets(updated);
     setIsAddStockModalOpen(false);
     setNewStockCode('');
     setNewStockName('');
+  };
+
+  const handleConfirmDeleteStocks = async () => {
+    for (const stockId of stocksToDelete) {
+        await TaskService.deleteStockTarget(stockId);
+    }
+    await loadData();
+    setIsDeleteStockModalOpen(false);
+    setStocksToDelete([]);
+  };
+
+  const toggleClientDelete = (id: string) => {
+    setClientsToDelete(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
   const toggleStockDelete = (id: string) => {
     setStocksToDelete(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
 
-  const handleConfirmDeleteStocks = () => {
-    if (!selectedClient) return;
-    const clientIdStr = String(selectedClient.id);
-    setClientStocks(prev => ({
-      ...prev,
-      [clientIdStr]: (prev[clientIdStr] || []).filter(s => !stocksToDelete.includes(s.id))
-    }));
-    setIsDeleteStockModalOpen(false);
-    setStocksToDelete([]);
-  };
-
+  // --- 畫面渲染用的衍生變數 ---
+  const enabledClientIds = stockClients.map(sc => sc.clientId);
   const availableClientsToAdd = clients.filter(c => !enabledClientIds.includes(String(c.id)));
   const displayClients = clients.filter(c => enabledClientIds.includes(String(c.id)));
-
-  // --- 畫面渲染 (Render) ---
 
   // 🔺 第三層：交易明細表
   if (selectedStock && selectedClient) {
@@ -102,7 +126,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             {selectedStock.code} {selectedStock.name} - 交易明細與進銷存
           </h2>
         </div>
-        
         <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
            <div className="text-center">
               <span className="text-4xl block mb-4">🚧</span>
@@ -115,8 +138,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
   // 🔺 第二層：個股資訊牆
   if (selectedClient) {
-    const clientIdStr = String(selectedClient.id);
-    const stocks = clientStocks[clientIdStr] || [];
+    // 過濾出屬於目前點擊客戶的股票
+    const currentClientStocks = stockTargets.filter(st => st.clientId === String(selectedClient.id));
     
     return (
       <div className="h-full flex flex-col animate-fade-in">
@@ -138,24 +161,14 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         </div>
 
         <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto pb-6">
-          {stocks.map(stock => (
-            <div 
-              key={stock.id} 
-              onClick={() => setSelectedStock(stock)} 
-              className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square"
-            >
-              <div className="text-blue-600 font-black text-3xl sm:text-4xl mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
-                {stock.code}
-              </div>
-              <div className="text-gray-600 font-bold text-base sm:text-lg">
-                {stock.name || '未命名標的'}
-              </div>
+          {currentClientStocks.map(stock => (
+            <div key={stock.id} onClick={() => setSelectedStock(stock)} className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square relative overflow-hidden">
+              <div className="text-blue-600 font-black text-3xl sm:text-4xl mb-2 sm:mb-3 group-hover:scale-110 transition-transform">{stock.code}</div>
+              <div className="text-gray-600 font-bold text-base sm:text-lg">{stock.name || '未命名標的'}</div>
             </div>
           ))}
-          {stocks.length === 0 && (
-            <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300">
-              該客戶目前尚無任何股票資料
-            </div>
+          {currentClientStocks.length === 0 && (
+            <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300">該客戶目前尚無任何股票資料</div>
           )}
         </div>
 
@@ -183,13 +196,13 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
               <h3 className="text-xl font-bold text-red-600 mb-4 flex items-center gap-2">🗑️ 刪除交易股票</h3>
               <p className="text-sm text-gray-500 mb-4">請勾選要從 {selectedClient.name} 移除的股票：</p>
               <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-xl mb-6 bg-gray-50 p-2 space-y-2 custom-scrollbar">
-                {stocks.map(stock => (
+                {currentClientStocks.map(stock => (
                   <label key={stock.id} className="flex items-center p-3 bg-white rounded-lg border border-gray-100 cursor-pointer hover:bg-red-50 transition-colors">
                     <input type="checkbox" checked={stocksToDelete.includes(stock.id)} onChange={() => toggleStockDelete(stock.id)} className="w-5 h-5 text-red-600 rounded focus:ring-red-500 border-gray-300" />
                     <span className="ml-3 font-bold text-gray-700">{stock.code} {stock.name}</span>
                   </label>
                 ))}
-                {stocks.length === 0 && <div className="text-center p-4 text-gray-400 text-sm">沒有可刪除的股票</div>}
+                {currentClientStocks.length === 0 && <div className="text-center p-4 text-gray-400 text-sm">沒有可刪除的股票</div>}
               </div>
               <div className="flex gap-3">
                 <button onClick={() => { setIsDeleteStockModalOpen(false); setStocksToDelete([]); }} className="flex-1 py-2 bg-gray-100 font-bold rounded-xl text-gray-600">取消</button>
@@ -218,35 +231,26 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
       </div>
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto pb-6">
-        {displayClients.map(client => (
-          <div 
-            key={client.id} 
-            onClick={() => setSelectedClient(client)} 
-            className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square relative overflow-hidden"
-          >
-            {/* 頂部裝飾色條 */}
-            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100 group-hover:bg-blue-500 transition-colors"></div>
-
-            {/* ✨ 真實的客戶編號 (改用 client.code) */}
-            <p className="text-gray-400 font-mono text-sm sm:text-base font-bold tracking-widest mb-1 group-hover:text-blue-500 transition-colors">
-              {client.code}
-            </p>
-
-            {/* 客戶名稱 (放大、加粗、置中) */}
-            <h3 className="font-black text-3xl sm:text-4xl text-gray-800 tracking-tight group-hover:text-blue-700 transition-colors">
-              {client.name}
-            </h3>
-
-            {/* 標的數量 */}
-            <p className="text-xs sm:text-sm font-bold text-gray-500 mt-4 bg-gray-50 px-4 py-1.5 rounded-full group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
-              共有 {clientStocks[String(client.id)]?.length || 0} 檔標的
-            </p>
-          </div>
-        ))}
+        {displayClients.map(client => {
+          // 計算該客戶目前有幾檔股票
+          const stockCount = stockTargets.filter(st => st.clientId === String(client.id)).length;
+          return (
+            <div key={client.id} onClick={() => setSelectedClient(client)} className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square relative overflow-hidden">
+              <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100 group-hover:bg-blue-500 transition-colors"></div>
+              <p className="text-gray-400 font-mono text-sm sm:text-base font-bold tracking-widest mb-1 group-hover:text-blue-500 transition-colors">
+                {client.code}
+              </p>
+              <h3 className="font-black text-3xl sm:text-4xl text-gray-800 tracking-tight group-hover:text-blue-700 transition-colors">
+                {client.name}
+              </h3>
+              <p className="text-xs sm:text-sm font-bold text-gray-500 mt-4 bg-gray-50 px-4 py-1.5 rounded-full group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+                共有 {stockCount} 檔標的
+              </p>
+            </div>
+          );
+        })}
         {displayClients.length === 0 && (
-          <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300">
-            目前沒有任何客戶開啟股票進銷存功能
-          </div>
+          <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300">目前沒有任何客戶開啟股票進銷存功能</div>
         )}
       </div>
 
@@ -279,7 +283,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             <p className="text-sm text-gray-500 mb-4">請勾選要關閉進銷存功能的客戶：</p>
             <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-xl mb-6 bg-gray-50 p-2 space-y-2 custom-scrollbar">
               {displayClients.map(client => (
-                <label key={client.taxId} className="flex items-center p-3 bg-white rounded-lg border border-gray-100 cursor-pointer hover:bg-red-50 transition-colors">
+                <label key={client.id} className="flex items-center p-3 bg-white rounded-lg border border-gray-100 cursor-pointer hover:bg-red-50 transition-colors">
                   <input type="checkbox" checked={clientsToDelete.includes(String(client.id))} onChange={() => toggleClientDelete(String(client.id))} className="w-5 h-5 text-red-600 rounded focus:ring-red-500 border-gray-300" />
                   <span className="ml-3 font-bold text-gray-700">{client.name}</span>
                 </label>
