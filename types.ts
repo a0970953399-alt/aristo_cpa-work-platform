@@ -176,3 +176,56 @@ export interface CashRecord {
     isReimbursed?: boolean;     // 是否已請款 (碩業用)
     voucherId?: string;         // 傳票號碼 (內部用)
 }
+
+// ==========================================
+// ✨ 股票進銷存系統相關定義 (Stock Inventory)
+// ==========================================
+
+// 1. 紀錄有開通股票進銷存的客戶
+export interface StockClientConfig {
+    id: string;       // 通常可以直接用 clientId 作為文件 ID
+    clientId: string; 
+    createdAt: string;
+}
+
+// 2. 紀錄單一客戶追蹤的股票標的
+export interface StockTarget {
+    id: string;       // 系統生成的唯一碼
+    clientId: string; // 屬於哪位客戶
+    code: string;     // 股票代號 (如: 2330)
+    name: string;     // 股票名稱 (如: 台積電)
+    createdAt: string;
+}
+
+// 3. 股票交易明細與餘額 (涵蓋買入、賣出、FIFO)
+export type StockTransactionType = 'buy' | 'sell';
+
+export interface StockTransaction {
+    id: string;
+    stockTargetId: string; // 綁定在哪一檔股票下
+    clientId: string;      // 綁定在哪位客戶下
+    type: StockTransactionType;
+    
+    // 共通欄位
+    date: string;          // 交易日期
+    voucherNo: string;     // 傳票號碼
+    units: number;         // 單位數 (股數)
+    unitPrice: number;     // 單位成本/賣價
+    fee: number;           // 手續費
+    paymentDate: string;   // 扣款日/入款日
+    
+    // 【買入】專屬欄位
+    buyAmount?: number;      // 金額 (單位數 * 單價)
+    buyActualCost?: number;  // 實際成本 (金額 + 手續費)
+    
+    // 【賣出】專屬欄位
+    sellAmount?: number;     // 賣價 (單位數 * 單價)
+    sellTax?: number;        // 證交稅
+    sellNetAmount?: number;  // 實際賣出淨額 (賣價 - 手續費 - 證交稅)
+    matchedCost?: number;    // 金額帳列成本 (由系統 FIFO 抓取買入成本)
+    realizedPnl?: number;    // 處分損益 (實際賣出淨額 - 金額帳列成本)
+    
+    // 備註與系統紀錄
+    note?: string;
+    createdAt: string;
+}
