@@ -220,16 +220,16 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto pb-6">
         {displayClients.map(client => (
           <div 
-            key={client.taxid}
+            key={client.id} 
             onClick={() => setSelectedClient(client)} 
             className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square relative overflow-hidden"
           >
-            {/* 頂部裝飾色條 (增加專業系統的質感) */}
+            {/* 頂部裝飾色條 */}
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100 group-hover:bg-blue-500 transition-colors"></div>
 
-            {/* 客戶編號 */}
+            {/* ✨ 真實的客戶編號 (請留意這裡的 client.clientId) */}
             <p className="text-gray-400 font-mono text-sm sm:text-base font-bold tracking-widest mb-1 group-hover:text-blue-500 transition-colors">
-              {client.taxId}
+              {client.clientId}
             </p>
 
             {/* 客戶名稱 (放大、加粗、置中) */}
