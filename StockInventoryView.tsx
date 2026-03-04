@@ -220,7 +220,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto pb-6">
         {displayClients.map(client => (
           <div 
-            key= 
+            key={client.taxid}
             onClick={() => setSelectedClient(client)} 
             className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square relative overflow-hidden"
           >
