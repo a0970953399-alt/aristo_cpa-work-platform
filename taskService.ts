@@ -2,6 +2,7 @@
 import { TabCategory } from './types';
 import type { ClientTask, TaskStatusType, HistoryEntry, ClientProfile, User, CalendarEvent, Client } from './types';
 import { INITIAL_TASKS, DEFAULT_YEAR, USERS as DEFAULT_USERS, DUMMY_CLIENTS, INSTRUCTIONS } from './constants';
+import { StockClientConfig, StockTarget, StockTransaction } from './types';
 
 const DB_NAME = 'ShuoyeTaskDB';
 const STORE_NAME = 'file_handles';
@@ -629,4 +630,81 @@ async fetchClients(): Promise<Client[]> {
       return data.instructions;
   }
 
-}; // 👈 TaskService 結束
+    // ==========================================
+    // 📊 股票進銷存系統 (Stock Inventory)
+    // ==========================================
+
+    // 1. 取得已開通的客戶名單
+    static async fetchStockClients(): Promise<StockClientConfig[]> {
+        try {
+            const url = `${this.getBaseUrl()}/stockClients`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return res.json();
+        } catch (error) {
+            console.error("Error fetching stock clients:", error);
+            return [];
+        }
+    }
+
+    // 2. 開通新客戶 (新增)
+    static async addStockClient(config: StockClientConfig): Promise<StockClientConfig[]> {
+        const url = `${this.getBaseUrl()}/stockClients`;
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(config)
+        });
+        return this.fetchStockClients();
+    }
+
+    // 3. 關閉客戶 (刪除)
+    static async deleteStockClient(id: string): Promise<StockClientConfig[]> {
+        const url = `${this.getBaseUrl()}/stockClients/${id}`;
+        await fetch(url, { method: 'DELETE' });
+        return this.fetchStockClients();
+    }
+
+    // 4. 取得所有股票標的
+    static async fetchStockTargets(): Promise<StockTarget[]> {
+        try {
+            const url = `${this.getBaseUrl()}/stockTargets`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return res.json();
+        } catch (error) {
+            console.error("Error fetching stock targets:", error);
+            return [];
+        }
+    }
+
+    // 5. 新增股票標的
+    static async addStockTarget(target: StockTarget): Promise<StockTarget[]> {
+        const url = `${this.getBaseUrl()}/stockTargets`;
+        await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify(target)
+        });
+        return this.fetchStockTargets();
+    }
+
+    // 6. 刪除股票標的
+    static async deleteStockTarget(id: string): Promise<StockTarget[]> {
+        const url = `${this.getBaseUrl()}/stockTargets/${id}`;
+        await fetch(url, { method: 'DELETE' });
+        return this.fetchStockTargets();
+    }
+    
+    // 7. 取得交易紀錄 (為第三層準備)
+    static async fetchStockTransactions(): Promise<StockTransaction[]> {
+        try {
+            const url = `${this.getBaseUrl()}/stockTransactions`;
+            const res = await fetch(url);
+            if (!res.ok) throw new Error('Network response was not ok');
+            return res.json();
+        } catch (error) {
+            console.error("Error fetching transactions:", error);
+            return [];
+        }
+    }
