@@ -13,12 +13,14 @@ interface Stock {
 
 export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients }) => {
   // --- 狀態管理 (State) ---
+  // ✨ 修正 1：初始化時強制將 id 轉為字串
   const [enabledClientIds, setEnabledClientIds] = useState<string[]>(
-    clients.length > 0 ? [clients[0].id] : []
+    clients.length > 0 ? [String(clients[0].id)] : []
   );
 
+  // ✨ 修正 2：確保假資料的 key 也是字串
   const [clientStocks, setClientStocks] = useState<Record<string, Stock[]>>({
-    [clients[0]?.id || 'dummy']: [
+    [String(clients[0]?.id) || 'dummy']: [
       { id: 's1', code: '0050', name: '元大台灣50' },
       { id: 's2', code: '2330', name: '台灣積體電路' }
     ]
@@ -29,73 +31,75 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
   // --- 彈跳視窗狀態 ---
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
-  const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false); // ✨ 新增：刪除客戶 Modal
+  const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false);
   
   const [isAddStockModalOpen, setIsAddStockModalOpen] = useState(false);
-  const [isDeleteStockModalOpen, setIsDeleteStockModalOpen] = useState(false); // ✨ 新增：刪除股票 Modal
+  const [isDeleteStockModalOpen, setIsDeleteStockModalOpen] = useState(false);
 
   // --- 表單與勾選暫存狀態 ---
   const [newClientSelectId, setNewClientSelectId] = useState('');
   const [newStockCode, setNewStockCode] = useState('');
   const [newStockName, setNewStockName] = useState('');
   
-  // ✨ 新增：用來記錄目前打勾了哪些 ID
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
   const [stocksToDelete, setStocksToDelete] = useState<string[]>([]);
 
   // --- 操作邏輯 (Handlers) ---
 
-  // 加入客戶
   const handleAddClient = () => {
     if (!newClientSelectId) return;
+    // 將選單傳來的字串 ID 存入陣列
     setEnabledClientIds(prev => [...prev, newClientSelectId]);
     setIsAddClientModalOpen(false);
     setNewClientSelectId('');
   };
 
-  // ✨ 刪除客戶 (批次)
   const toggleClientDelete = (id: string) => {
     setClientsToDelete(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
+  
   const handleConfirmDeleteClients = () => {
     setEnabledClientIds(prev => prev.filter(id => !clientsToDelete.includes(id)));
     setIsDeleteClientModalOpen(false);
     setClientsToDelete([]);
   };
 
-  // 加入股票
   const handleAddStock = () => {
     if (!newStockCode.trim() || !selectedClient) return;
     const newStock: Stock = { id: Date.now().toString(), code: newStockCode.trim(), name: newStockName.trim() };
+    // ✨ 修正 3：使用 String() 確保 key 型別正確
+    const clientIdStr = String(selectedClient.id);
     setClientStocks(prev => {
-      const existing = prev[selectedClient.id] || [];
-      return { ...prev, [selectedClient.id]: [...existing, newStock] };
+      const existing = prev[clientIdStr] || [];
+      return { ...prev, [clientIdStr]: [...existing, newStock] };
     });
     setIsAddStockModalOpen(false);
     setNewStockCode('');
     setNewStockName('');
   };
 
-  // ✨ 刪除股票 (批次)
   const toggleStockDelete = (id: string) => {
     setStocksToDelete(prev => prev.includes(id) ? prev.filter(x => x !== id) : [...prev, id]);
   };
+
   const handleConfirmDeleteStocks = () => {
     if (!selectedClient) return;
+    const clientIdStr = String(selectedClient.id);
     setClientStocks(prev => ({
       ...prev,
-      [selectedClient.id]: (prev[selectedClient.id] || []).filter(s => !stocksToDelete.includes(s.id))
+      [clientIdStr]: (prev[clientIdStr] || []).filter(s => !stocksToDelete.includes(s.id))
     }));
     setIsDeleteStockModalOpen(false);
     setStocksToDelete([]);
   };
 
-  const availableClientsToAdd = clients.filter(c => !enabledClientIds.includes(c.id));
-  const displayClients = clients.filter(c => enabledClientIds.includes(c.id));
+  // ✨ 修正 4：過濾客戶時，強制將資料庫的 c.id 轉成字串來比對
+  const availableClientsToAdd = clients.filter(c => !enabledClientIds.includes(String(c.id)));
+  const displayClients = clients.filter(c => enabledClientIds.includes(String(c.id)));
 
   // --- 畫面渲染 (Render) ---
 
-  // 🔺 第三層：交易明細表 (即將實作)
+  // 🔺 第三層：交易明細表
   if (selectedStock && selectedClient) {
     return (
       <div className="h-full flex flex-col p-6 animate-fade-in bg-white rounded-2xl shadow-sm border border-gray-100">
@@ -118,9 +122,12 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     );
   }
 
-  // 🔺 第二層：個股資訊牆 (Stock Wall)
+  // 🔺 第二層：個股資訊牆
   if (selectedClient) {
-    const stocks = clientStocks[selectedClient.id] || [];
+    // ✨ 修正 5
+    const clientIdStr = String(selectedClient.id);
+    const stocks = clientStocks[clientIdStr] || [];
+    
     return (
       <div className="h-full flex flex-col animate-fade-in">
         <div className="flex items-center justify-between mb-6">
@@ -134,7 +141,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             <button onClick={() => setIsAddStockModalOpen(true)} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors">
               + 新增交易股票
             </button>
-            {/* ✨ 新增刪除股票按鈕 */}
             <button onClick={() => { setStocksToDelete([]); setIsDeleteStockModalOpen(true); }} className="px-4 py-2 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors">
               刪除標的
             </button>
@@ -170,12 +176,12 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           </div>
         )}
 
-        {/* ✨ 刪除股票 Modal */}
+        {/* 刪除股票 Modal */}
         {isDeleteStockModalOpen && (
           <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
               <h3 className="text-xl font-bold text-red-600 mb-4 flex items-center gap-2">🗑️ 刪除交易股票</h3>
-              <p className="text-sm text-gray-500 mb-4">請勾選要從 {selectedClient.name} 移除的股票（這將會隱藏該股票的所有交易紀錄）：</p>
+              <p className="text-sm text-gray-500 mb-4">請勾選要從 {selectedClient.name} 移除的股票：</p>
               <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-xl mb-6 bg-gray-50 p-2 space-y-2 custom-scrollbar">
                 {stocks.map(stock => (
                   <label key={stock.id} className="flex items-center p-3 bg-white rounded-lg border border-gray-100 cursor-pointer hover:bg-red-50 transition-colors">
@@ -205,7 +211,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           <button onClick={() => setIsAddClientModalOpen(true)} className="px-5 py-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 transition-colors">
             + 加入進銷存客戶
           </button>
-          {/* ✨ 新增刪除客戶按鈕 */}
           <button onClick={() => { setClientsToDelete([]); setIsDeleteClientModalOpen(true); }} className="px-5 py-2.5 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors">
             移除客戶
           </button>
@@ -217,7 +222,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           <div key={client.id} onClick={() => setSelectedClient(client)} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center text-center group">
             <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-2xl mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">🏢</div>
             <h3 className="font-bold text-xl text-gray-800">{client.name}</h3>
-            <p className="text-sm text-gray-500 mt-2">目前追蹤 {clientStocks[client.id]?.length || 0} 檔標的</p>
+            {/* ✨ 修正 6 */}
+            <p className="text-sm text-gray-500 mt-2">目前追蹤 {clientStocks[String(client.id)]?.length || 0} 檔標的</p>
           </div>
         ))}
         {displayClients.length === 0 && (
@@ -233,7 +239,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             {availableClientsToAdd.length > 0 ? (
               <select value={newClientSelectId} onChange={e => setNewClientSelectId(e.target.value)} className="w-full border p-2.5 rounded-xl mb-6 focus:ring-2 focus:ring-green-500 outline-none text-base bg-white">
                 <option value="">請選擇客戶...</option>
-                {availableClientsToAdd.map(c => <option key={c.id} value={c.id}>{c.name}</option>)}
+                {availableClientsToAdd.map(c => <option key={c.id} value={String(c.id)}>{c.name}</option>)}
               </select>
             ) : (
               <p className="text-gray-500 mb-6 text-sm">所有客戶都已經開通進銷存功能了！</p>
@@ -246,16 +252,16 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         </div>
       )}
 
-      {/* ✨ 刪除客戶 Modal */}
+      {/* 刪除客戶 Modal */}
       {isDeleteClientModalOpen && (
         <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4">
           <div className="bg-white rounded-2xl p-6 w-full max-w-md shadow-2xl">
             <h3 className="text-xl font-bold text-red-600 mb-4 flex items-center gap-2">🗑️ 移除進銷存客戶</h3>
-            <p className="text-sm text-gray-500 mb-4">請勾選要關閉進銷存功能的客戶（這並不會刪除客戶基本資料）：</p>
+            <p className="text-sm text-gray-500 mb-4">請勾選要關閉進銷存功能的客戶：</p>
             <div className="max-h-60 overflow-y-auto border border-gray-200 rounded-xl mb-6 bg-gray-50 p-2 space-y-2 custom-scrollbar">
               {displayClients.map(client => (
                 <label key={client.id} className="flex items-center p-3 bg-white rounded-lg border border-gray-100 cursor-pointer hover:bg-red-50 transition-colors">
-                  <input type="checkbox" checked={clientsToDelete.includes(client.id)} onChange={() => toggleClientDelete(client.id)} className="w-5 h-5 text-red-600 rounded focus:ring-red-500 border-gray-300" />
+                  <input type="checkbox" checked={clientsToDelete.includes(String(client.id))} onChange={() => toggleClientDelete(String(client.id))} className="w-5 h-5 text-red-600 rounded focus:ring-red-500 border-gray-300" />
                   <span className="ml-3 font-bold text-gray-700">{client.name}</span>
                 </label>
               ))}
