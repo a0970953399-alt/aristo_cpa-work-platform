@@ -28,6 +28,10 @@ interface DataStore {
     mailRecords?: MailRecord[];
     cashRecords?: CashRecord[];
     instructions?: Instruction[];
+
+    stockClients?: StockClientConfig[];
+    stockTargets?: StockTarget[];
+    stockTransactions?: StockTransaction[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -80,7 +84,12 @@ const normalizeData = (raw: any): DataStore => {
         messages: Array.isArray(raw.messages) ? raw.messages : [],
         mailRecords: Array.isArray(raw.mailRecords) ? raw.mailRecords : [],
         cashRecords: Array.isArray(raw.cashRecords) ? raw.cashRecords : [],
-        instructions: Array.isArray(raw.instructions) ? raw.instructions : []
+        instructions: Array.isArray(raw.instructions) ? raw.instructions : [],
+        stockClients: Array.isArray(raw.stockClients) ? raw.stockClients : [],
+        stockTargets: Array.isArray(raw.stockTargets) ? raw.stockTargets : [],
+        stockTransactions: Array.isArray(raw.stockTransactions) ? raw.stockTransactions : []
+
+
 
     };
 };
@@ -631,84 +640,61 @@ async deleteInstruction(id: string): Promise<Instruction[]> {
   }, // ✨ 關鍵 1：我幫你補上這裡的逗號了！
 
     // ==========================================
-    // 📊 股票進銷存系統 (Stock Inventory)
+    // 📊 股票進銷存系統 (Stock Inventory) - 本地讀寫版
     // ==========================================
-
-    // ✨ 關鍵 2：全部拿掉 static，並在結尾加上逗號
 
     // 1. 取得已開通的客戶名單
     async fetchStockClients(): Promise<StockClientConfig[]> {
-        try {
-            const url = `${this.getBaseUrl()}/stockClients`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('Network response was not ok');
-            return res.json();
-        } catch (error) {
-            console.error("Error fetching stock clients:", error);
-            return [];
-        }
+        const data = await this.loadFullData();
+        return data.stockClients || [];
     },
 
     // 2. 開通新客戶 (新增)
     async addStockClient(config: StockClientConfig): Promise<StockClientConfig[]> {
-        const url = `${this.getBaseUrl()}/stockClients`;
-        await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(config)
-        });
-        return this.fetchStockClients();
+        const data = await this.loadFullData();
+        if (!data.stockClients) data.stockClients = [];
+        data.stockClients.push(config);
+        await this.saveFullData(data);
+        return data.stockClients;
     },
 
     // 3. 關閉客戶 (刪除)
     async deleteStockClient(id: string): Promise<StockClientConfig[]> {
-        const url = `${this.getBaseUrl()}/stockClients/${id}`;
-        await fetch(url, { method: 'DELETE' });
-        return this.fetchStockClients();
+        const data = await this.loadFullData();
+        if (!data.stockClients) return [];
+        data.stockClients = data.stockClients.filter(c => c.id !== id);
+        await this.saveFullData(data);
+        return data.stockClients;
     },
 
     // 4. 取得所有股票標的
     async fetchStockTargets(): Promise<StockTarget[]> {
-        try {
-            const url = `${this.getBaseUrl()}/stockTargets`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('Network response was not ok');
-            return res.json();
-        } catch (error) {
-            console.error("Error fetching stock targets:", error);
-            return [];
-        }
+        const data = await this.loadFullData();
+        return data.stockTargets || [];
     },
 
     // 5. 新增股票標的
     async addStockTarget(target: StockTarget): Promise<StockTarget[]> {
-        const url = `${this.getBaseUrl()}/stockTargets`;
-        await fetch(url, {
-            method: 'POST',
-            headers: { 'Content-Type': 'application/json' },
-            body: JSON.stringify(target)
-        });
-        return this.fetchStockTargets();
+        const data = await this.loadFullData();
+        if (!data.stockTargets) data.stockTargets = [];
+        data.stockTargets.push(target);
+        await this.saveFullData(data);
+        return data.stockTargets;
     },
 
     // 6. 刪除股票標的
     async deleteStockTarget(id: string): Promise<StockTarget[]> {
-        const url = `${this.getBaseUrl()}/stockTargets/${id}`;
-        await fetch(url, { method: 'DELETE' });
-        return this.fetchStockTargets();
+        const data = await this.loadFullData();
+        if (!data.stockTargets) return [];
+        data.stockTargets = data.stockTargets.filter(t => t.id !== id);
+        await this.saveFullData(data);
+        return data.stockTargets;
     },
     
     // 7. 取得交易紀錄 (為第三層準備)
     async fetchStockTransactions(): Promise<StockTransaction[]> {
-        try {
-            const url = `${this.getBaseUrl()}/stockTransactions`;
-            const res = await fetch(url);
-            if (!res.ok) throw new Error('Network response was not ok');
-            return res.json();
-        } catch (error) {
-            console.error("Error fetching transactions:", error);
-            return [];
-        }
+        const data = await this.loadFullData();
+        return data.stockTransactions || [];
     }
 
-} // ✅ 這是 TaskService 物件的最後一個大括號 (可能有分號)
+}; // ✅ TaskService 結尾
