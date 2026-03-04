@@ -227,9 +227,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             {/* 頂部裝飾色條 */}
             <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100 group-hover:bg-blue-500 transition-colors"></div>
 
-            {/* ✨ 真實的客戶編號 (請留意這裡的 client.clientId) */}
+            {/* ✨ 真實的客戶編號 (改用 client.code) */}
             <p className="text-gray-400 font-mono text-sm sm:text-base font-bold tracking-widest mb-1 group-hover:text-blue-500 transition-colors">
-              {client.clientId}
+              {client.code}
             </p>
 
             {/* 客戶名稱 (放大、加粗、置中) */}
