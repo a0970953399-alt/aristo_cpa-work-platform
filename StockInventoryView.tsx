@@ -222,13 +222,23 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           <div 
             key={client.id} 
             onClick={() => setSelectedClient(client)} 
-            className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square"
+            className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square relative overflow-hidden"
           >
-            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-3 sm:mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
-              🏢
-            </div>
-            <h3 className="font-bold text-xl sm:text-2xl text-gray-800">{client.name}</h3>
-            <p className="text-xs sm:text-sm font-bold text-gray-500 mt-2 sm:mt-3 bg-gray-50 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+            {/* 頂部裝飾色條 (增加專業系統的質感) */}
+            <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100 group-hover:bg-blue-500 transition-colors"></div>
+
+            {/* 客戶編號 */}
+            <p className="text-gray-400 font-mono text-sm sm:text-base font-bold tracking-widest mb-1 group-hover:text-blue-500 transition-colors">
+              {client.id}
+            </p>
+
+            {/* 客戶名稱 (放大、加粗、置中) */}
+            <h3 className="font-black text-3xl sm:text-4xl text-gray-800 tracking-tight group-hover:text-blue-700 transition-colors">
+              {client.name}
+            </h3>
+
+            {/* 標的數量 */}
+            <p className="text-xs sm:text-sm font-bold text-gray-500 mt-4 bg-gray-50 px-4 py-1.5 rounded-full group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
               共有 {clientStocks[String(client.id)]?.length || 0} 檔標的
             </p>
           </div>
