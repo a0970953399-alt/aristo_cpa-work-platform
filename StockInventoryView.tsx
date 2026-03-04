@@ -137,15 +137,25 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           </div>
         </div>
 
-        <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 overflow-y-auto pb-6">
+        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto pb-6">
           {stocks.map(stock => (
-            <div key={stock.id} onClick={() => setSelectedStock(stock)} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer group">
-              <div className="text-blue-600 font-black text-3xl mb-1 group-hover:scale-105 origin-left transition-transform">{stock.code}</div>
-              <div className="text-gray-600 font-bold text-lg">{stock.name || '未命名標的'}</div>
+            <div 
+              key={stock.id} 
+              onClick={() => setSelectedStock(stock)} 
+              className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square"
+            >
+              <div className="text-blue-600 font-black text-3xl sm:text-4xl mb-2 sm:mb-3 group-hover:scale-110 transition-transform">
+                {stock.code}
+              </div>
+              <div className="text-gray-600 font-bold text-base sm:text-lg">
+                {stock.name || '未命名標的'}
+              </div>
             </div>
           ))}
           {stocks.length === 0 && (
-            <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300">該客戶目前尚無任何股票資料</div>
+            <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300">
+              該客戶目前尚無任何股票資料
+            </div>
           )}
         </div>
 
@@ -207,16 +217,26 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         </div>
       </div>
 
-      <div className="grid grid-cols-1 sm:grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-6 overflow-y-auto pb-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto pb-6">
         {displayClients.map(client => (
-          <div key={client.id} onClick={() => setSelectedClient(client)} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center text-center group">
-            <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-2xl mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">🏢</div>
-            <h3 className="font-bold text-xl text-gray-800">{client.name}</h3>
-            <p className="text-sm text-gray-500 mt-2">目前追蹤 {clientStocks[String(client.id)]?.length || 0} 檔標的</p>
+          <div 
+            key={client.id} 
+            onClick={() => setSelectedClient(client)} 
+            className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square"
+          >
+            <div className="w-16 h-16 sm:w-20 sm:h-20 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-3xl mb-3 sm:mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">
+              🏢
+            </div>
+            <h3 className="font-bold text-xl sm:text-2xl text-gray-800">{client.name}</h3>
+            <p className="text-xs sm:text-sm font-bold text-gray-500 mt-2 sm:mt-3 bg-gray-50 px-3 py-1 sm:px-4 sm:py-1.5 rounded-full group-hover:bg-blue-50 group-hover:text-blue-600 transition-colors">
+              共有 {clientStocks[String(client.id)]?.length || 0} 檔標的
+            </p>
           </div>
         ))}
         {displayClients.length === 0 && (
-          <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300">目前沒有任何客戶開啟股票進銷存功能</div>
+          <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300">
+            目前沒有任何客戶開啟股票進銷存功能
+          </div>
         )}
       </div>
 
