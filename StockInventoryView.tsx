@@ -13,18 +13,12 @@ interface Stock {
 
 export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients }) => {
   // --- 狀態管理 (State) ---
-  // ✨ 修正 1：初始化時強制將 id 轉為字串
-  const [enabledClientIds, setEnabledClientIds] = useState<string[]>(
-    clients.length > 0 ? [String(clients[0].id)] : []
-  );
+  
+  // ✨ 修改 1：預設為空陣列，沒有任何客戶自動開通進銷存
+  const [enabledClientIds, setEnabledClientIds] = useState<string[]>([]);
 
-  // ✨ 修正 2：確保假資料的 key 也是字串
-  const [clientStocks, setClientStocks] = useState<Record<string, Stock[]>>({
-    [String(clients[0]?.id) || 'dummy']: [
-      { id: 's1', code: '0050', name: '元大台灣50' },
-      { id: 's2', code: '2330', name: '台灣積體電路' }
-    ]
-  });
+  // ✨ 修改 2：預設為空物件，沒有任何預設的股票資料
+  const [clientStocks, setClientStocks] = useState<Record<string, Stock[]>>({});
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [selectedStock, setSelectedStock] = useState<Stock | null>(null);
@@ -48,7 +42,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
   const handleAddClient = () => {
     if (!newClientSelectId) return;
-    // 將選單傳來的字串 ID 存入陣列
     setEnabledClientIds(prev => [...prev, newClientSelectId]);
     setIsAddClientModalOpen(false);
     setNewClientSelectId('');
@@ -67,7 +60,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const handleAddStock = () => {
     if (!newStockCode.trim() || !selectedClient) return;
     const newStock: Stock = { id: Date.now().toString(), code: newStockCode.trim(), name: newStockName.trim() };
-    // ✨ 修正 3：使用 String() 確保 key 型別正確
     const clientIdStr = String(selectedClient.id);
     setClientStocks(prev => {
       const existing = prev[clientIdStr] || [];
@@ -93,7 +85,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     setStocksToDelete([]);
   };
 
-  // ✨ 修正 4：過濾客戶時，強制將資料庫的 c.id 轉成字串來比對
   const availableClientsToAdd = clients.filter(c => !enabledClientIds.includes(String(c.id)));
   const displayClients = clients.filter(c => enabledClientIds.includes(String(c.id)));
 
@@ -124,7 +115,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
   // 🔺 第二層：個股資訊牆
   if (selectedClient) {
-    // ✨ 修正 5
     const clientIdStr = String(selectedClient.id);
     const stocks = clientStocks[clientIdStr] || [];
     
@@ -222,7 +212,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           <div key={client.id} onClick={() => setSelectedClient(client)} className="bg-white border border-gray-200 rounded-2xl p-6 shadow-sm hover:shadow-xl hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center text-center group">
             <div className="w-16 h-16 bg-blue-50 text-blue-600 rounded-full flex items-center justify-center text-2xl mb-4 group-hover:bg-blue-600 group-hover:text-white transition-colors">🏢</div>
             <h3 className="font-bold text-xl text-gray-800">{client.name}</h3>
-            {/* ✨ 修正 6 */}
             <p className="text-sm text-gray-500 mt-2">目前追蹤 {clientStocks[String(client.id)]?.length || 0} 檔標的</p>
           </div>
         ))}
