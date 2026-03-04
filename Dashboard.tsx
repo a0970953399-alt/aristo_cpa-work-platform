@@ -13,6 +13,7 @@ import { MailLogView } from './MailLogView';
 import { CashLogView } from './CashLogView';
 import { TaskService } from './taskService';
 import { NotificationService } from './notificationService';
+import { StockInventoryView } from './StockInventoryView';
 
 // Types & Icons
 import { 
@@ -32,7 +33,7 @@ import {
     YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS 
 } from './constants';
 
-const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款'];
+const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款', '股票進銷存'];
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const totalMinutes = i * 30;
@@ -685,6 +686,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         onUpdate={loadData}
                         isSupervisor={isSupervisor}
                     />
+                    ) : 
+                    activeTab === '股票進銷存' ? (
+                        <StockInventoryView 
+                            clients={clients} 
+                            />
                 ) : (
                     <MatrixView 
                         tasks={tasks}
