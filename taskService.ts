@@ -706,6 +706,18 @@ async deleteInstruction(id: string): Promise<Instruction[]> {
         return data.stockTransactions;
     },
 
+    // ✨ 8.5 更新交易紀錄 (這次要補上的)
+    async updateStockTransaction(updatedTx: StockTransaction): Promise<StockTransaction[]> {
+        const data = await this.loadFullData();
+        if (!data.stockTransactions) return [];
+        const idx = data.stockTransactions.findIndex(t => t.id === updatedTx.id);
+        if (idx !== -1) {
+            data.stockTransactions[idx] = updatedTx;
+            await this.saveFullData(data);
+        }
+        return data.stockTransactions;
+    },
+
     // 9. 刪除交易紀錄
     async deleteStockTransaction(id: string): Promise<StockTransaction[]> {
         const data = await this.loadFullData();
