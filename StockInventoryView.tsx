@@ -5,9 +5,69 @@ import { TaskService } from './taskService'; // ✨ 引入我們剛才寫好的 
 // ✨ 新增這行：引入 Recharts 圖表庫
 import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 
+import { motion, AnimatePresence } from 'framer-motion';
+
 interface StockInventoryViewProps {
   clients: Client[];
 }
+
+// ✨ 從 Stocks.tsx 移植過來的專屬動態圓餅圖
+const UniversalDonutChart = React.memo(({ 
+  data, total, timeframeLabel, typeColorClass 
+}: { 
+  data: { name: string, value: number, color: string }[], total: number, timeframeLabel: string, typeColorClass: string 
+}) => {
+  const [hoveredItem, setHoveredItem] = useState<{name: string, value: number, colorText: string} | null>(null);
+  const radius = 40;
+  const circumference = 2 * Math.PI * radius;
+  let cumulativeOffset = 0;
+
+  return (
+    <div className="flex flex-col items-center justify-center h-52 relative mt-4">
+      <svg viewBox="0 0 100 100" className="w-48 h-48 transform -rotate-90 overflow-visible">
+        <circle cx="50" cy="50" r={radius} stroke="#f8fafc" strokeWidth="10" fill="none" />
+        {total > 0 && data.map((item, i) => {
+          const percentage = item.value / total;
+          const dashLength = percentage * circumference;
+          const strokeDasharray = `${dashLength} ${circumference}`;
+          const strokeDashoffset = -cumulativeOffset;
+          cumulativeOffset += dashLength;
+
+          return (
+            <motion.circle
+              key={item.name} cx="50" cy="50" r={radius} fill="none" stroke={item.color}
+              className="outline-none cursor-pointer"
+              initial={{ strokeDasharray: `0 ${circumference}`, strokeWidth: 10 }}
+              animate={{ strokeDasharray: strokeDasharray, strokeWidth: 10 }}
+              whileHover={{ strokeWidth: 16, opacity: 0.9, transition: { duration: 0.15, ease: "easeOut" } }}
+              transition={{ duration: 1.2, ease: "easeOut", delay: i * 0.05 }}
+              style={{ strokeDashoffset }}
+              onMouseEnter={() => setHoveredItem({ name: item.name, value: item.value, colorText: item.color })}
+              onMouseLeave={() => setHoveredItem(null)}
+            />
+          );
+        })}
+      </svg>
+      <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
+        <AnimatePresence mode="wait">
+          <motion.div key={hoveredItem ? hoveredItem.name : 'default'} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }} className="text-center flex flex-col items-center">
+            {hoveredItem ? (
+              <>
+                <span className="text-xs font-bold text-gray-500 mb-1 tracking-widest bg-gray-50 px-2 py-0.5 rounded-md">{hoveredItem.name}</span>
+                <span className="text-2xl font-black" style={{ color: hoveredItem.colorText }}>${hoveredItem.value.toLocaleString()}</span>
+              </>
+            ) : (
+              <>
+                <span className="text-xs text-gray-400 font-bold tracking-widest mb-1">{timeframeLabel}</span>
+                <span className={`text-2xl font-black ${typeColorClass}`}>${total.toLocaleString()}</span>
+              </>
+            )}
+          </motion.div>
+        </AnimatePresence>
+      </div>
+    </div>
+  );
+});
 
 export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients }) => {
   // --- 狀態管理 (State) ---
@@ -470,21 +530,25 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                    <h4 className="font-bold text-gray-700 mb-6 flex items-center gap-2">
                     <div className="w-1.5 h-5 bg-emerald-500 rounded-full"></div> 累計資金流向比例
                   </h4>
-                  <div className="flex-1 w-full relative">
+                  <div className="flex-1 w-full relative flex flex-col">
                     {cashFlowData.reduce((acc, cur) => acc + cur.value, 0) > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
-                        <PieChart>
-                          <Pie
-                            data={cashFlowData} cx="50%" cy="45%" innerRadius={60} outerRadius={85} paddingAngle={0} dataKey="value"
-                          >
-                            {cashFlowData.map((entry, index) => (
-                              <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
-                            ))}
-                          </Pie>
-                          <RechartsTooltip formatter={(value: number) => `$${value.toLocaleString()}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
-                          <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '13px', fontWeight: 'bold' }} />
-                        </PieChart>
-                      </ResponsiveContainer>
+                      <>
+                        <UniversalDonutChart 
+                          data={cashFlowData}
+                          total={cashFlowData.reduce((acc, cur) => acc + cur.value, 0)}
+                          timeframeLabel="總資金進出"
+                          typeColorClass="text-gray-800"
+                        />
+                        {/* 自訂的標籤說明 (Legend) */}
+                        <div className="flex justify-center gap-6 mt-auto pb-4">
+                          {cashFlowData.map(item => (
+                            <div key={item.name} className="flex items-center gap-2">
+                              <div className="w-3 h-3 rounded-full" style={{ backgroundColor: item.color }}></div>
+                              <span className="text-sm font-bold text-gray-600">{item.name}</span>
+                            </div>
+                          ))}
+                        </div>
+                      </>
                     ) : (
                       <div className="h-full flex items-center justify-center text-gray-400 font-bold border-2 border-dashed border-gray-100 rounded-2xl">尚無資金進出紀錄</div>
                     )}
