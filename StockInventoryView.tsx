@@ -114,123 +114,116 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const availableClientsToAdd = clients.filter(c => !enabledClientIds.includes(String(c.id)));
   const displayClients = clients.filter(c => enabledClientIds.includes(String(c.id)));
 
-  // 🔺 第三層：交易明細表 (動態上下文對帳表版)
-  if (selectedStock && selectedClient) {
-    // 這裡未來會從 TaskService 抓取該標的的交易紀錄
-    const transactions: StockTransaction[] = []; 
+  // --- 新增子標籤狀態管理 ---
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'ledger'>('overview');
 
+  // 🔺 第三層：交易明細與分析 (標籤頁重構版)
+  if (selectedStock && selectedClient) {
     return (
-      <div className="h-full flex flex-col p-4 animate-fade-in bg-gray-50 overflow-hidden">
-        {/* 1. 頂部標頭與 KPI 概況 */}
-        <div className="flex items-center justify-between mb-4">
+      <div className="h-full flex flex-col animate-fade-in bg-gray-50 overflow-hidden">
+        
+        {/* 1. 頂部導航與標題列 */}
+        <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-4">
-            <button onClick={() => setSelectedStock(null)} className="px-3 py-1.5 bg-white border border-gray-200 text-gray-600 font-bold rounded-lg hover:bg-gray-50 transition-colors shadow-sm text-sm">
-              ← 返回
+            <button 
+              onClick={() => { setSelectedStock(null); setActiveSubTab('overview'); }} 
+              className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+            >
+              <ReturnIcon className="w-6 h-6" />
             </button>
-            <div className="flex items-baseline gap-2">
-              <h2 className="text-2xl font-black text-gray-800">{selectedStock.code}</h2>
-              <span className="text-lg font-bold text-gray-500">{selectedStock.name}</span>
+            <div className="flex flex-col">
+              <div className="flex items-center gap-2">
+                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-black rounded-md tracking-wider">STOCK</span>
+                <h2 className="text-xl font-black text-gray-800">{selectedStock.code} {selectedStock.name}</h2>
+              </div>
+              <p className="text-xs text-gray-400 font-bold tracking-tight">歸屬客戶：{selectedClient.name}</p>
             </div>
           </div>
-          
-          <div className="flex gap-4">
-             <div className="flex flex-col items-end border-r pr-4 border-gray-200">
-                <span className="text-[10px] font-bold text-gray-400">庫存股數</span>
-                <span className="text-xl font-black text-blue-600">0</span>
-             </div>
-             <div className="flex flex-col items-end border-r pr-4 border-gray-200">
-                <span className="text-[10px] font-bold text-gray-400">帳列平均成本</span>
-                <span className="text-xl font-black text-gray-700">0.00</span>
-             </div>
-             <button className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-all text-sm">
-               + 新增紀錄
-             </button>
+
+          {/* 標籤切換按鈕 (Tab Switcher) */}
+          <div className="flex p-1 bg-gray-100 rounded-xl w-64 shadow-inner">
+            <button 
+              onClick={() => setActiveSubTab('overview')}
+              className={`flex-1 py-2 text-sm font-black rounded-lg transition-all ${activeSubTab === 'overview' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              📊 統計圖表
+            </button>
+            <button 
+              onClick={() => setActiveSubTab('ledger')}
+              className={`flex-1 py-2 text-sm font-black rounded-lg transition-all ${activeSubTab === 'ledger' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+            >
+              📋 交易明細
+            </button>
           </div>
         </div>
 
-        {/* 2. 核心對帳表 (三區塊邏輯) */}
-        <div className="flex-1 bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
-          {/* 分組標頭 */}
-          <div className="grid grid-cols-[1.5fr_3fr_1.5fr] w-full bg-gray-100 border-b border-gray-200">
-            <div className="p-2 text-center text-xs font-black text-gray-500 border-r border-gray-200">基本資訊</div>
-            <div className="p-2 text-center text-xs font-black text-blue-600 border-r border-gray-200 bg-blue-50/50">交易明細 (買入/賣出動態切換)</div>
-            <div className="p-2 text-center text-xs font-black text-orange-600 bg-orange-50/50">當前餘額</div>
-          </div>
+        {/* 2. 內容顯示區 */}
+        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+          
+          {/* --- 分頁一：圖表總覽 (Charts Tab) --- */}
+          {activeSubTab === 'overview' && (
+            <div className="max-w-6xl mx-auto space-y-6">
+              
+              {/* KPI 數值摘要 */}
+              <div className="grid grid-cols-3 gap-6">
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">當前庫存股數</p>
+                  <p className="text-3xl font-black text-gray-800">0 <span className="text-sm font-medium text-gray-400">股</span></p>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">帳列總成本</p>
+                  <p className="text-3xl font-black text-gray-800">$0</p>
+                </div>
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">實現/未實現損益</p>
+                  <p className="text-3xl font-black text-gray-500">--</p>
+                </div>
+              </div>
 
-          <div className="flex-1 overflow-y-auto custom-scrollbar">
-            <table className="w-full text-left border-collapse table-fixed">
-              <thead className="sticky top-0 z-10 bg-white shadow-sm">
-                <tr className="border-b border-gray-100">
-                  {/* 基本資訊區 */}
-                  <th className="w-[12%] p-2 text-[11px] font-bold text-gray-400">日期 / 傳票號</th>
-                  <th className="w-[6%] p-2 text-[11px] font-bold text-gray-400 text-center">類別</th>
-                  
-                  {/* 動態明細區 (根據買賣決定標題意義) */}
-                  <th className="w-[10%] p-2 text-[11px] font-bold text-gray-600 text-right">單位數</th>
-                  <th className="w-[10%] p-2 text-[11px] font-bold text-gray-600 text-right">成交價 / 帳列成本</th>
-                  <th className="w-[10%] p-2 text-[11px] font-bold text-gray-600 text-right">手續費 / 稅額</th>
-                  <th className="w-[12%] p-2 text-[11px] font-bold text-gray-600 text-right">實際金額 / 損益</th>
-                  
-                  {/* 餘額區 */}
-                  <th className="w-[10%] p-2 text-[11px] font-bold text-orange-600 text-right bg-orange-50/20">庫存股數</th>
-                  <th className="w-[15%] p-2 text-[11px] font-bold text-orange-600 text-right bg-orange-50/20">帳列總成本</th>
-                  <th className="w-[15%] p-2 text-[11px] font-bold text-gray-400">備註</th>
-                </tr>
-              </thead>
-              <tbody className="divide-y divide-gray-50">
-                {/* 範例資料列 (買入範例) */}
-                <tr className="hover:bg-blue-50/30 transition-colors group">
-                   <td className="p-2">
-                      <div className="text-xs font-bold text-gray-700">114/09/04</div>
-                      <div className="text-[10px] font-mono text-gray-400">11409040001</div>
-                   </td>
-                   <td className="p-2 text-center">
-                      <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded">買入</span>
-                   </td>
-                   <td className="p-2 text-right text-xs font-bold">2,000</td>
-                   <td className="p-2 text-right text-xs text-gray-600">741.00</td>
-                   <td className="p-2 text-right text-[10px] text-gray-400">2,111</td>
-                   <td className="p-2 text-right text-xs font-bold text-blue-600">1,484,111</td>
-                   <td className="p-2 text-right text-xs font-bold text-gray-700 bg-orange-50/10 tracking-tighter italic">2,000</td>
-                   <td className="p-2 text-right text-xs font-bold text-gray-700 bg-orange-50/10">1,484,111</td>
-                   <td className="p-2 text-[10px] text-gray-400 truncate">初始買入</td>
-                </tr>
+              {/* 圖示化區塊 */}
+              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+                {/* 折線圖預留位置 */}
+                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm h-80 flex flex-col">
+                  <h4 className="font-bold text-gray-700 mb-6 flex items-center gap-2">
+                    <div className="w-1 h-4 bg-blue-500 rounded-full"></div> 成本與市價走勢 (折線圖)
+                  </h4>
+                  <div className="flex-1 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center">
+                    <p className="text-gray-400 font-bold">📈 Chart Placeholder: Line Chart</p>
+                  </div>
+                </div>
 
-                {/* 範例資料列 (賣出範例) */}
-                <tr className="hover:bg-red-50/30 transition-colors group">
-                   <td className="p-2">
-                      <div className="text-xs font-bold text-gray-700">114/09/10</div>
-                      <div className="text-[10px] font-mono text-gray-400">11409100021</div>
-                   </td>
-                   <td className="p-2 text-center">
-                      <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-bold rounded">賣出</span>
-                   </td>
-                   <td className="p-2 text-right text-xs font-bold">1,000</td>
-                   <td className="p-2 text-right text-[10px] text-red-500">
-                      <div className="font-bold">738.00</div>
-                      <div className="scale-90 opacity-60">(742.06)</div>
-                   </td>
-                   <td className="p-2 text-right text-[10px] text-gray-400">
-                      <div>1,051 (費)</div>
-                      <div>2,217 (稅)</div>
-                   </td>
-                   <td className="p-2 text-right text-xs font-bold text-red-600">
-                      <div>734,732</div>
-                      <div className="text-[10px] text-red-400">(-20,345)</div>
-                   </td>
-                   <td className="p-2 text-right text-xs font-bold text-gray-700 bg-orange-50/10 tracking-tighter italic">1,000</td>
-                   <td className="p-2 text-right text-xs font-bold text-gray-700 bg-orange-50/10">742,056</td>
-                   <td className="p-2 text-[10px] text-gray-400 truncate">FIFO 結轉</td>
-                </tr>
+                {/* 圓餅圖預留位置 */}
+                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm h-80 flex flex-col">
+                   <h4 className="font-bold text-gray-700 mb-6 flex items-center gap-2">
+                    <div className="w-1 h-4 bg-purple-500 rounded-full"></div> 資產配置比例 (圓餅圖)
+                  </h4>
+                  <div className="flex-1 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center">
+                    <p className="text-gray-400 font-bold">🍕 Chart Placeholder: Pie Chart</p>
+                  </div>
+                </div>
+              </div>
+            </div>
+          )}
 
-                {transactions.length === 0 && (
-                   <tr>
-                     <td colSpan={9} className="py-20 text-center text-gray-300 font-bold text-sm">點擊右上方按鈕開始登錄交易紀錄</td>
-                   </tr>
-                )}
-              </tbody>
-            </table>
-          </div>
+          {/* --- 分頁二：交易明細表 (Ledger Tab) --- */}
+          {activeSubTab === 'ledger' && (
+            <div className="max-w-[1600px] mx-auto bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
+              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
+                <h3 className="font-black text-gray-700 text-lg">歷史交易明細表</h3>
+                <button className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-all text-sm">
+                   + 登錄新交易
+                </button>
+              </div>
+              
+              <div className="flex-1 flex items-center justify-center">
+                 <div className="text-center">
+                    <p className="text-gray-300 font-bold text-xl mb-2">等待實作...</p>
+                    <p className="text-gray-400 text-sm">我們下一步將在這裡建立您要求的專業會計表格</p>
+                 </div>
+              </div>
+            </div>
+          )}
+
         </div>
       </div>
     );
