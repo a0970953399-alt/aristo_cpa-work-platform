@@ -354,10 +354,10 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     const trendData = enrichedTxs.map(tx => ({
         date: tx.date.substring(5).replace('-', '/'), // 轉成 MM/DD
         fullDate: tx.date,
-        帳列總成本: tx.balanceTotalCost,
-        單位均價: Number(tx.balanceAvgCost.toFixed(2))
+        帳列總成本: Math.round(tx.balanceTotalCost),
+        單位均價: Math.round(tx.balanceAvgCost)
     }));
-
+    
     // 📊 圖表 2：圓餅圖資料 (累計資金流向)
     const totalBuyCash = enrichedTxs.filter(t => t.type === 'buy').reduce((sum, t) => sum + (t.buyActualCost || 0), 0);
     const totalSellCash = enrichedTxs.filter(t => t.type === 'sell').reduce((sum, t) => sum + (t.sellNetAmount || 0), 0);
@@ -424,7 +424,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">當前平均成本</p>
-                  <p className="text-3xl font-black text-gray-500">{currentStockAvgCost.toFixed(4)}</p>
+                  <p className="text-3xl font-black text-gray-500">${Math.round(currentStockAvgCost).toLocaleString()}</p>
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">累計已處分損益</p>
@@ -453,8 +453,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                           <RechartsTooltip 
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                             labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
-                            formatter={(value: number, name: string) => [name === '單位均價' ? `$${value.toFixed(2)}` : `$${value.toLocaleString()}`, name]}
-                          />
+                            formatter={(value: number, name: string) => [`$${Math.round(value).toLocaleString()}`, name]}                          />
                           <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
                           <Line yAxisId="left" type="stepAfter" dataKey="帳列總成本" name="帳列總成本" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
                           <Line yAxisId="right" type="stepAfter" dataKey="單位均價" name="單位均價" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
@@ -561,9 +560,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                         </td>
                         <td className="p-3 text-right">
                           {tx.type === 'buy' ? (
-                              <div className="text-xs font-medium text-gray-600">{(tx.unitPrice || 0).toFixed(4)}</div>
+                              <div className="text-xs font-medium text-gray-600">{Math.round(tx.unitPrice || 0).toLocaleString()}</div>
                           ) : (
-                              <div className="text-xs font-bold text-red-600">{(tx.unitPrice || 0).toFixed(4)}</div>
+                              <div className="text-xs font-bold text-red-600">{Math.round(tx.unitPrice || 0).toLocaleString()}</div>
                           )}
                         </td>
                         <td className="p-3 text-right text-[10px] text-gray-400 leading-tight">
@@ -592,7 +591,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                           {tx.balanceUnits.toLocaleString()}
                         </td>
                         <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">
-                          {tx.balanceAvgCost.toFixed(4)}
+                          {Math.round(tx.balanceAvgCost).toLocaleString()}
                         </td>
                         <td className="p-3 text-right text-sm font-black text-gray-800 bg-orange-50/5 italic underline decoration-orange-200">
                           {tx.balanceTotalCost.toLocaleString()}
@@ -648,13 +647,13 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                           <>
                             <div><label className="block text-xs font-bold text-gray-400 mb-1">金額 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{buyAmount.toLocaleString()}</div></div>
                             <div><label className="block text-xs font-bold text-gray-400 mb-1">實際成本 (金額 + 手續費)</label><div className="w-full bg-blue-50 border border-blue-100 p-2.5 rounded-xl font-mono font-bold text-blue-700">{buyActualCost.toLocaleString()}</div></div>
-                            <div><label className="block text-xs font-bold text-gray-400 mb-1">平均成本 (實際成本 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{buyAvgCost.toFixed(4)}</div></div>
+                            <div><label className="block text-xs font-bold text-gray-400 mb-1">平均成本 (實際成本 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{Math.round(buyAvgCost).toLocaleString()}</div>
                           </>
                         ) : (
                           <>
                             <div><label className="block text-xs font-bold text-gray-400 mb-1">賣出總價 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellPrice.toLocaleString()}</div></div>
                             <div><label className="block text-xs font-bold text-gray-400 mb-1">實際賣出淨額 (賣價-費-稅)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellNetAmount.toLocaleString()}</div></div>
-                            <div><label className="block text-xs font-bold text-gray-400 mb-1">平均售價淨額 (淨額 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellAvgPrice.toFixed(4)}</div></div>
+                            <div><label className="block text-xs font-bold text-gray-400 mb-1">平均售價淨額 (淨額 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{Math.round(sellAvgPrice).toLocaleString()}</div>
                             
                             <div className="col-span-2 grid grid-cols-2 gap-5 mt-2">
                               <div><label className="block text-xs font-bold text-orange-500 mb-1 flex items-center gap-1">⚡ 帳列成本 (FIFO結轉)</label><div className="w-full bg-orange-50 border border-orange-200 p-2.5 rounded-xl font-mono font-bold text-orange-700">{matchedCost.toLocaleString()}</div></div>
