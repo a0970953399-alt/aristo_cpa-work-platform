@@ -229,25 +229,27 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                   {/* 第一層：分組大標頭 */}
                   <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
                     <tr className="text-[10px] font-black uppercase tracking-widest">
-                      <th colSpan={2} className="p-2 text-gray-400 border-r border-gray-200 text-center">基本資訊</th>
+                      {/* 基本資訊改為 colSpan={3} */}
+                      <th colSpan={3} className="p-2 text-gray-400 border-r border-gray-200 text-center">基本資訊</th>
                       <th colSpan={4} className="p-2 text-blue-600 border-r border-gray-200 text-center bg-blue-50/30">交易內容 (共用欄位)</th>
                       <th colSpan={3} className="p-2 text-orange-600 text-center bg-orange-50/30">餘額區 (Balance)</th>
                     </tr>
                     <tr className="bg-white border-b border-gray-100 text-[11px] font-bold text-gray-500">
-                      {/* 基本資訊 */}
-                      <th className="w-[12%] p-3">日期 / 傳票號</th>
+                      {/* 基本資訊 (佔 26%) */}
+                      <th className="w-[11%] p-3">日期 / 傳票號</th>
+                      <th className="w-[9%] p-3 text-center">扣款/入款日</th>
                       <th className="w-[6%] p-3 text-center border-r">類別</th>
                       
-                      {/* 交易內容 */}
-                      <th className="w-[10%] p-3 text-right">單位數</th>
-                      <th className="w-[12%] p-3 text-right">單位成本/售價</th>
+                      {/* 交易內容 (佔 44%) */}
+                      <th className="w-[9%] p-3 text-right">單位數</th>
+                      <th className="w-[11%] p-3 text-right">單位成本/售價</th>
                       <th className="w-[10%] p-3 text-right">手續費/稅額</th>
                       <th className="w-[14%] p-3 text-right border-r">實際金額/損益</th>
                       
-                      {/* 餘額區 */}
-                      <th className="w-[10%] p-3 text-right bg-orange-50/10">剩餘股數</th>
-                      <th className="w-[12%] p-3 text-right bg-orange-50/10 text-orange-700">單位成本</th>
-                      <th className="w-[14%] p-3 text-right bg-orange-50/10 font-black text-orange-800">期末總餘額</th>
+                      {/* 餘額區 (佔 30%) */}
+                      <th className="w-[9%] p-3 text-right bg-orange-50/10">剩餘股數</th>
+                      <th className="w-[10%] p-3 text-right bg-orange-50/10 text-orange-700">單位成本</th>
+                      <th className="w-[11%] p-3 text-right bg-orange-50/10 font-black text-orange-800">期末總餘額</th>
                     </tr>
                   </thead>
 
@@ -257,6 +259,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                       <td className="p-3">
                         <div className="text-xs font-black text-gray-800">114/09/04</div>
                         <div className="text-[10px] font-mono text-gray-400">11409040001</div>
+                      </td>
+                      <td className="p-3 text-center">
+                        <span className="text-xs font-bold text-gray-600">114/09/06</span>
                       </td>
                       <td className="p-3 text-center border-r">
                         <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-black rounded-md">買入</span>
@@ -278,13 +283,15 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                         <div className="text-xs font-black text-gray-800">114/09/10</div>
                         <div className="text-[10px] font-mono text-gray-400">11409100021</div>
                       </td>
+                      <td className="p-3 text-center">
+                        <span className="text-xs font-bold text-gray-600">114/09/12</span>
+                      </td>
                       <td className="p-3 text-center border-r">
                         <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-black rounded-md">賣出</span>
                       </td>
                       <td className="p-3 text-right font-bold text-gray-800 text-sm">1,000</td>
                       <td className="p-3 text-right">
                         <div className="text-xs font-bold text-red-600">738.0000</div>
-                        {/* 這裡隱含了帳列成本的邏輯，但不直接顯示該欄位，僅供損益計算使用 */}
                       </td>
                       <td className="p-3 text-right text-[10px] text-gray-400 leading-tight">
                         <div>1,051 (費)</div>
@@ -300,9 +307,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                       <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">742.0555</td>
                       <td className="p-3 text-right text-sm font-black text-gray-800 bg-orange-50/5 italic underline decoration-orange-200">742,056</td>
                     </tr>
-
-                    {/* 空白提示 */}
-                    {/* ... (原本的 transactions.length === 0 邏輯) ... */}
                   </tbody>
                 </table>
               </div>
