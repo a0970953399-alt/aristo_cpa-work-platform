@@ -525,8 +525,18 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                             labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
                             formatter={(value: number, name: string) => [`$${Math.round(value).toLocaleString()}`, name]}                          />
                           <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                          <Line yAxisId="left" type="stepAfter" dataKey="帳列總成本" name="帳列總成本" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
-                          <Line yAxisId="right" type="stepAfter" dataKey="單位均價" name="單位均價" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                          {/* 藍線：總成本 (設定動畫時間 1.5 秒，平滑進場) */}
+                          <Line 
+                            yAxisId="left" type="stepAfter" dataKey="帳列總成本" name="帳列總成本" 
+                            stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} 
+                            isAnimationActive={true} animationDuration={1500} animationEasing="ease-out"
+                          />
+                          {/* 橘線：均價 (設定延遲 0.5 秒才開始畫，創造出先後長出來的層次感) */}
+                          <Line 
+                            yAxisId="right" type="stepAfter" dataKey="單位均價" name="單位均價" 
+                            stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} 
+                            isAnimationActive={true} animationBegin={500} animationDuration={1500} animationEasing="ease-out" 
+                          />
                         </LineChart>
                       </ResponsiveContainer>
                     ) : (
