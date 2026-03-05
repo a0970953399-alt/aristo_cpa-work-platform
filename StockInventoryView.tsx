@@ -435,7 +435,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         </div>
             )}
             </div>
-        </div>
     );
   }
           
