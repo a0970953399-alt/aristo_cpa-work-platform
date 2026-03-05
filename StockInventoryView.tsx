@@ -207,28 +207,108 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
           {/* --- 分頁二：交易明細表 (Ledger Tab) --- */}
           {activeSubTab === 'ledger' && (
-            <div className="max-w-[1600px] mx-auto bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[500px]">
-              <div className="p-6 border-b border-gray-100 flex justify-between items-center">
-                <h3 className="font-black text-gray-700 text-lg">歷史交易明細表</h3>
-                <button className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-all text-sm">
+            <div className="max-w-[1600px] mx-auto bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
+              {/* A. 功能操作列 */}
+              <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
+                <div className="flex items-center gap-4">
+                  <span className="text-sm font-bold text-gray-400">排序：日期降序</span>
+                  <div className="h-4 w-[1px] bg-gray-200"></div>
+                  <div className="flex gap-2">
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-blue-600 bg-blue-50 px-2 py-0.5 rounded">● 買入</span>
+                    <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">● 賣出</span>
+                  </div>
+                </div>
+                <button className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all text-sm">
                    + 登錄新交易
                 </button>
               </div>
               
-              <div className="flex-1 flex items-center justify-center">
-                 <div className="text-center">
-                    <p className="text-gray-300 font-bold text-xl mb-2">等待實作...</p>
-                    <p className="text-gray-400 text-sm">我們下一步將在這裡建立您要求的專業會計表格</p>
-                 </div>
+              {/* B. 專業對帳表格 */}
+              <div className="flex-1 overflow-x-hidden overflow-y-auto custom-scrollbar">
+                <table className="w-full text-left border-collapse table-fixed">
+                  {/* 第一層：分組大標頭 */}
+                  <thead className="sticky top-0 z-10 bg-gray-50 border-b border-gray-200">
+                    <tr className="text-[10px] font-black uppercase tracking-widest">
+                      <th colSpan={2} className="p-2 text-gray-400 border-r border-gray-200 text-center">基本資訊</th>
+                      <th colSpan={4} className="p-2 text-blue-600 border-r border-gray-200 text-center bg-blue-50/30">交易內容 (共用欄位)</th>
+                      <th colSpan={3} className="p-2 text-orange-600 text-center bg-orange-50/30">餘額區 (Balance)</th>
+                    </tr>
+                    <tr className="bg-white border-b border-gray-100 text-[11px] font-bold text-gray-500">
+                      {/* 基本資訊 */}
+                      <th className="w-[12%] p-3">日期 / 傳票號</th>
+                      <th className="w-[6%] p-3 text-center border-r">類別</th>
+                      
+                      {/* 交易內容 */}
+                      <th className="w-[10%] p-3 text-right">單位數</th>
+                      <th className="w-[12%] p-3 text-right">單位成本/售價</th>
+                      <th className="w-[10%] p-3 text-right">手續費/稅額</th>
+                      <th className="w-[14%] p-3 text-right border-r">實際金額/損益</th>
+                      
+                      {/* 餘額區 */}
+                      <th className="w-[10%] p-3 text-right bg-orange-50/10">剩餘股數</th>
+                      <th className="w-[12%] p-3 text-right bg-orange-50/10 text-orange-700">單位成本</th>
+                      <th className="w-[14%] p-3 text-right bg-orange-50/10 font-black text-orange-800">期末總餘額</th>
+                    </tr>
+                  </thead>
+
+                  <tbody className="divide-y divide-gray-50">
+                    {/* 範例：買入列 (Buy) */}
+                    <tr className="hover:bg-blue-50/40 transition-colors">
+                      <td className="p-3">
+                        <div className="text-xs font-black text-gray-800">114/09/04</div>
+                        <div className="text-[10px] font-mono text-gray-400">11409040001</div>
+                      </td>
+                      <td className="p-3 text-center border-r">
+                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-black rounded-md">買入</span>
+                      </td>
+                      <td className="p-3 text-right font-bold text-gray-800 text-sm">2,000</td>
+                      <td className="p-3 text-right text-xs font-medium text-gray-600">741.0000</td>
+                      <td className="p-3 text-right text-[10px] text-gray-400">2,111</td>
+                      <td className="p-3 text-right border-r font-black text-blue-600 text-sm">1,484,111</td>
+                      
+                      {/* 餘額 */}
+                      <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">2,000</td>
+                      <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">742.0555</td>
+                      <td className="p-3 text-right text-sm font-black text-gray-800 bg-orange-50/5 italic underline decoration-orange-200">1,484,111</td>
+                    </tr>
+
+                    {/* 範例：賣出列 (Sell) */}
+                    <tr className="hover:bg-red-50/40 transition-colors">
+                      <td className="p-3">
+                        <div className="text-xs font-black text-gray-800">114/09/10</div>
+                        <div className="text-[10px] font-mono text-gray-400">11409100021</div>
+                      </td>
+                      <td className="p-3 text-center border-r">
+                        <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-black rounded-md">賣出</span>
+                      </td>
+                      <td className="p-3 text-right font-bold text-gray-800 text-sm">1,000</td>
+                      <td className="p-3 text-right">
+                        <div className="text-xs font-bold text-red-600">738.0000</div>
+                        {/* 這裡隱含了帳列成本的邏輯，但不直接顯示該欄位，僅供損益計算使用 */}
+                      </td>
+                      <td className="p-3 text-right text-[10px] text-gray-400 leading-tight">
+                        <div>1,051 (費)</div>
+                        <div>2,217 (稅)</div>
+                      </td>
+                      <td className="p-3 text-right border-r">
+                        <div className="text-sm font-black text-red-600">734,732</div>
+                        <div className="text-[10px] font-bold text-red-400 tracking-tighter">(損益: -20,345)</div>
+                      </td>
+
+                      {/* 餘額 */}
+                      <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">1,000</td>
+                      <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">742.0555</td>
+                      <td className="p-3 text-right text-sm font-black text-gray-800 bg-orange-50/5 italic underline decoration-orange-200">742,056</td>
+                    </tr>
+
+                    {/* 空白提示 */}
+                    {/* ... (原本的 transactions.length === 0 邏輯) ... */}
+                  </tbody>
+                </table>
               </div>
             </div>
           )}
-
-        </div>
-      </div>
-    );
-  }
-
+          
   // 🔺 第二層：個股資訊牆
   if (selectedClient) {
     // 過濾出屬於目前點擊客戶的股票
