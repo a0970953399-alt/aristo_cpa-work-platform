@@ -575,18 +575,21 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                               </>
                           )}
                         </td>
+                        {/* 實際金額 / 損益區塊 (補上 Math.round) */}
                         <td className="p-3 text-right border-r">
                            {tx.type === 'buy' ? (
-                               <div className="font-black text-blue-600 text-sm">{(tx.buyActualCost || 0).toLocaleString()}</div>
+                               <div className="font-black text-blue-600 text-sm">{Math.round(tx.buyActualCost || 0).toLocaleString()}</div>
                            ) : (
                                <>
-                                 <div className="text-sm font-black text-red-600">{(tx.sellNetAmount || 0).toLocaleString()}</div>
+                                 <div className="text-sm font-black text-red-600">{Math.round(tx.sellNetAmount || 0).toLocaleString()}</div>
                                  <div className={`text-[10px] font-bold tracking-tighter ${(tx.realizedPnl || 0) >= 0 ? 'text-red-400' : 'text-green-600'}`}>
-                                   (損益: {(tx.realizedPnl || 0) >= 0 ? '+' : ''}{(tx.realizedPnl || 0).toLocaleString()})
+                                   (損益: {(tx.realizedPnl || 0) >= 0 ? '+' : ''}{Math.round(tx.realizedPnl || 0).toLocaleString()})
                                  </div>
                                </>
                            )}
                         </td>
+                        
+                        {/* 餘額區 */}
                         <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">
                           {tx.balanceUnits.toLocaleString()}
                         </td>
@@ -594,7 +597,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                           {Math.round(tx.balanceAvgCost).toLocaleString()}
                         </td>
                         <td className="p-3 text-right text-sm font-black text-gray-800 bg-orange-50/5 italic underline decoration-orange-200">
-                          {tx.balanceTotalCost.toLocaleString()}
+                          {Math.round(tx.balanceTotalCost).toLocaleString()}
                         </td>
                       </tr>
                     ))}
