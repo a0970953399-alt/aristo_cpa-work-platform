@@ -308,6 +308,10 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
               </div>
             </div>
           )}
+        </div> 
+      </div>   
+    );      
+  } 
           
   // 🔺 第二層：個股資訊牆
   if (selectedClient) {
