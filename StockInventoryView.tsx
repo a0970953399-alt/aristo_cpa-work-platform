@@ -13,6 +13,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   // ✨ 改用從資料庫抓回來的真實資料
   const [stockClients, setStockClients] = useState<StockClientConfig[]>([]);
   const [stockTargets, setStockTargets] = useState<StockTarget[]>([]);
+  const [transactions, setTransactions] = useState<StockTransaction[]>([]);
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [selectedStock, setSelectedStock] = useState<StockTarget | null>(null);
@@ -72,6 +73,49 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     setTxUnitPrice(''); setTxFee(''); setTxTax(''); setTxPaymentDate('');
   };
 
+  // ✨ 真正的存檔執行邏輯
+  const handleSaveTransaction = async () => {
+    if (!selectedStock || !selectedClient) return;
+    
+    // 基本防呆：沒填數字不給存
+    if (!txDate || !txVoucherNo || safeUnits <= 0 || safeUnitPrice <= 0) {
+        alert("請確實填寫日期、傳票號、股數與單價！");
+        return;
+    }
+
+    // 將畫面上的數字打包成完整的交易物件
+    const newTx: StockTransaction = {
+        id: Date.now().toString(),
+        stockTargetId: selectedStock.id,
+        clientId: String(selectedClient.id),
+        type: txType,
+        date: txDate,
+        voucherNo: txVoucherNo,
+        units: safeUnits,
+        unitPrice: safeUnitPrice,
+        fee: safeFee,
+        paymentDate: txPaymentDate,
+        createdAt: new Date().toISOString(),
+    };
+
+    if (txType === 'buy') {
+        newTx.buyAmount = buyAmount;
+        newTx.buyActualCost = buyActualCost;
+    } else {
+        newTx.sellAmount = sellPrice;
+        newTx.sellTax = safeTax;
+        newTx.sellNetAmount = sellNetAmount;
+        newTx.matchedCost = matchedCost; 
+        newTx.realizedPnl = realizedPnl; 
+    }
+
+    // 送入資料庫並重新抓取畫面
+    await TaskService.addStockTransaction(newTx);
+    await loadData();
+    setIsAddTxModalOpen(false);
+    resetTxForm();
+  };
+
   // ==========================================
   // ✨ 生命週期與資料載入 (對接 Firebase / JSON)
   // ==========================================
@@ -84,8 +128,10 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const loadData = async () => {
     const fetchedClients = await TaskService.fetchStockClients();
     const fetchedTargets = await TaskService.fetchStockTargets();
+    const fetchedTxs = await TaskService.fetchStockTransactions();
     setStockClients(fetchedClients);
     setStockTargets(fetchedTargets);
+    setTransactions(fetchedTxs);
   };
 
   // ==========================================
