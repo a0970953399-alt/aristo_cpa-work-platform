@@ -32,6 +32,46 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'ledger'>('overview');
 
+  // --- 新增交易表單的 State (放在元件最上方) ---
+  const [isAddTxModalOpen, setIsAddTxModalOpen] = useState(false);
+  const [txType, setTxType] = useState<'buy' | 'sell'>('buy');
+  const [txDate, setTxDate] = useState('');
+  const [txVoucherNo, setTxVoucherNo] = useState('');
+  const [txUnits, setTxUnits] = useState<number | ''>('');
+  const [txUnitPrice, setTxUnitPrice] = useState<number | ''>('');
+  const [txFee, setTxFee] = useState<number | ''>('');
+  const [txTax, setTxTax] = useState<number | ''>('');
+  const [txPaymentDate, setTxPaymentDate] = useState('');
+
+  // --- 系統自動計算區 (Derived State) ---
+  const safeUnits = Number(txUnits) || 0;
+  const safeUnitPrice = Number(txUnitPrice) || 0;
+  const safeFee = Number(txFee) || 0;
+  const safeTax = Number(txTax) || 0;
+
+  // 1. 買入自動計算
+  const buyAmount = safeUnits * safeUnitPrice;
+  const buyActualCost = buyAmount + safeFee;
+  const buyAvgCost = safeUnits > 0 ? (buyActualCost / safeUnits) : 0;
+
+  // 2. 賣出自動計算
+  const sellPrice = safeUnits * safeUnitPrice;
+  const sellNetAmount = sellPrice - safeFee - safeTax;
+  const sellAvgPrice = safeUnits > 0 ? (sellNetAmount / safeUnits) : 0;
+
+  // 🚨 FIFO 帳列成本預估 (這裡先放一個模擬值，下一步我們會寫真實的 FIFO 演算法)
+  // 目前先假設歷史平均成本為 740 作為視覺預覽
+  const mockHistoricalCostPerUnit = 740; 
+  const matchedCost = safeUnits * mockHistoricalCostPerUnit; 
+  const realizedPnl = sellNetAmount - matchedCost;
+
+
+  // --- 重置表單 ---
+  const resetTxForm = () => {
+    setTxType('buy'); setTxDate(''); setTxVoucherNo(''); setTxUnits('');
+    setTxUnitPrice(''); setTxFee(''); setTxTax(''); setTxPaymentDate('');
+  };
+
   // ==========================================
   // ✨ 生命週期與資料載入 (對接 Firebase / JSON)
   // ==========================================
@@ -310,12 +350,90 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                   </tbody>
                 </table>
               </div>
+
+              {/* 🚀 新增交易 Modal */}
+      {isAddTxModalOpen && (
+        <div className="fixed inset-0 bg-black/60 z-[100] flex items-center justify-center p-4 animate-fade-in">
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]">
+            
+            {/* 表單標頭 */}
+            <div className={`p-5 border-b flex justify-between items-center text-white ${txType === 'buy' ? 'bg-blue-600' : 'bg-red-600'} transition-colors`}>
+              <h3 className="text-xl font-bold flex items-center gap-2">
+                {txType === 'buy' ? '登錄買入紀錄' : '登錄賣出紀錄'} - {selectedStock?.name}
+              </h3>
+              <button onClick={() => { setIsAddTxModalOpen(false); resetTxForm(); }} className="text-white/80 hover:text-white text-2xl font-black">✕</button>
             </div>
-          )}
-        </div> 
-      </div>   
-    );      
-  } 
+
+            {/* 買賣切換器 */}
+            <div className="flex p-4 bg-gray-50 border-b border-gray-100">
+              <div className="flex bg-gray-200 p-1 rounded-xl w-full max-w-xs mx-auto">
+                <button onClick={() => setTxType('buy')} className={`flex-1 py-2 font-bold rounded-lg transition-all text-sm ${txType === 'buy' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>買入 (Buy)</button>
+                <button onClick={() => setTxType('sell')} className={`flex-1 py-2 font-bold rounded-lg transition-all text-sm ${txType === 'sell' ? 'bg-white text-red-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>賣出 (Sell)</button>
+              </div>
+            </div>
+
+            {/* 表單輸入區 */}
+            <div className="p-6 overflow-y-auto custom-scrollbar flex-1">
+              <div className="grid grid-cols-2 gap-5">
+                
+                {/* --- 第一區塊：基本資訊 (手動輸入) --- */}
+                <div className="col-span-2 text-sm font-black text-gray-400 border-b pb-2">基本資訊</div>
+                <div><label className="block text-xs font-bold text-gray-600 mb-1">日期</label><input type="date" value={txDate} onChange={e => setTxDate(e.target.value)} className="w-full border p-2.5 rounded-xl focus:ring-2 focus:ring-gray-400 outline-none font-mono" /></div>
+                <div><label className="block text-xs font-bold text-gray-600 mb-1">傳票編號</label><input type="text" value={txVoucherNo} onChange={e => setTxVoucherNo(e.target.value)} className="w-full border p-2.5 rounded-xl focus:ring-2 focus:ring-gray-400 outline-none font-mono" placeholder="例如: 1140904001" /></div>
+                
+                {/* --- 第二區塊：交易數值 (手動輸入) --- */}
+                <div className="col-span-2 text-sm font-black text-gray-400 border-b pb-2 mt-2">交易數值</div>
+                <div><label className="block text-xs font-bold text-gray-600 mb-1">單位數 (股)</label><input type="number" value={txUnits} onChange={e => setTxUnits(Number(e.target.value))} className="w-full border p-2.5 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none font-bold text-gray-800" placeholder="0" /></div>
+                <div><label className="block text-xs font-bold text-gray-600 mb-1">{txType === 'buy' ? '單位成本' : '成交單價'}</label><input type="number" value={txUnitPrice} onChange={e => setTxUnitPrice(Number(e.target.value))} className="w-full border p-2.5 rounded-xl focus:ring-2 focus:ring-blue-400 outline-none font-bold text-gray-800" placeholder="0.00" /></div>
+                <div><label className="block text-xs font-bold text-gray-600 mb-1">手續費</label><input type="number" value={txFee} onChange={e => setTxFee(Number(e.target.value))} className="w-full border p-2.5 rounded-xl focus:ring-2 focus:ring-gray-400 outline-none" placeholder="0" /></div>
+                
+                {txType === 'sell' && (
+                  <div><label className="block text-xs font-bold text-gray-600 mb-1">證交稅</label><input type="number" value={txTax} onChange={e => setTxTax(Number(e.target.value))} className="w-full border p-2.5 rounded-xl focus:ring-2 focus:ring-red-400 outline-none" placeholder="0" /></div>
+                )}
+                
+                <div><label className="block text-xs font-bold text-gray-600 mb-1">{txType === 'buy' ? '扣款日' : '入款日'}</label><input type="date" value={txPaymentDate} onChange={e => setTxPaymentDate(e.target.value)} className="w-full border p-2.5 rounded-xl focus:ring-2 focus:ring-gray-400 outline-none font-mono" /></div>
+
+                {/* --- 第三區塊：系統自動計算區 (唯讀) --- */}
+                <div className="col-span-2 text-sm font-black text-purple-500 border-b border-purple-100 pb-2 mt-2 flex items-center gap-2">🤖 系統自動計算</div>
+                
+                {txType === 'buy' ? (
+                  <>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">金額 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{buyAmount.toLocaleString()}</div></div>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">實際成本 (金額 + 手續費)</label><div className="w-full bg-blue-50 border border-blue-100 p-2.5 rounded-xl font-mono font-bold text-blue-700">{buyActualCost.toLocaleString()}</div></div>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">平均成本 (實際成本 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{buyAvgCost.toFixed(4)}</div></div>
+                  </>
+                ) : (
+                  <>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">賣出總價 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellPrice.toLocaleString()}</div></div>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">實際賣出淨額 (賣價-費-稅)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellNetAmount.toLocaleString()}</div></div>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">平均售價淨額 (淨額 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellAvgPrice.toFixed(4)}</div></div>
+                    
+                    {/* FIFO 關鍵數據 */}
+                    <div className="col-span-2 grid grid-cols-2 gap-5 mt-2">
+                      <div><label className="block text-xs font-bold text-orange-500 mb-1 flex items-center gap-1">⚡ 帳列成本 (FIFO結轉)</label><div className="w-full bg-orange-50 border border-orange-200 p-2.5 rounded-xl font-mono font-bold text-orange-700">{matchedCost.toLocaleString()}</div></div>
+                      <div>
+                        <label className="block text-xs font-bold text-red-500 mb-1 flex items-center gap-1">📊 處分損益 (淨額 - 帳列成本)</label>
+                        <div className={`w-full p-2.5 rounded-xl font-mono font-black border ${realizedPnl >= 0 ? 'bg-red-50 border-red-200 text-red-600' : 'bg-green-50 border-green-200 text-green-600'}`}>
+                          {realizedPnl >= 0 ? '+' : ''}{realizedPnl.toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
+
+              </div>
+            </div>
+
+            {/* 表單底部按鈕 */}
+            <div className="p-4 border-t bg-gray-50 flex gap-3">
+              <button onClick={() => { setIsAddTxModalOpen(false); resetTxForm(); }} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
+              <button className={`flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all ${txType === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-50`}>
+                確認存檔
+              </button>
+            </div>
+          </div>
+        </div>
+)}
           
   // 🔺 第二層：個股資訊牆
   if (selectedClient) {
