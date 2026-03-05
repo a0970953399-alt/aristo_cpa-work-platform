@@ -11,11 +11,11 @@ interface StockInventoryViewProps {
   clients: Client[];
 }
 
-// ✨ 從 Stocks.tsx 移植過來的專屬動態圓餅圖
+// ✨ 從 Stocks.tsx 移植過來的專屬動態圓餅圖 (已放大並支援自訂中間文字)
 const UniversalDonutChart = React.memo(({ 
-  data, total, timeframeLabel, typeColorClass 
+  data, total, centerTitle, centerValue, valueColorClass 
 }: { 
-  data: { name: string, value: number, color: string }[], total: number, timeframeLabel: string, typeColorClass: string 
+  data: { name: string, value: number, color: string }[], total: number, centerTitle: string, centerValue: string, valueColorClass: string 
 }) => {
   const [hoveredItem, setHoveredItem] = useState<{name: string, value: number, colorText: string} | null>(null);
   const radius = 40;
@@ -23,8 +23,10 @@ const UniversalDonutChart = React.memo(({
   let cumulativeOffset = 0;
 
   return (
-    <div className="flex flex-col items-center justify-center h-52 relative mt-4">
-      <svg viewBox="0 0 100 100" className="w-48 h-48 transform -rotate-90 overflow-visible">
+    // 👇 1. 容器高度從 h-52 增加到 h-64
+    <div className="flex flex-col items-center justify-center h-64 relative mt-4">
+      {/* 👇 2. SVG 寬高從 w-48 放大為 w-60 */}
+      <svg viewBox="0 0 100 100" className="w-60 h-60 transform -rotate-90 overflow-visible">
         <circle cx="50" cy="50" r={radius} stroke="#f8fafc" strokeWidth="10" fill="none" />
         {total > 0 && data.map((item, i) => {
           const percentage = item.value / total;
@@ -39,7 +41,8 @@ const UniversalDonutChart = React.memo(({
               className="outline-none cursor-pointer"
               initial={{ strokeDasharray: `0 ${circumference}`, strokeWidth: 10 }}
               animate={{ strokeDasharray: strokeDasharray, strokeWidth: 10 }}
-              whileHover={{ strokeWidth: 16, opacity: 0.9, transition: { duration: 0.15, ease: "easeOut" } }}
+              // 👇 hover 變粗幅度微調至 14，避免往內擠壓到文字
+              whileHover={{ strokeWidth: 14, opacity: 0.9, transition: { duration: 0.15, ease: "easeOut" } }}
               transition={{ duration: 1.2, ease: "easeOut", delay: i * 0.05 }}
               style={{ strokeDashoffset }}
               onMouseEnter={() => setHoveredItem({ name: item.name, value: item.value, colorText: item.color })}
@@ -54,12 +57,13 @@ const UniversalDonutChart = React.memo(({
             {hoveredItem ? (
               <>
                 <span className="text-xs font-bold text-gray-500 mb-1 tracking-widest bg-gray-50 px-2 py-0.5 rounded-md">{hoveredItem.name}</span>
-                <span className="text-2xl font-black" style={{ color: hoveredItem.colorText }}>${hoveredItem.value.toLocaleString()}</span>
+                <span className="text-2xl font-black" style={{ color: hoveredItem.colorText }}>${Math.round(hoveredItem.value).toLocaleString()}</span>
               </>
             ) : (
               <>
-                <span className="text-xs text-gray-400 font-bold tracking-widest mb-1">{timeframeLabel}</span>
-                <span className={`text-2xl font-black ${typeColorClass}`}>${total.toLocaleString()}</span>
+                {/* 👇 3. 動態接收外層傳進來的標題與數值 */}
+                <span className="text-xs text-gray-400 font-bold tracking-widest mb-1">{centerTitle}</span>
+                <span className={`text-3xl font-black ${valueColorClass}`}>{centerValue}</span>
               </>
             )}
           </motion.div>
@@ -422,6 +426,12 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     const totalBuyCash = enrichedTxs.filter(t => t.type === 'buy').reduce((sum, t) => sum + (t.buyActualCost || 0), 0);
     const totalSellCash = enrichedTxs.filter(t => t.type === 'sell').reduce((sum, t) => sum + (t.sellNetAmount || 0), 0);
     
+    // ✨ 新增：計算已實現報酬率 (總損益 / 處分部位的原始成本)
+    const totalMatchedCost = totalSellCash - totalRealizedPnl;
+    const roiPercentage = totalMatchedCost > 0 ? ((totalRealizedPnl / totalMatchedCost) * 100).toFixed(2) : '0.00';
+    const roiText = `${totalRealizedPnl >= 0 ? '+' : ''}${roiPercentage}%`;
+    const roiColorClass = totalRealizedPnl >= 0 ? 'text-red-500' : 'text-green-500';
+
     const cashFlowData = [
         { name: '累計買入支付', value: totalBuyCash, color: '#3b82f6' }, // 藍色
         { name: '累計賣出收回', value: totalSellCash, color: '#10b981' }  // 綠色
@@ -536,8 +546,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                         <UniversalDonutChart 
                           data={cashFlowData}
                           total={cashFlowData.reduce((acc, cur) => acc + cur.value, 0)}
-                          timeframeLabel="總資金進出"
-                          typeColorClass="text-gray-800"
+                          centerTitle="已實現報酬率"
+                          centerValue={roiText}
+                          valueColorClass={roiColorClass}
                         />
                         {/* 自訂的標籤說明 (Legend) */}
                         <div className="flex justify-center gap-6 mt-auto pb-4">
