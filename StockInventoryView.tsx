@@ -97,25 +97,42 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
   const [stocksToDelete, setStocksToDelete] = useState<string[]>([]);
 
-  // ✨ 1. 準備一本空的股票大字典
+// ✨ 1. 準備一本空的股票大字典
   const [stockDictionary, setStockDictionary] = useState<Record<string, string>>({});
 
-  // ✨ 2. 一進畫面就去抓取上市櫃的股票清單來建立字典
+  // ✨ 2. 一進畫面就去抓取上市櫃的股票清單 (加上 CORS 代理伺服器)
   useEffect(() => {
     const fetchDictionary = async () => {
       try {
         const newDict: Record<string, string> = {};
+        const timeStamp = new Date().getTime();
+
+        // 🚀 從你的 Stocks.tsx 移植過來的「破壁機」，用來繞過證交所的 CORS 阻擋
+        const fetchWithProxy = async (targetUrl: string) => {
+          const proxies = [
+            `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
+            `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
+            `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
+          ];
+          for (const proxy of proxies) {
+            try {
+              const res = await fetch(proxy);
+              if (res.ok) return res;
+            } catch (e) {}
+          }
+          return null;
+        };
         
         // 抓取上市資料
-        const twseRes = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL');
-        if (twseRes.ok) {
+        const twseRes = await fetchWithProxy(`https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL?t=${timeStamp}`);
+        if (twseRes) {
           const twseData = await twseRes.json();
           twseData.forEach((item: any) => { if (item.Code && item.Name) newDict[item.Code] = item.Name.trim(); });
         }
         
         // 抓取上櫃資料
-        const tpexRes = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes');
-        if (tpexRes.ok) {
+        const tpexRes = await fetchWithProxy(`https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes?t=${timeStamp}`);
+        if (tpexRes) {
           const tpexData = await tpexRes.json();
           tpexData.forEach((item: any) => { if (item.SecuritiesCompanyCode && item.CompanyName) newDict[item.SecuritiesCompanyCode] = item.CompanyName.trim(); });
         }
