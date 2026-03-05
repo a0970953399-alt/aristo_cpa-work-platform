@@ -258,7 +258,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                     <span className="flex items-center gap-1 text-[10px] font-bold text-red-600 bg-red-50 px-2 py-0.5 rounded">● 賣出</span>
                   </div>
                 </div>
-                <button className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all text-sm">
+                <button
+                  onClick={() => setIsAddTxModalOpen(true)}
+                  className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all text-sm">
                    + 登錄新交易
                 </button>
               </div>
