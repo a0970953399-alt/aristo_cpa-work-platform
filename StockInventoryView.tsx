@@ -1,3 +1,4 @@
+import { ReturnIcon } from './Icons';
 import React, { useState, useEffect } from 'react';
 import { Client, StockClientConfig, StockTarget } from './types';
 import { TaskService } from './taskService'; // ✨ 引入我們剛才寫好的 API 服務
@@ -28,6 +29,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const [newStockName, setNewStockName] = useState('');
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
   const [stocksToDelete, setStocksToDelete] = useState<string[]>([]);
+
+  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'ledger'>('overview');
 
   // ==========================================
   // ✨ 生命週期與資料載入 (對接 Firebase / JSON)
@@ -113,9 +116,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const enabledClientIds = stockClients.map(sc => sc.clientId);
   const availableClientsToAdd = clients.filter(c => !enabledClientIds.includes(String(c.id)));
   const displayClients = clients.filter(c => enabledClientIds.includes(String(c.id)));
-
-  // --- 新增子標籤狀態管理 ---
-  const [activeSubTab, setActiveSubTab] = useState<'overview' | 'ledger'>('overview');
 
   // 🔺 第三層：交易明細與分析 (標籤頁重構版)
   if (selectedStock && selectedClient) {
