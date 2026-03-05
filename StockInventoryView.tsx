@@ -298,7 +298,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">當前平均成本</p>
                   <p className="text-3xl font-black text-gray-500">{currentStockAvgCost.toFixed(4)}</p>
                 </div>
-              </div>>
+              </div>
 
               {/* 圖示化區塊 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
