@@ -295,10 +295,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
     return (
       <div className="h-full flex flex-col animate-fade-in bg-gray-50 overflow-hidden">
-    
-    return (
-      <div className="h-full flex flex-col animate-fade-in bg-gray-50 overflow-hidden">
-        
+   
         {/* 1. 頂部導航與標題列 */}
         <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
           <div className="flex items-center gap-4">
