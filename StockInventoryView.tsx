@@ -514,27 +514,33 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                   </h4>
                   <div className="flex-1 w-full">
                     {trendData.length > 0 ? (
-                      <ResponsiveContainer width="100%" height="100%">
+              <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                           <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} minTickGap={20} />
                           <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dx={-10} tickFormatter={(val) => `$${(val/1000).toFixed(0)}k`} />
                           <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dx={10} domain={['auto', 'auto']} />
+                          
+                          {/* 繼承 Stocks.tsx 的精緻 Tooltip，會顯示完整日期 */}
                           <RechartsTooltip 
                             contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
                             labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
-                            formatter={(value: number, name: string) => [`$${Math.round(value).toLocaleString()}`, name]}                          />
+                            formatter={(value: number, name: string) => [`$${Math.round(value).toLocaleString()}`, name]}
+                            labelFormatter={(label, payload) => {
+                              return payload && payload.length > 0 ? payload[0].payload.fullDate.replace(/-/g, '/') : label;
+                            }}
+                          />
                           <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
-                          {/* 藍線：總成本 (改為 linear 勻速生長，時間拉長到 2秒) */}
+                          
+                          {/* 💡 完美移植：改用 monotone 平滑曲線，隱藏節點 (dot={false})，並加上勻速動畫 */}
                           <Line 
-                            yAxisId="left" type="stepAfter" dataKey="帳列總成本" name="帳列總成本" 
-                            stroke="#3b82f6" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} 
+                            yAxisId="left" type="monotone" dataKey="帳列總成本" name="帳列總成本" 
+                            stroke="#3b82f6" strokeWidth={3} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} 
                             isAnimationActive={true} animationDuration={2000} animationEasing="linear"
                           />
-                          {/* 橘線：均價 (延遲 0.8秒出發，同樣勻速生長) */}
                           <Line 
-                            yAxisId="right" type="stepAfter" dataKey="單位均價" name="單位均價" 
-                            stroke="#f59e0b" strokeWidth={3} dot={{ r: 4, strokeWidth: 2 }} activeDot={{ r: 6, strokeWidth: 0 }} 
+                            yAxisId="right" type="monotone" dataKey="單位均價" name="單位均價" 
+                            stroke="#f59e0b" strokeWidth={3} dot={false} activeDot={{ r: 6, strokeWidth: 0 }} 
                             isAnimationActive={true} animationBegin={800} animationDuration={2000} animationEasing="linear" 
                           />
                         </LineChart>
