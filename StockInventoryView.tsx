@@ -97,6 +97,45 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
   const [stocksToDelete, setStocksToDelete] = useState<string[]>([]);
 
+  // ✨ 1. 準備一本空的股票大字典
+  const [stockDictionary, setStockDictionary] = useState<Record<string, string>>({});
+
+  // ✨ 2. 一進畫面就去抓取上市櫃的股票清單來建立字典
+  useEffect(() => {
+    const fetchDictionary = async () => {
+      try {
+        const newDict: Record<string, string> = {};
+        
+        // 抓取上市資料
+        const twseRes = await fetch('https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL');
+        if (twseRes.ok) {
+          const twseData = await twseRes.json();
+          twseData.forEach((item: any) => { if (item.Code && item.Name) newDict[item.Code] = item.Name.trim(); });
+        }
+        
+        // 抓取上櫃資料
+        const tpexRes = await fetch('https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes');
+        if (tpexRes.ok) {
+          const tpexData = await tpexRes.json();
+          tpexData.forEach((item: any) => { if (item.SecuritiesCompanyCode && item.CompanyName) newDict[item.SecuritiesCompanyCode] = item.CompanyName.trim(); });
+        }
+        
+        setStockDictionary(newDict);
+      } catch (error) {
+        console.warn("股票字典載入失敗，將採手動輸入", error);
+      }
+    };
+    fetchDictionary();
+  }, []);
+
+  // ✨ 3. 監聽代號輸入框，一打滿 4 碼就自動查字典帶入名稱
+  useEffect(() => {
+    const code = newStockCode.trim();
+    if (code.length >= 4 && stockDictionary[code]) {
+      setNewStockName(stockDictionary[code]);
+    }
+  }, [newStockCode, stockDictionary]);
+
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'ledger'>('overview');
 
   // --- 新增交易表單的 State (放在元件最上方) ---
