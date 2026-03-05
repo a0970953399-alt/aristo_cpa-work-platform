@@ -433,8 +433,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     const roiColorClass = totalRealizedPnl >= 0 ? 'text-red-500' : 'text-green-500';
 
     const cashFlowData = [
-        { name: '累計買入支付', value: totalBuyCash, color: '#3b82f6' }, // 藍色
-        { name: '累計賣出收回', value: totalSellCash, color: '#10b981' }  // 綠色
+        { name: '累計買入', value: totalBuyCash, color: '#3b82f6' }, // 藍色
+        { name: '累計賣出', value: totalSellCash, color: '#10b981' }  // 綠色
     ];
 
     return (
