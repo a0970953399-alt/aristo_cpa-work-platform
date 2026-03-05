@@ -2,6 +2,8 @@ import { ReturnIcon } from './Icons';
 import React, { useState, useEffect } from 'react';
 import { Client, StockClientConfig, StockTarget } from './types';
 import { TaskService } from './taskService'; // ✨ 引入我們剛才寫好的 API 服務
+// ✨ 新增這行：引入 Recharts 圖表庫
+import { LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, ResponsiveContainer, Legend, PieChart, Pie, Cell } from 'recharts';
 
 interface StockInventoryViewProps {
   clients: Client[];
@@ -263,6 +265,33 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     });
 
     // ✨ 畫面顯示要倒序 (最新的交易在最上方)
+    // ✨ 畫面顯示要倒序 (最新的交易在最上方)
+    const displayTxs = [...enrichedTxs].reverse();
+    
+    // ✨ 取出最新庫存狀態 (餵給 KPI 卡片)
+    const currentStockUnits = runningUnits;
+    const currentStockTotalCost = runningTotalCost;
+    const currentStockAvgCost = runningUnits > 0 ? runningTotalCost / runningUnits : 0;
+    
+    // ✨ 新增：計算累計已實現損益
+    const totalRealizedPnl = enrichedTxs.reduce((sum, tx) => sum + (tx.realizedPnl || 0), 0);
+
+    // 📊 圖表 1：折線圖資料 (成本與均價走勢)
+    const trendData = enrichedTxs.map(tx => ({
+        date: tx.date.substring(5).replace('-', '/'), // 轉成 MM/DD
+        fullDate: tx.date,
+        帳列總成本: tx.balanceTotalCost,
+        單位均價: Number(tx.balanceAvgCost.toFixed(2))
+    }));
+
+    // 📊 圖表 2：圓餅圖資料 (累計資金流向)
+    const totalBuyCash = enrichedTxs.filter(t => t.type === 'buy').reduce((sum, t) => sum + (tx.buyActualCost || 0), 0);
+    const totalSellCash = enrichedTxs.filter(t => t.type === 'sell').reduce((sum, t) => sum + (tx.sellNetAmount || 0), 0);
+    const cashFlowData = [
+        { name: '累計買入支付', value: totalBuyCash, color: '#3b82f6' }, // 藍色
+        { name: '累計賣出收回', value: totalSellCash, color: '#10b981' }  // 綠色
+    ];
+    
     const displayTxs = [...enrichedTxs].reverse();
     
     // ✨ 取出最新庫存狀態 (準備餵給上方的 KPI 卡片)
@@ -315,47 +344,91 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           {activeSubTab === 'overview' && (
             <div className="max-w-6xl mx-auto space-y-6">
               
-              {/* KPI 數值摘要 */}
-              <div className="grid grid-cols-3 gap-6">
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+              {/* 1. KPI 數值摘要 (改為 4 格) */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">當前庫存股數</p>
                   <p className="text-3xl font-black text-gray-800">{currentStockUnits.toLocaleString()} <span className="text-sm font-medium text-gray-400">股</span></p>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">帳列總成本</p>
                   <p className="text-3xl font-black text-gray-800">${currentStockTotalCost.toLocaleString()}</p>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">當前平均成本</p>
                   <p className="text-3xl font-black text-gray-500">{currentStockAvgCost.toFixed(4)}</p>
                 </div>
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">累計已處分損益</p>
+                  <p className={`text-3xl font-black ${totalRealizedPnl >= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                    {totalRealizedPnl >= 0 ? '+' : ''}{totalRealizedPnl.toLocaleString()}
+                  </p>
+                </div>
               </div>
 
-              {/* 圖示化區塊 */}
-              <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
-                {/* 折線圖預留位置 */}
-                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm h-80 flex flex-col">
+              {/* 2. 圖示化區塊 */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                
+                {/* 折線圖 (佔 2/3 寬度) */}
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm h-96 flex flex-col lg:col-span-2">
                   <h4 className="font-bold text-gray-700 mb-6 flex items-center gap-2">
-                    <div className="w-1 h-4 bg-blue-500 rounded-full"></div> 成本與市價走勢 (折線圖)
+                    <div className="w-1.5 h-5 bg-blue-500 rounded-full"></div> 帳列成本與均價走勢
                   </h4>
-                  <div className="flex-1 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center">
-                    <p className="text-gray-400 font-bold">📈 Chart Placeholder: Line Chart</p>
+                  <div className="flex-1 w-full">
+                    {trendData.length > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <LineChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                          <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
+                          <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} minTickGap={20} />
+                          <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dx={-10} tickFormatter={(val) => `$${(val/1000).toFixed(0)}k`} />
+                          <YAxis yAxisId="right" orientation="right" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dx={10} domain={['auto', 'auto']} />
+                          <RechartsTooltip 
+                            contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }}
+                            labelStyle={{ fontWeight: 'bold', color: '#1e293b', marginBottom: '4px' }}
+                            formatter={(value: number, name: string) => [name === '單位均價' ? `$${value.toFixed(2)}` : `$${value.toLocaleString()}`, name]}
+                          />
+                          <Legend iconType="circle" wrapperStyle={{ fontSize: '12px', paddingTop: '10px' }} />
+                          {/* 💡 會計專用：使用 stepAfter 呈現階梯狀走勢，因為成本只會在交易當天變動 */}
+                          <Line yAxisId="left" type="stepAfter" dataKey="帳列總成本" name="帳列總成本" stroke="#3b82f6" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                          <Line yAxisId="right" type="stepAfter" dataKey="單位均價" name="單位均價" stroke="#f59e0b" strokeWidth={3} dot={{ r: 4 }} activeDot={{ r: 6 }} />
+                        </LineChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400 font-bold border-2 border-dashed border-gray-100 rounded-2xl">尚無交易資料可繪製圖表</div>
+                    )}
                   </div>
                 </div>
 
-                {/* 圓餅圖預留位置 */}
-                <div className="bg-white p-8 rounded-3xl border border-gray-100 shadow-sm h-80 flex flex-col">
+                {/* 圓餅圖 (佔 1/3 寬度) */}
+                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm h-96 flex flex-col">
                    <h4 className="font-bold text-gray-700 mb-6 flex items-center gap-2">
-                    <div className="w-1 h-4 bg-purple-500 rounded-full"></div> 資產配置比例 (圓餅圖)
+                    <div className="w-1.5 h-5 bg-emerald-500 rounded-full"></div> 累計資金流向比例
                   </h4>
-                  <div className="flex-1 bg-gray-50 rounded-2xl border-2 border-dashed border-gray-200 flex items-center justify-center">
-                    <p className="text-gray-400 font-bold">🍕 Chart Placeholder: Pie Chart</p>
+                  <div className="flex-1 w-full relative">
+                    {cashFlowData.reduce((acc, cur) => acc + cur.value, 0) > 0 ? (
+                      <ResponsiveContainer width="100%" height="100%">
+                        <PieChart>
+                          <Pie
+                            data={cashFlowData} cx="50%" cy="45%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value"
+                          >
+                            {cashFlowData.map((entry, index) => (
+                              <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
+                            ))}
+                          </Pie>
+                          <RechartsTooltip formatter={(value: number) => `$${value.toLocaleString()}`} contentStyle={{ borderRadius: '12px', border: 'none', boxShadow: '0 10px 15px -3px rgb(0 0 0 / 0.1)' }} />
+                          <Legend verticalAlign="bottom" height={36} iconType="circle" wrapperStyle={{ fontSize: '13px', fontWeight: 'bold' }} />
+                        </PieChart>
+                      </ResponsiveContainer>
+                    ) : (
+                      <div className="h-full flex items-center justify-center text-gray-400 font-bold border-2 border-dashed border-gray-100 rounded-2xl">尚無資金進出紀錄</div>
+                    )}
                   </div>
                 </div>
+
               </div>
             </div>
           )}
-
+          
           {/* --- 分頁二：交易明細表 (Ledger Tab) --- */}
           {activeSubTab === 'ledger' && (
             <div className="max-w-[1600px] mx-auto bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
