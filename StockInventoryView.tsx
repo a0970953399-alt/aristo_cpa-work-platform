@@ -265,7 +265,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     });
 
     // ✨ 畫面顯示要倒序 (最新的交易在最上方)
-    // ✨ 畫面顯示要倒序 (最新的交易在最上方)
     const displayTxs = [...enrichedTxs].reverse();
     
     // ✨ 取出最新庫存狀態 (餵給 KPI 卡片)
@@ -285,19 +284,17 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     }));
 
     // 📊 圖表 2：圓餅圖資料 (累計資金流向)
-    const totalBuyCash = enrichedTxs.filter(t => t.type === 'buy').reduce((sum, t) => sum + (tx.buyActualCost || 0), 0);
-    const totalSellCash = enrichedTxs.filter(t => t.type === 'sell').reduce((sum, t) => sum + (tx.sellNetAmount || 0), 0);
+    // 注意這裡的變數 t 要對應正確
+    const totalBuyCash = enrichedTxs.filter(t => t.type === 'buy').reduce((sum, t) => sum + (t.buyActualCost || 0), 0);
+    const totalSellCash = enrichedTxs.filter(t => t.type === 'sell').reduce((sum, t) => sum + (t.sellNetAmount || 0), 0);
+    
     const cashFlowData = [
         { name: '累計買入支付', value: totalBuyCash, color: '#3b82f6' }, // 藍色
         { name: '累計賣出收回', value: totalSellCash, color: '#10b981' }  // 綠色
     ];
-    
-    const displayTxs = [...enrichedTxs].reverse();
-    
-    // ✨ 取出最新庫存狀態 (準備餵給上方的 KPI 卡片)
-    const currentStockUnits = runningUnits;
-    const currentStockTotalCost = runningTotalCost;
-    const currentStockAvgCost = runningUnits > 0 ? runningTotalCost / runningUnits : 0;
+
+    return (
+      <div className="h-full flex flex-col animate-fade-in bg-gray-50 overflow-hidden">
     
     return (
       <div className="h-full flex flex-col animate-fade-in bg-gray-50 overflow-hidden">
