@@ -205,6 +205,40 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
   // 🔺 第三層：交易明細與分析 (標籤頁重構版)
   if (selectedStock && selectedClient) {
+    // ✨ 新增：計算該檔股票的交易紀錄與餘額 (重現 Excel 的向下結轉邏輯)
+    const stockTxs = transactions
+      .filter(tx => tx.stockTargetId === selectedStock.id)
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()); // 先照日期舊到新排列算餘額
+
+    let runningUnits = 0;
+    let runningTotalCost = 0;
+
+    const enrichedTxs = stockTxs.map(tx => {
+      if (tx.type === 'buy') {
+        runningUnits += tx.units;
+        runningTotalCost += (tx.buyActualCost || 0);
+      } else {
+        runningUnits -= tx.units;
+        runningTotalCost -= (tx.matchedCost || 0); // 賣出時沖銷帳列成本
+      }
+      const avgCost = runningUnits > 0 ? runningTotalCost / runningUnits : 0;
+      
+      return {
+        ...tx,
+        balanceUnits: runningUnits,
+        balanceAvgCost: avgCost,
+        balanceTotalCost: runningTotalCost
+      };
+    });
+
+    // ✨ 畫面顯示要倒序 (最新的交易在最上方)
+    const displayTxs = [...enrichedTxs].reverse();
+    
+    // ✨ 取出最新庫存狀態 (準備餵給上方的 KPI 卡片)
+    const currentStockUnits = runningUnits;
+    const currentStockTotalCost = runningTotalCost;
+    const currentStockAvgCost = runningUnits > 0 ? runningTotalCost / runningUnits : 0;
+    
     return (
       <div className="h-full flex flex-col animate-fade-in bg-gray-50 overflow-hidden">
         
@@ -254,17 +288,17 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
               <div className="grid grid-cols-3 gap-6">
                 <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">當前庫存股數</p>
-                  <p className="text-3xl font-black text-gray-800">0 <span className="text-sm font-medium text-gray-400">股</span></p>
+                  <p className="text-3xl font-black text-gray-800">{currentStockUnits.toLocaleString()} <span className="text-sm font-medium text-gray-400">股</span></p>
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
                   <p className="text-xs font-bold text-gray-400 uppercase mb-2">帳列總成本</p>
-                  <p className="text-3xl font-black text-gray-800">$0</p>
+                  <p className="text-3xl font-black text-gray-800">${currentStockTotalCost.toLocaleString()}</p>
                 </div>
                 <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">實現/未實現損益</p>
-                  <p className="text-3xl font-black text-gray-500">--</p>
+                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">當前平均成本</p>
+                  <p className="text-3xl font-black text-gray-500">{currentStockAvgCost.toFixed(4)}</p>
                 </div>
-              </div>
+              </div>>
 
               {/* 圖示化區塊 */}
               <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
@@ -342,59 +376,76 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                   </thead>
 
                   <tbody className="divide-y divide-gray-50">
-                    {/* 範例：買入列 (Buy) */}
-                    <tr className="hover:bg-blue-50/40 transition-colors">
-                      <td className="p-3">
-                        <div className="text-xs font-black text-gray-800">114/09/04</div>
-                        <div className="text-[10px] font-mono text-gray-400">11409040001</div>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="text-xs font-bold text-gray-600">114/09/06</span>
-                      </td>
-                      <td className="p-3 text-center border-r">
-                        <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-black rounded-md">買入</span>
-                      </td>
-                      <td className="p-3 text-right font-bold text-gray-800 text-sm">2,000</td>
-                      <td className="p-3 text-right text-xs font-medium text-gray-600">741.0000</td>
-                      <td className="p-3 text-right text-[10px] text-gray-400">2,111</td>
-                      <td className="p-3 text-right border-r font-black text-blue-600 text-sm">1,484,111</td>
-                      
-                      {/* 餘額 */}
-                      <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">2,000</td>
-                      <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">742.0555</td>
-                      <td className="p-3 text-right text-sm font-black text-gray-800 bg-orange-50/5 italic underline decoration-orange-200">1,484,111</td>
-                    </tr>
+                    {displayTxs.map(tx => (
+                      <tr key={tx.id} className={`transition-colors ${tx.type === 'buy' ? 'hover:bg-blue-50/40' : 'hover:bg-red-50/40'}`}>
+                        <td className="p-3">
+                          <div className="text-xs font-black text-gray-800">{tx.date}</div>
+                          <div className="text-[10px] font-mono text-gray-400">{tx.voucherNo}</div>
+                        </td>
+                        <td className="p-3 text-center">
+                          <span className="text-xs font-bold text-gray-600">{tx.paymentDate}</span>
+                        </td>
+                        <td className="p-3 text-center border-r">
+                          {tx.type === 'buy' ? (
+                              <span className="px-2 py-0.5 bg-blue-100 text-blue-700 text-[10px] font-black rounded-md">買入</span>
+                          ) : (
+                              <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-black rounded-md">賣出</span>
+                          )}
+                        </td>
+                        <td className="p-3 text-right font-bold text-gray-800 text-sm">
+                          {tx.units.toLocaleString()}
+                        </td>
+                        <td className="p-3 text-right">
+                          {tx.type === 'buy' ? (
+                              <div className="text-xs font-medium text-gray-600">{(tx.unitPrice || 0).toFixed(4)}</div>
+                          ) : (
+                              <div className="text-xs font-bold text-red-600">{(tx.unitPrice || 0).toFixed(4)}</div>
+                          )}
+                        </td>
+                        <td className="p-3 text-right text-[10px] text-gray-400 leading-tight">
+                          {tx.type === 'buy' ? (
+                              <div>{(tx.fee || 0).toLocaleString()}</div>
+                          ) : (
+                              <>
+                                <div>{(tx.fee || 0).toLocaleString()} (費)</div>
+                                <div>{(tx.sellTax || 0).toLocaleString()} (稅)</div>
+                              </>
+                          )}
+                        </td>
+                        <td className="p-3 text-right border-r">
+                           {tx.type === 'buy' ? (
+                               <div className="font-black text-blue-600 text-sm">{(tx.buyActualCost || 0).toLocaleString()}</div>
+                           ) : (
+                               <>
+                                 <div className="text-sm font-black text-red-600">{(tx.sellNetAmount || 0).toLocaleString()}</div>
+                                 <div className={`text-[10px] font-bold tracking-tighter ${(tx.realizedPnl || 0) >= 0 ? 'text-red-400' : 'text-green-600'}`}>
+                                   (損益: {(tx.realizedPnl || 0) >= 0 ? '+' : ''}{(tx.realizedPnl || 0).toLocaleString()})
+                                 </div>
+                               </>
+                           )}
+                        </td>
+                        
+                        {/* 餘額區 (系統自動計算的結果) */}
+                        <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">
+                          {tx.balanceUnits.toLocaleString()}
+                        </td>
+                        <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">
+                          {tx.balanceAvgCost.toFixed(4)}
+                        </td>
+                        <td className="p-3 text-right text-sm font-black text-gray-800 bg-orange-50/5 italic underline decoration-orange-200">
+                          {tx.balanceTotalCost.toLocaleString()}
+                        </td>
+                      </tr>
+                    ))}
 
-                    {/* 範例：賣出列 (Sell) */}
-                    <tr className="hover:bg-red-50/40 transition-colors">
-                      <td className="p-3">
-                        <div className="text-xs font-black text-gray-800">114/09/10</div>
-                        <div className="text-[10px] font-mono text-gray-400">11409100021</div>
-                      </td>
-                      <td className="p-3 text-center">
-                        <span className="text-xs font-bold text-gray-600">114/09/12</span>
-                      </td>
-                      <td className="p-3 text-center border-r">
-                        <span className="px-2 py-0.5 bg-red-100 text-red-700 text-[10px] font-black rounded-md">賣出</span>
-                      </td>
-                      <td className="p-3 text-right font-bold text-gray-800 text-sm">1,000</td>
-                      <td className="p-3 text-right">
-                        <div className="text-xs font-bold text-red-600">738.0000</div>
-                      </td>
-                      <td className="p-3 text-right text-[10px] text-gray-400 leading-tight">
-                        <div>1,051 (費)</div>
-                        <div>2,217 (稅)</div>
-                      </td>
-                      <td className="p-3 text-right border-r">
-                        <div className="text-sm font-black text-red-600">734,732</div>
-                        <div className="text-[10px] font-bold text-red-400 tracking-tighter">(損益: -20,345)</div>
-                      </td>
-
-                      {/* 餘額 */}
-                      <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">1,000</td>
-                      <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">742.0555</td>
-                      <td className="p-3 text-right text-sm font-black text-gray-800 bg-orange-50/5 italic underline decoration-orange-200">742,056</td>
-                    </tr>
+                    {/* 空白防呆：如果沒有資料顯示這行 */}
+                    {displayTxs.length === 0 && (
+                      <tr>
+                        <td colSpan={10} className="py-20 text-center text-gray-400 font-bold text-lg">
+                          📋 尚無交易紀錄，請點擊右上方「+ 登錄新交易」
+                        </td>
+                      </tr>
+                    )}
                   </tbody>
                 </table>
               </div>
