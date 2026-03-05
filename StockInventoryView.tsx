@@ -475,7 +475,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             {/* 表單底部按鈕 */}
             <div className="p-4 border-t bg-gray-50 flex gap-3">
               <button onClick={() => { setIsAddTxModalOpen(false); resetTxForm(); }} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
-              <button className={`flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all ${txType === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-50`}>
+              <button 
+                onClick={handleSaveTransaction} 
+                className={`flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all ${txType === 'buy' ? 'bg-blue-600 hover:bg-blue-700' : 'bg-red-600 hover:bg-red-700'} disabled:opacity-50`}>
                 確認存檔
               </button>
             </div>
