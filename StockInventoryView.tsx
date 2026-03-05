@@ -475,7 +475,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                       <ResponsiveContainer width="100%" height="100%">
                         <PieChart>
                           <Pie
-                            data={cashFlowData} cx="50%" cy="45%" innerRadius={60} outerRadius={85} paddingAngle={5} dataKey="value"
+                            data={cashFlowData} cx="50%" cy="45%" innerRadius={60} outerRadius={85} paddingAngle={0} dataKey="value"
                           >
                             {cashFlowData.map((entry, index) => (
                               <Cell key={`cell-${index}`} fill={entry.color} stroke="transparent" />
