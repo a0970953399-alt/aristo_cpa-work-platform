@@ -114,23 +114,94 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const availableClientsToAdd = clients.filter(c => !enabledClientIds.includes(String(c.id)));
   const displayClients = clients.filter(c => enabledClientIds.includes(String(c.id)));
 
-  // 🔺 第三層：交易明細表
+  // 🔺 第三層：交易明細表 (正式專業排版)
   if (selectedStock && selectedClient) {
+    // 這裡未來會從 TaskService 抓取該標的的交易紀錄
+    const transactions: StockTransaction[] = []; 
+
     return (
-      <div className="h-full flex flex-col p-6 animate-fade-in bg-white rounded-2xl shadow-sm border border-gray-100">
-        <div className="flex items-center mb-6 gap-4">
-          <button onClick={() => setSelectedStock(null)} className="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">
-            ← 返回 {selectedClient.name} 的股票牆
+      <div className="h-full flex flex-col p-6 animate-fade-in bg-gray-50 overflow-hidden">
+        {/* 1. 頂部標頭與返回按鈕 */}
+        <div className="flex items-center justify-between mb-6">
+          <div className="flex items-center gap-4">
+            <button 
+              onClick={() => setSelectedStock(null)} 
+              className="px-4 py-2 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-50 transition-colors shadow-sm"
+            >
+              ← 返回 {selectedClient.name} 的股票牆
+            </button>
+            <div className="flex items-baseline gap-2">
+              <h2 className="text-3xl font-black text-gray-800">{selectedStock.code}</h2>
+              <span className="text-xl font-bold text-gray-500">{selectedStock.name}</span>
+            </div>
+          </div>
+          <button className="px-6 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-200 hover:bg-blue-700 active:scale-95 transition-all">
+            + 新增交易紀錄
           </button>
-          <h2 className="text-2xl font-black text-gray-800">
-            {selectedStock.code} {selectedStock.name} - 交易明細與進銷存
-          </h2>
         </div>
-        <div className="flex-1 flex items-center justify-center border-2 border-dashed border-gray-200 rounded-xl bg-gray-50">
-           <div className="text-center">
-              <span className="text-4xl block mb-4">🚧</span>
-              <h3 className="text-xl font-bold text-gray-500">這裡是未來最核心的【交易明細表】</h3>
-           </div>
+
+        {/* 2. 庫存概況卡片 (KPIs) */}
+        <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 mb-6">
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">庫存股數</p>
+            <p className="text-2xl font-black text-gray-800">0 <span className="text-sm font-medium text-gray-400 ml-1">股</span></p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">平均成本</p>
+            <p className="text-2xl font-black text-gray-800">0.00</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">帳列總成本</p>
+            <p className="text-2xl font-black text-gray-800">0</p>
+          </div>
+          <div className="bg-white p-5 rounded-2xl shadow-sm border border-gray-100">
+            <p className="text-xs font-bold text-gray-400 uppercase tracking-wider mb-1">未實現損益</p>
+            <p className="text-2xl font-black text-gray-500">--</p>
+          </div>
+        </div>
+
+        {/* 3. 交易明細表格區 */}
+        <div className="flex-1 bg-white rounded-3xl shadow-sm border border-gray-200 overflow-hidden flex flex-col">
+          <div className="p-5 border-b border-gray-100 flex justify-between items-center bg-white">
+            <h3 className="font-bold text-gray-700 flex items-center gap-2">
+              <span className="w-2 h-6 bg-blue-500 rounded-full"></span>
+              歷史交易明細表
+            </h3>
+            <div className="text-xs text-gray-400 font-medium">依日期降序排列</div>
+          </div>
+
+          <div className="flex-1 overflow-auto custom-scrollbar">
+            <table className="w-full text-left border-collapse min-w-[1200px]">
+              <thead className="sticky top-0 z-10">
+                <tr className="bg-gray-50 border-b border-gray-100">
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500">日期</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500">傳票編號</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500 text-center">類別</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500 text-right">股數</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500 text-right">單價</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500 text-right">手續費</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500 text-right">交易金額</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500 text-right">證交稅</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500 text-right">帳列成本</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500 text-right">處分損益</th>
+                  <th className="px-4 py-4 text-sm font-bold text-gray-500">備註</th>
+                </tr>
+              </thead>
+              <tbody>
+                {/* 這裡是空白畫面，目前沒有資料 */}
+                {transactions.length === 0 && (
+                  <tr>
+                    <td colSpan={11} className="py-20 text-center">
+                      <div className="flex flex-col items-center opacity-30">
+                        <span className="text-5xl mb-4">📋</span>
+                        <p className="text-lg font-bold">尚無交易紀錄，請點擊上方按鈕新增</p>
+                      </div>
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
       </div>
     );
