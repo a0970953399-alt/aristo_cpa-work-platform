@@ -645,18 +645,21 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                 確認存檔
               </button>
             </div>
-          </div>
-        </div>
-      )}
-      </div>
-    )}
+            
+          </div> {/* 👈 關閉 Modal 白底容器 */}
+        </div> {/* 👈 關閉 Modal 黑底背景 */}
+      )} {/* 👈 關閉 isAddTxModalOpen */}
 
-    </div>
-  </div>
+      </div> {/* 👈 關閉 Ledger 分頁容器 (max-w-[1600px]) */}
+    )} {/* 👈 關閉 activeSubTab === 'ledger' */}
+
+    </div> {/* 👈 關閉 內容顯示區 (flex-1 overflow-y-auto) */}
+  </div> {/* 👈 關閉 第三層主容器 (h-full flex flex-col) */}
   );
 }
-          
+
   // 🔺 第二層：個股資訊牆
+        
   if (selectedClient) {
     // 過濾出屬於目前點擊客戶的股票
     const currentClientStocks = stockTargets.filter(st => st.clientId === String(selectedClient.id));
