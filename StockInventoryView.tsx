@@ -35,6 +35,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
   // --- 新增交易表單的 State (放在元件最上方) ---
   const [isAddTxModalOpen, setIsAddTxModalOpen] = useState(false);
+  const [editingTxId, setEditingTxId] = useState<string | null>(null);
   const [txType, setTxType] = useState<'buy' | 'sell'>('buy');
   const [txDate, setTxDate] = useState('');
   const [txVoucherNo, setTxVoucherNo] = useState('');
@@ -69,23 +70,35 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
   // --- 重置表單 ---
   const resetTxForm = () => {
+    setEditingTxId(null);
     setTxType('buy'); setTxDate(''); setTxVoucherNo(''); setTxUnits('');
     setTxUnitPrice(''); setTxFee(''); setTxTax(''); setTxPaymentDate('');
   };
 
-  // ✨ 真正的存檔執行邏輯
+// ✨ 點擊明細表列時，把資料倒灌回表單
+  const handleRowClick = (tx: StockTransaction) => {
+    setEditingTxId(tx.id);
+    setTxType(tx.type);
+    setTxDate(tx.date);
+    setTxVoucherNo(tx.voucherNo);
+    setTxUnits(tx.units);
+    setTxUnitPrice(tx.unitPrice);
+    setTxFee(tx.fee);
+    setTxTax(tx.sellTax || '');
+    setTxPaymentDate(tx.paymentDate);
+    setIsAddTxModalOpen(true);
+  };
+
+  // ✨ 真正的存檔執行邏輯 (支援新增與更新)
   const handleSaveTransaction = async () => {
     if (!selectedStock || !selectedClient) return;
-    
-    // 基本防呆：沒填數字不給存
     if (!txDate || !txVoucherNo || safeUnits <= 0 || safeUnitPrice <= 0) {
         alert("請確實填寫日期、傳票號、股數與單價！");
         return;
     }
 
-    // 將畫面上的數字打包成完整的交易物件
     const newTx: StockTransaction = {
-        id: Date.now().toString(),
+        id: editingTxId || Date.now().toString(), // 有編輯ID就用舊的，沒有就產生新的
         stockTargetId: selectedStock.id,
         clientId: String(selectedClient.id),
         type: txType,
@@ -95,7 +108,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         unitPrice: safeUnitPrice,
         fee: safeFee,
         paymentDate: txPaymentDate,
-        createdAt: new Date().toISOString(),
+        createdAt: editingTxId 
+            ? (transactions.find(t => t.id === editingTxId)?.createdAt || new Date().toISOString()) 
+            : new Date().toISOString(),
     };
 
     if (txType === 'buy') {
@@ -109,8 +124,24 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         newTx.realizedPnl = realizedPnl; 
     }
 
-    // 送入資料庫並重新抓取畫面
-    await TaskService.addStockTransaction(newTx);
+    // ✨ 判斷是「更新」還是「新增」
+    if (editingTxId) {
+        await TaskService.updateStockTransaction(newTx);
+    } else {
+        await TaskService.addStockTransaction(newTx);
+    }
+    
+    await loadData();
+    setIsAddTxModalOpen(false);
+    resetTxForm();
+  };
+
+  // ✨ 刪除單筆交易
+  const handleDeleteTransaction = async () => {
+    if (!editingTxId) return;
+    if (!confirm("確定要刪除這筆交易紀錄嗎？此動作無法復原，並會影響後續餘額計算！")) return;
+    
+    await TaskService.deleteStockTransaction(editingTxId);
     await loadData();
     setIsAddTxModalOpen(false);
     resetTxForm();
@@ -377,8 +408,11 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
                   <tbody className="divide-y divide-gray-50">
                     {displayTxs.map(tx => (
-                      <tr key={tx.id} className={`transition-colors ${tx.type === 'buy' ? 'hover:bg-blue-50/40' : 'hover:bg-red-50/40'}`}>
-                        <td className="p-3">
+              <tr 
+                key={tx.id} 
+                onClick={() => handleRowClick(tx)} 
+                className={`cursor-pointer transition-colors ${tx.type === 'buy' ? 'hover:bg-blue-50/80' : 'hover:bg-red-50/80'}`}>
+                <td className="p-3">
                           <div className="text-xs font-black text-gray-800">{tx.date}</div>
                           <div className="text-[10px] font-mono text-gray-400">{tx.voucherNo}</div>
                         </td>
@@ -458,7 +492,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             {/* 表單標頭 */}
             <div className={`p-5 border-b flex justify-between items-center text-white ${txType === 'buy' ? 'bg-blue-600' : 'bg-red-600'} transition-colors`}>
               <h3 className="text-xl font-bold flex items-center gap-2">
-                {txType === 'buy' ? '登錄買入紀錄' : '登錄賣出紀錄'} - {selectedStock?.name}
+                {editingTxId ? '編輯' : '登錄'}{txType === 'buy' ? '買入' : '賣出'}紀錄 - {selectedStock?.name}
               </h3>
               <button onClick={() => { setIsAddTxModalOpen(false); resetTxForm(); }} className="text-white/80 hover:text-white text-2xl font-black">✕</button>
             </div>
@@ -525,6 +559,15 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
             {/* 表單底部按鈕 */}
             <div className="p-4 border-t bg-gray-50 flex gap-3">
+              {/* 如果是編輯模式，就顯示刪除按鈕 */}
+              {editingTxId && (
+                <button 
+                  onClick={handleDeleteTransaction} 
+                  className="px-5 py-3 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors"
+                >
+                  刪除
+                </button>
+              )}
               <button onClick={() => { setIsAddTxModalOpen(false); resetTxForm(); }} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
               <button 
                 onClick={handleSaveTransaction} 
