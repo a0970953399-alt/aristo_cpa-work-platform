@@ -642,30 +642,32 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                         )}
                         <div><label className="block text-xs font-bold text-gray-600 mb-1">{txType === 'buy' ? '扣款日' : '入款日'}</label><input type="date" value={txPaymentDate} onChange={e => setTxPaymentDate(e.target.value)} className="w-full border p-2.5 rounded-xl focus:ring-2 focus:ring-gray-400 outline-none font-mono" /></div>
 
-                        <div className="col-span-2 text-sm font-black text-purple-500 border-b border-purple-100 pb-2 mt-2 flex items-center gap-2">🤖 系統自動計算</div>
-                        {txType === 'buy' ? (
-                          <>
-                            <div><label className="block text-xs font-bold text-gray-400 mb-1">金額 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{buyAmount.toLocaleString()}</div></div>
-                            <div><label className="block text-xs font-bold text-gray-400 mb-1">實際成本 (金額 + 手續費)</label><div className="w-full bg-blue-50 border border-blue-100 p-2.5 rounded-xl font-mono font-bold text-blue-700">{buyActualCost.toLocaleString()}</div></div>
-                            <div><label className="block text-xs font-bold text-gray-400 mb-1">平均成本 (實際成本 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{Math.round(buyAvgCost).toLocaleString()}</div>
-                          </>
-                        ) : (
-                          <>
-                            <div><label className="block text-xs font-bold text-gray-400 mb-1">賣出總價 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellPrice.toLocaleString()}</div></div>
-                            <div><label className="block text-xs font-bold text-gray-400 mb-1">實際賣出淨額 (賣價-費-稅)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellNetAmount.toLocaleString()}</div></div>
-                            <div><label className="block text-xs font-bold text-gray-400 mb-1">平均售價淨額 (淨額 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{Math.round(sellAvgPrice).toLocaleString()}</div>
-                            
-                            <div className="col-span-2 grid grid-cols-2 gap-5 mt-2">
-                              <div><label className="block text-xs font-bold text-orange-500 mb-1 flex items-center gap-1">⚡ 帳列成本 (FIFO結轉)</label><div className="w-full bg-orange-50 border border-orange-200 p-2.5 rounded-xl font-mono font-bold text-orange-700">{matchedCost.toLocaleString()}</div></div>
-                              <div>
-                                <label className="block text-xs font-bold text-red-500 mb-1 flex items-center gap-1">📊 處分損益 (淨額 - 帳列成本)</label>
-                                <div className={`w-full p-2.5 rounded-xl font-mono font-black border ${realizedPnl >= 0 ? 'bg-red-50 border-red-200 text-red-600' : 'bg-green-50 border-green-200 text-green-600'}`}>
-                                  {realizedPnl >= 0 ? '+' : ''}{realizedPnl.toLocaleString()}
-                                </div>
-                              </div>
-                            </div>
-                          </>
-                        )}
+                <div className="col-span-2 text-sm font-black text-purple-500 border-b border-purple-100 pb-2 mt-2 flex items-center gap-2">🤖 系統自動計算</div>
+                
+                {txType === 'buy' ? (
+                  <>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">金額 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{buyAmount.toLocaleString()}</div></div>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">實際成本 (金額 + 手續費)</label><div className="w-full bg-blue-50 border border-blue-100 p-2.5 rounded-xl font-mono font-bold text-blue-700">{buyActualCost.toLocaleString()}</div></div>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">平均成本 (實際成本 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{Math.round(buyAvgCost).toLocaleString()}</div></div>
+                  </>
+                ) : (
+                  <>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">賣出總價 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellPrice.toLocaleString()}</div></div>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">實際賣出淨額 (賣價-費-稅)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellNetAmount.toLocaleString()}</div></div>
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">平均售價淨額 (淨額 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{Math.round(sellAvgPrice).toLocaleString()}</div></div>
+                    
+                    {/* FIFO 關鍵數據 */}
+                    <div className="col-span-2 grid grid-cols-2 gap-5 mt-2">
+                      <div><label className="block text-xs font-bold text-orange-500 mb-1 flex items-center gap-1">⚡ 帳列成本 (FIFO結轉)</label><div className="w-full bg-orange-50 border border-orange-200 p-2.5 rounded-xl font-mono font-bold text-orange-700">{Math.round(matchedCost).toLocaleString()}</div></div>
+                      <div>
+                        <label className="block text-xs font-bold text-red-500 mb-1 flex items-center gap-1">📊 處分損益 (淨額 - 帳列成本)</label>
+                        <div className={`w-full p-2.5 rounded-xl font-mono font-black border ${realizedPnl >= 0 ? 'bg-red-50 border-red-200 text-red-600' : 'bg-green-50 border-green-200 text-green-600'}`}>
+                          {realizedPnl >= 0 ? '+' : ''}{Math.round(realizedPnl).toLocaleString()}
+                        </div>
+                      </div>
+                    </div>
+                  </>
+                )}
                       </div>
                     </div>
 
