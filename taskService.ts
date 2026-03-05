@@ -695,6 +695,24 @@ async deleteInstruction(id: string): Promise<Instruction[]> {
     async fetchStockTransactions(): Promise<StockTransaction[]> {
         const data = await this.loadFullData();
         return data.stockTransactions || [];
+    },
+
+    // 8. ✨ 新增交易紀錄 (你缺的就是這個！)
+    async addStockTransaction(tx: StockTransaction): Promise<StockTransaction[]> {
+        const data = await this.loadFullData();
+        if (!data.stockTransactions) data.stockTransactions = [];
+        data.stockTransactions.push(tx);
+        await this.saveFullData(data);
+        return data.stockTransactions;
+    },
+
+    // 9. 刪除交易紀錄
+    async deleteStockTransaction(id: string): Promise<StockTransaction[]> {
+        const data = await this.loadFullData();
+        if (!data.stockTransactions) return [];
+        data.stockTransactions = data.stockTransactions.filter(tx => tx.id !== id);
+        await this.saveFullData(data);
+        return data.stockTransactions;
     }
 
 }; // ✅ TaskService 結尾
