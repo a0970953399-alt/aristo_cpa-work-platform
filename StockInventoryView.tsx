@@ -63,12 +63,56 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const sellNetAmount = sellPrice - safeFee - safeTax;
   const sellAvgPrice = safeUnits > 0 ? (sellNetAmount / safeUnits) : 0;
 
-  // 🚨 FIFO 帳列成本預估 (這裡先放一個模擬值，下一步我們會寫真實的 FIFO 演算法)
-  // 目前先假設歷史平均成本為 740 作為視覺預覽
-  const mockHistoricalCostPerUnit = 740; 
-  const matchedCost = safeUnits * mockHistoricalCostPerUnit; 
-  const realizedPnl = sellNetAmount - matchedCost;
+  // ✨ 真正的 FIFO 帳列成本預估 (表單即時運算)
+  let previewMatchedCost = 0;
+  let previewRealizedPnl = 0;
 
+  if (txType === 'sell' && selectedStock) {
+    // 1. 抓出這檔股票「在這筆交易日期之前」的所有歷史紀錄
+    const pastTxs = transactions
+      .filter(t => t.stockTargetId === selectedStock.id && t.id !== editingTxId && new Date(t.date).getTime() <= new Date(txDate || new Date()).getTime())
+      .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+      
+    // 2. 模擬重建歷史 FIFO 佇列
+    let tempLots: { units: number, actualCost: number }[] = [];
+    pastTxs.forEach(t => {
+      if (t.type === 'buy') {
+        tempLots.push({ units: t.units, actualCost: t.buyActualCost || 0 });
+      } else if (t.type === 'sell') {
+        let unitsToSell = t.units;
+        while (unitsToSell > 0 && tempLots.length > 0) {
+          if (tempLots[0].units <= unitsToSell) {
+            unitsToSell -= tempLots[0].units;
+            tempLots.shift(); // 整批扣完，移除
+          } else {
+            const costPerUnit = tempLots[0].actualCost / tempLots[0].units;
+            tempLots[0].actualCost -= costPerUnit * unitsToSell;
+            tempLots[0].units -= unitsToSell;
+            unitsToSell = 0; // 扣除部分，結束迴圈
+          }
+        }
+      }
+    });
+    
+    // 3. 試算當前這筆賣出會沖銷掉多少成本
+    let unitsToSimulate = safeUnits;
+    while (unitsToSimulate > 0 && tempLots.length > 0) {
+      let oldestLot = tempLots[0];
+      if (oldestLot.units <= unitsToSimulate) {
+        unitsToSimulate -= oldestLot.units;
+        previewMatchedCost += oldestLot.actualCost;
+        tempLots.shift();
+      } else {
+        const costPerUnit = oldestLot.actualCost / oldestLot.units;
+        previewMatchedCost += costPerUnit * unitsToSimulate;
+        unitsToSimulate = 0;
+      }
+    }
+    previewRealizedPnl = sellNetAmount - previewMatchedCost;
+  }
+
+  const matchedCost = previewMatchedCost;
+  const realizedPnl = txType === 'sell' ? previewRealizedPnl : 0;
 
   // --- 重置表單 ---
   const resetTxForm = () => {
@@ -245,19 +289,50 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
     let runningUnits = 0;
     let runningTotalCost = 0;
+    let buyLots: { units: number, actualCost: number }[] = []; // ✨ 核心：建立 FIFO 庫存佇列
 
     const enrichedTxs = stockTxs.map(tx => {
+      let currentTxMatchedCost = 0;
+      let currentTxRealizedPnl = 0;
+
       if (tx.type === 'buy') {
         runningUnits += tx.units;
-        runningTotalCost += (tx.buyActualCost || 0);
+        const cost = tx.buyActualCost || 0;
+        runningTotalCost += cost;
+        buyLots.push({ units: tx.units, actualCost: cost }); // 買進時，將該批貨物放入佇列
       } else {
+        // ✨ 賣出時：執行 FIFO 嚴格沖銷
+        let unitsToSell = tx.units;
+        while (unitsToSell > 0 && buyLots.length > 0) {
+          let oldestLot = buyLots[0]; // 永遠從最舊的第一批貨開始抓
+          if (oldestLot.units <= unitsToSell) {
+            // 要賣的數量大於等於這批貨 -> 整批沖銷
+            unitsToSell -= oldestLot.units;
+            currentTxMatchedCost += oldestLot.actualCost;
+            buyLots.shift(); // 這批貨賣光了，從佇列中剔除
+          } else {
+            // 要賣的數量小於這批貨 -> 沖銷部分成本
+            const costPerUnit = oldestLot.actualCost / oldestLot.units;
+            const consumedCost = costPerUnit * unitsToSell;
+            oldestLot.units -= unitsToSell;
+            oldestLot.actualCost -= consumedCost;
+            currentTxMatchedCost += consumedCost;
+            unitsToSell = 0;
+          }
+        }
+        
         runningUnits -= tx.units;
-        runningTotalCost -= (tx.matchedCost || 0); // 賣出時沖銷帳列成本
+        runningTotalCost -= currentTxMatchedCost;
+        currentTxRealizedPnl = (tx.sellNetAmount || 0) - currentTxMatchedCost;
       }
+      
       const avgCost = runningUnits > 0 ? runningTotalCost / runningUnits : 0;
       
       return {
         ...tx,
+        // ✨ 用每次重新跑過的嚴謹計算結果，直接覆蓋資料庫裡的潛在錯誤數字
+        matchedCost: tx.type === 'sell' ? currentTxMatchedCost : undefined,
+        realizedPnl: tx.type === 'sell' ? currentTxRealizedPnl : undefined,
         balanceUnits: runningUnits,
         balanceAvgCost: avgCost,
         balanceTotalCost: runningTotalCost
