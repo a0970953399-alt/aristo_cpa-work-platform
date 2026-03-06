@@ -298,7 +298,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
   // 1. Dashboard (入口畫面)
     if (viewMode === 'dashboard') {
         return (
-            {/* ✨ 加上 rounded-2xl, shadow-sm, border border-gray-200 讓容器尺寸與詳細頁面完全一致 */}
             <div className="h-full flex flex-col bg-gray-50 rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-6 pb-2">
                     <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
