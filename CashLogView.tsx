@@ -231,9 +231,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 </div>
                 
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setSortDesc(!sortDesc)} className="flex items-center gap-1 px-3 py-2 bg-white border rounded-lg hover:bg-gray-50 text-gray-600 text-sm font-bold shadow-sm">
-                        <SortIcon className="w-4 h-4" /> {sortDesc ? "日期：新→舊" : "日期：舊→新"}
-                    </button>
 
                   {isSupervisor && (
                         <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
@@ -247,7 +244,19 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 <table className="w-full text-left border-collapse min-w-[1000px]">
                     <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider shadow-sm">
                         <tr>
-                            <th className="p-3 border-b w-32">日期</th>
+                            {/* 變成可點擊的表頭，加入 hover 效果與箭頭指示 */}
+                            <th 
+                                className="p-3 border-b w-32 cursor-pointer hover:bg-gray-200 transition-colors select-none group"
+                                onClick={() => setSortDesc(!sortDesc)}
+                                title="點擊切換新舊排序"
+                            >
+                                <div className="flex items-center gap-1">
+                                    日期
+                                    <span className="text-gray-400 group-hover:text-blue-500 font-black">
+                                        {sortDesc ? '↓' : '↑'}
+                                    </span>
+                                </div>
+                            </th>
                             {viewMode === 'client_detail' ? (
                                 <>
                                     <th className="p-3 border-b w-24 text-right">金額</th>
