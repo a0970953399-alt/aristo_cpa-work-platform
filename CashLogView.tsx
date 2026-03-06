@@ -355,7 +355,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </div>
                 </div>
 
-                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+              {/* ✨ 將 auto 改成 scroll 強制保留軌道 */}
+                <div className="flex-1 p-6 overflow-y-scroll custom-scrollbar">
                     <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
                         <span className="text-xl">👥</span> 客戶代墊紀錄
                     </h3>
@@ -417,7 +418,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 </div>
             </div>
 
-            <div className="flex-1 overflow-auto custom-scrollbar">
+          {/* ✨ 將 auto 改成 overflow-y-scroll overflow-x-auto */}
+            <div className="flex-1 overflow-y-scroll overflow-x-auto custom-scrollbar">
                 <table className="w-full text-left border-collapse min-w-[1000px]">
                     <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider shadow-sm">
                         <tr>
