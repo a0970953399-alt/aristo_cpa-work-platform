@@ -24,6 +24,12 @@ const SortIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+const FunnelIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+  </svg>
+);
+
 interface CashLogViewProps {
     records: CashRecord[];
     clients: Client[];
@@ -37,6 +43,17 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [sortDesc, setSortDesc] = useState(false); // 預設升序
+
+    // ✨ Excel 漏斗篩選狀態
+    const [filterYear, setFilterYear] = useState<string>('');
+    const [filterMonth, setFilterMonth] = useState<string>('');
+    const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
+
+    // ✨ 自動從資料中抓取有紀錄的年份，供下拉選單使用
+    const availableYears = useMemo(() => {
+        const years = new Set(records.map(r => r.date.substring(0, 4)));
+        return Array.from(years).sort((a, b) => Number(b) - Number(a));
+    }, [records]);
     
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
@@ -57,6 +74,19 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
             filtered = records.filter(r => r.clientId === selectedClient.id);
         }
 
+      // ✨ 新增：年月篩選邏輯 (Excel漏斗)
+        if (filterYear || filterMonth) {
+            filtered = filtered.filter(r => {
+                const dateParts = r.date.split('-'); // 格式: YYYY-MM-DD
+                if (dateParts.length >= 2) {
+                    const yMatch = filterYear ? dateParts[0] === filterYear : true;
+                    const mMatch = filterMonth ? parseInt(dateParts[1], 10).toString() === filterMonth : true;
+                    return yMatch && mMatch;
+                }
+                return true;
+            });
+        }
+      
         // ✨ 特殊排序邏輯：客戶代墊頁面
         if (viewMode === 'client_detail') {
             // 1. 將有 RequestId 的分組，沒有的當作獨立個體
@@ -244,18 +274,59 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 <table className="w-full text-left border-collapse min-w-[1000px]">
                     <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider shadow-sm">
                         <tr>
-                            {/* 變成可點擊的表頭，加入 hover 效果與箭頭指示 */}
-                            <th 
-                                className="p-3 border-b w-32 cursor-pointer hover:bg-gray-200 transition-colors select-none group"
-                                onClick={() => setSortDesc(!sortDesc)}
-                                title="點擊切換新舊排序"
-                            >
-                                <div className="flex items-center gap-1">
-                                    日期
-                                    <span className="text-gray-400 group-hover:text-blue-500 font-black">
-                                        {sortDesc ? '↓' : '↑'}
-                                    </span>
+                          {/* ✨ 日期欄位 (包含排序與 Excel 漏斗篩選) */}
+                            <th className="p-3 border-b w-32 relative select-none">
+                                <div className="flex items-center gap-2">
+                                    {/* 左側：點擊排序文字區 */}
+                                    <div 
+                                        className="flex items-center gap-1 cursor-pointer hover:bg-gray-200 px-1 py-0.5 rounded transition-colors group"
+                                        onClick={() => setSortDesc(!sortDesc)}
+                                        title="點擊切換新舊排序"
+                                    >
+                                        日期
+                                        <span className="text-gray-400 group-hover:text-blue-500 font-black text-xs">
+                                            {sortDesc ? '↓' : '↑'}
+                                        </span>
+                                    </div>
+                                    
+                                    {/* 右側：漏斗按鈕 */}
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setIsDateFilterOpen(!isDateFilterOpen); }}
+                                        className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterYear || filterMonth ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
+                                        title="篩選年月"
+                                    >
+                                        <FunnelIcon className="w-4 h-4" />
+                                    </button>
                                 </div>
+
+                                {/* Excel 漏斗彈出視窗 */}
+                                {isDateFilterOpen && (
+                                    <>
+                                        {/* 透明背景遮罩：點擊外面就關閉彈窗 */}
+                                        <div className="fixed inset-0 z-40" onClick={() => setIsDateFilterOpen(false)}></div>
+                                        
+                                        <div className="absolute top-full left-3 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                            <div className="mb-3">
+                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">年份</label>
+                                                <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50">
+                                                    <option value="">所有年份</option>
+                                                    {availableYears.map(y => <option key={y} value={y}>{y} 年</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="mb-4">
+                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">月份</label>
+                                                <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50">
+                                                    <option value="">所有月份</option>
+                                                    {Array.from({length: 12}, (_, i) => i + 1).map(m => <option key={m} value={m.toString()}>{m} 月</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-1">
+                                                <button onClick={() => { setFilterYear(''); setFilterMonth(''); setIsDateFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1 transition-colors">清除</button>
+                                                <button onClick={() => setIsDateFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-colors">套用</button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </th>
                             {viewMode === 'client_detail' ? (
                                 <>
