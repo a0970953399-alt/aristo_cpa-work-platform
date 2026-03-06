@@ -290,7 +290,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
         return balances;
     }, [records]);
 
-    // 1. Dashboard (入口畫面)
+  // 1. Dashboard (入口畫面)
     if (viewMode === 'dashboard') {
         return (
             <div className="h-full flex flex-col bg-gray-50 overflow-hidden">
@@ -298,7 +298,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
                         <BanknotesIcon className="w-5 h-5" /> 事務所帳本
                     </h3>
-                  {/* 碩業零用金 */}
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
+                        {/* 碩業零用金 */}
                         <button onClick={() => setViewMode('shuoye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-purple-100 hover:border-purple-300 transition-all group text-left flex justify-between items-end">
                             <div>
                                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
@@ -342,7 +343,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </div>
                 </div>
 
-              <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
                     <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
                         <span className="text-xl">👥</span> 客戶代墊紀錄
                     </h3>
@@ -353,11 +354,9 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             onClick={() => { setSelectedClient(client); setViewMode('client_detail'); }}
                             className="bg-white rounded-xl shadow p-4 border cursor-pointer hover:shadow-md aspect-square flex flex-col items-center justify-center gap-2"
                           >
-                            {/* ✨ 修改：將編號放大為 text-base，並稍微加寬 padding */}
                             <span className="bg-gray-100 text-gray-600 font-mono font-bold text-base px-3 py-1 rounded group-hover:bg-blue-100 group-hover:text-blue-700 transition-colors">
                                 {client.code}
                             </span>
-                            {/* ✨ 修改：將名稱放大為 text-lg (如果你覺得不夠大，可以改成 text-xl) */}
                             <span className="font-bold text-gray-800 text-2xl line-clamp-2 text-center">
                                 {client.name}
                             </span>
@@ -368,7 +367,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
             </div>
         );
     }
-
+  
     // 2. 詳細頁面
     let pageTitle = '';
     let headerColor = '';
