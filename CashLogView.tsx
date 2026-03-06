@@ -1,6 +1,7 @@
 // src/CashLogView.tsx
 
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { CashRecord, Client, CashAccountType } from './types';
 import { TaskService } from './taskService';
 import { PlusIcon, TrashIcon, ReturnIcon } from './Icons';
@@ -16,6 +17,12 @@ const BanknotesIcon = ({ className }: { className?: string }) => (
     <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
         <path strokeLinecap="round" strokeLinejoin="round" d="M2.25 18.75a60.07 60.07 0 0 1 15.797 2.101c.727.198 1.453-.342 1.453-1.096V18.75M3.75 4.5v.75A.75.75 0 0 1 3 6h-.75m0 0v-.375c0-.621.504-1.125 1.125-1.125H20.25M2.25 6v9m18-10.5v.75c0 .414.336.75.75.75h.75m-1.5-1.5h.375c.621 0 1.125.504 1.125 1.125v9.75c0 .621-.504 1.125-1.125 1.125h-.375m1.5-1.5H21a.75.75 0 0 0-.75.75v.75m0 0H3.75m0 0h-.375a1.125 1.125 0 0 1-1.125-1.125V15m1.5 1.5v-.75A.75.75 0 0 0 3 15h-.75M15 10.5a3 3 0 1 1-6 0 3 3 0 0 1 6 0Zm3 0h.008v.008H18V10.5Zm-12 0h.008v.008H6V10.5Z" />
     </svg>
+);
+
+const DocumentTextIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m0 12.75h7.5m-7.5 3H12M10.5 2.25H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+  </svg>
 );
 
 const SortIcon = ({ className }: { className?: string }) => (
@@ -59,6 +66,92 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingRecord, setEditingRecord] = useState<CashRecord | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+
+    const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // ✨ Excel 雙核匯入引擎
+    const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
+        if (!isSupervisor) return;
+        const file = e.target.files?.[0];
+        if (!file) return;
+
+        const reader = new FileReader();
+        reader.onload = async (evt) => {
+            try {
+                const bstr = evt.target?.result;
+                const wb = XLSX.read(bstr, { type: 'binary' });
+                const ws = wb.Sheets[wb.SheetNames[0]];
+                const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
+
+                if (data.length > 0) data.shift(); // 移除標題列
+
+                const newRecords: CashRecord[] = [];
+                data.forEach(row => {
+                    if (!row[0]) return;
+                    let dateStr = row[0];
+                    if (typeof row[0] === 'number') { // 處理 Excel 內建日期格式
+                         const excelDate = new Date((row[0] - (25567 + 2)) * 86400 * 1000);
+                         dateStr = excelDate.toISOString().split('T')[0];
+                    }
+
+                    if (viewMode === 'client_detail') {
+                        // 📁 格式一：客戶代墊款 (A:日期, B:金額, C:代墊費用, D:說明, E:請款單編號)
+                        newRecords.push({
+                            id: Date.now() + Math.random().toString(),
+                            date: dateStr,
+                            type: 'expense', // 代墊款必定是支出
+                            amount: Number(row[1]) || 0,
+                            category: row[2]?.toString() || '',
+                            description: row[3]?.toString() || '',
+                            requestId: row[4]?.toString() || '',
+                            account: 'shuoye', // 代墊預設掛在碩業帳上
+                            clientId: selectedClient!.id,
+                            clientName: selectedClient!.name,
+                            isReimbursed: false,
+                            note: '',
+                            voucherId: ''
+                        });
+                    } else {
+                        // 📁 格式二：事務所零用金 (A:日期, B:類型(收入/支出), C:金額, D:費用類別, E:客戶名稱, F:說明, G:備註, H:傳票號碼)
+                        const typeStr = row[1]?.toString().trim() || '支出';
+                        const isIncome = typeStr === '收入';
+                        newRecords.push({
+                            id: Date.now() + Math.random().toString(),
+                            date: dateStr,
+                            type: isIncome ? 'income' : 'expense',
+                            amount: Number(row[2]) || 0,
+                            category: row[3]?.toString() || '',
+                            clientName: row[4]?.toString() || '',
+                            description: row[5]?.toString() || '',
+                            note: row[6]?.toString() || '',
+                            voucherId: row[7]?.toString() || '',
+                            account: viewMode as CashAccountType,
+                            isReimbursed: false
+                        });
+                    }
+                });
+
+                if (newRecords.length > 0) {
+                    if (confirm(`讀取到 ${newRecords.length} 筆資料，確定要追加匯入嗎？`)) {
+                        setIsProcessing(true);
+                        // 批次寫入資料庫
+                        await Promise.all(newRecords.map(r => TaskService.addCashRecord(r)));
+                        onUpdate();
+                        alert("匯入成功！");
+                    }
+                } else {
+                    alert("Excel 內容為空或格式無法讀取");
+                }
+            } catch (err) {
+                console.error(err);
+                alert("匯入失敗，請確認 Excel 格式正確");
+            } finally {
+                setIsProcessing(false);
+            }
+            if (fileInputRef.current) fileInputRef.current.value = ''; // 清空 input 讓下次能選同一個檔案
+        };
+        reader.readAsBinaryString(file);
+    };
 
     // --- 資料處理邏輯 (核心修改) ---
 
@@ -260,12 +353,21 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     <h2 className={`text-xl font-bold px-3 py-1 rounded text-white ${headerColor} shadow-sm`}>{pageTitle}</h2>
                 </div>
                 
-                <div className="flex items-center gap-2">
-
-                  {isSupervisor && (
-                        <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
-                            <PlusIcon className="w-5 h-5" />
-                        </button>
+              <div className="flex items-center gap-2">
+                    {isSupervisor && (
+                        <>
+                            {/* 隱藏的檔案選擇器 */}
+                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
+                            
+                            {/* Excel 匯入按鈕 (綠色底色，與新增按鈕做出區隔) */}
+                            <button onClick={() => fileInputRef.current?.click()} title="Excel 匯入" className="p-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 shadow-sm transition-opacity">
+                                <DocumentTextIcon className="w-5 h-5" />
+                            </button>
+                            
+                            <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
+                                <PlusIcon className="w-5 h-5" />
+                            </button>
+                        </>
                     )}
                 </div>
             </div>
