@@ -290,6 +290,11 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
         return balances;
     }, [records]);
 
+    // ✨ 新增：專業貨幣格式化函數 (解決負號錯位問題)
+    const formatCurrency = (amount: number) => {
+        return amount < 0 ? `-$${Math.abs(amount).toLocaleString()}` : `$${amount.toLocaleString()}`;
+    };
+
   // 1. Dashboard (入口畫面)
     if (viewMode === 'dashboard') {
         return (
@@ -299,7 +304,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                         <BanknotesIcon className="w-5 h-5" /> 事務所帳本
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        {/* 碩業零用金 */}
+                      {/* 碩業零用金 */}
                         <button onClick={() => setViewMode('shuoye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-purple-100 hover:border-purple-300 transition-all group text-left flex justify-between items-end">
                             <div>
                                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
@@ -309,7 +314,10 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             </div>
                             <div className="text-right mb-1">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">目前結餘</span>
-                                <span className="text-3xl font-black text-purple-600">${accountBalances.shuoye.toLocaleString()}</span>
+                                {/* ✨ 自動判斷負數變紅，並套用正確的 -$50 格式 */}
+                                <span className={`text-3xl font-black ${accountBalances.shuoye < 0 ? 'text-red-500' : 'text-purple-600'}`}>
+                                    {formatCurrency(accountBalances.shuoye)}
+                                </span>
                             </div>
                         </button>
                         
@@ -323,7 +331,9 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             </div>
                             <div className="text-right mb-1">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">目前結餘</span>
-                                <span className="text-3xl font-black text-green-600">${accountBalances.yongye.toLocaleString()}</span>
+                                <span className={`text-3xl font-black ${accountBalances.yongye < 0 ? 'text-red-500' : 'text-green-600'}`}>
+                                    {formatCurrency(accountBalances.yongye)}
+                                </span>
                             </div>
                         </button>
 
@@ -337,7 +347,9 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             </div>
                             <div className="text-right mb-1">
                                 <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">目前結餘</span>
-                                <span className="text-3xl font-black text-orange-500">${accountBalances.puhe.toLocaleString()}</span>
+                                <span className={`text-3xl font-black ${accountBalances.puhe < 0 ? 'text-red-500' : 'text-orange-500'}`}>
+                                    {formatCurrency(accountBalances.puhe)}
+                                </span>
                             </div>
                         </button>
                     </div>
