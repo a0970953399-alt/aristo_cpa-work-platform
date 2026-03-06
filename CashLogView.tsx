@@ -298,7 +298,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
   // 1. Dashboard (入口畫面)
     if (viewMode === 'dashboard') {
         return (
-            <div className="h-full flex flex-col bg-gray-50 rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="h-full min-h-[calc(100vh-120px)] flex flex-col bg-gray-50 rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-6 pb-2">
                     <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
                         <BanknotesIcon className="w-5 h-5" /> 事務所帳本
@@ -388,8 +388,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     else if (viewMode === 'puhe') { pageTitle = '璞和零用金'; headerColor = 'bg-orange-500'; }
     else { pageTitle = `代墊款：${selectedClient?.name}`; headerColor = 'bg-blue-600'; }
 
-    return (
-        <div className="h-full flex flex-col bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+  return (
+        <div className="h-full min-h-[calc(100vh-120px)] flex flex-col bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                 <div className="flex items-center gap-3">
                     <button onClick={() => { setViewMode('dashboard'); setSelectedClient(null); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
