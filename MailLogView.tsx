@@ -1,6 +1,6 @@
 // src/MailLogView.tsx
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useMemo } from 'react';
 import * as XLSX from 'xlsx';
 import { MailRecord, MailCategory } from './types';
 import { TaskService } from './taskService';
@@ -19,6 +19,12 @@ const SortIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+const FunnelIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+  </svg>
+);
+
 interface MailLogViewProps {
     records: MailRecord[];
     onUpdate: () => void;
@@ -32,14 +38,41 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
     const [editingRecord, setEditingRecord] = useState<MailRecord | null>(null);
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // 篩選當前分頁的資料
-    const currentRecords = records
-        .filter(r => r.category === activeSubTab)
-        .sort((a, b) => {
+    // ✨ Excel 漏斗篩選狀態
+    const [filterYear, setFilterYear] = useState<string>('');
+    const [filterMonth, setFilterMonth] = useState<string>('');
+    const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
+
+    // ✨ 自動從資料中抓取有紀錄的年份，供下拉選單使用
+    const availableYears = useMemo(() => {
+        const years = new Set(records.map(r => r.date.substring(0, 4)));
+        return Array.from(years).sort((a, b) => Number(b) - Number(a));
+    }, [records]);
+
+   // ✨ 篩選當前分頁的資料 (加入年月篩選引擎)
+    const currentRecords = useMemo(() => {
+        let filtered = records.filter(r => r.category === activeSubTab);
+        
+        // 年月篩選邏輯
+        if (filterYear || filterMonth) {
+            filtered = filtered.filter(r => {
+                const dateParts = r.date.split('-'); // 格式: YYYY-MM-DD
+                if (dateParts.length >= 2) {
+                    const yMatch = filterYear ? dateParts[0] === filterYear : true;
+                    const mMatch = filterMonth ? parseInt(dateParts[1], 10).toString() === filterMonth : true;
+                    return yMatch && mMatch;
+                }
+                return true;
+            });
+        }
+        
+        // 日期排序
+        return filtered.sort((a, b) => {
             const dateA = new Date(a.date).getTime();
             const dateB = new Date(b.date).getTime();
             return sortDesc ? dateB - dateA : dateA - dateB;
         });
+    }, [records, activeSubTab, filterYear, filterMonth, sortDesc]);
 
     // 處理 Excel 匯入
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -154,18 +187,54 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                 <table className="w-full text-left border-collapse min-w-[1000px]"> 
                     <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider">
                         <tr>
-                            {/* 變成可點擊的表頭，加入 hover 效果與箭頭指示 */}
-                            <th 
-                                className="p-3 border-b w-32 whitespace-nowrap cursor-pointer hover:bg-gray-200 transition-colors select-none group"
-                                onClick={() => setSortDesc(!sortDesc)}
-                                title="點擊切換新舊排序"
-                            >
-                                <div className="flex items-center gap-1">
-                                    日期
-                                    <span className="text-gray-400 group-hover:text-blue-500 font-black">
-                                        {sortDesc ? '↓' : '↑'}
-                                    </span>
+                          {/* ✨ 日期欄位 (包含排序與 Excel 漏斗篩選) */}
+                            <th className="p-3 border-b w-32 relative select-none">
+                                <div className="flex items-center gap-2">
+                                    <div 
+                                        className="flex items-center gap-1 cursor-pointer hover:bg-gray-200 px-1 py-0.5 rounded transition-colors group"
+                                        onClick={() => setSortDesc(!sortDesc)}
+                                        title="點擊切換新舊排序"
+                                    >
+                                        日期
+                                        <span className="text-gray-400 group-hover:text-blue-500 font-black text-xs">
+                                            {sortDesc ? '↓' : '↑'}
+                                        </span>
+                                    </div>
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setIsDateFilterOpen(!isDateFilterOpen); }}
+                                        className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterYear || filterMonth ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
+                                        title="篩選年月"
+                                    >
+                                        <FunnelIcon className="w-4 h-4" />
+                                    </button>
                                 </div>
+
+                                {/* Excel 漏斗彈出視窗 */}
+                                {isDateFilterOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setIsDateFilterOpen(false)}></div>
+                                        <div className="absolute top-full left-3 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                            <div className="mb-3">
+                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">年份</label>
+                                                <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50">
+                                                    <option value="">所有年份</option>
+                                                    {availableYears.map(y => <option key={y} value={y}>{y} 年</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="mb-4">
+                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">月份</label>
+                                                <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50">
+                                                    <option value="">所有月份</option>
+                                                    {Array.from({length: 12}, (_, i) => i + 1).map(m => <option key={m} value={m.toString()}>{m} 月</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-1">
+                                                <button onClick={() => { setFilterYear(''); setFilterMonth(''); setIsDateFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1 transition-colors">清除</button>
+                                                <button onClick={() => setIsDateFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-colors">套用</button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
                             </th>
                             <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[35%] min-w-[300px]' : 'min-w-[200px]'}`}>文件名稱</th>
                             <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱(請款)'}</th>
