@@ -235,9 +235,10 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                         <SortIcon className="w-4 h-4" /> {sortDesc ? "日期：新→舊" : "日期：舊→新"}
                     </button>
 
-                    {isSupervisor && (
-                        <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} className={`flex items-center gap-1 px-4 py-2 ${headerColor} text-white rounded-lg hover:opacity-90 font-bold shadow-sm transition-opacity`}>
-                            <PlusIcon className="w-5 h-5" /> 新增紀錄
+                  {isSupervisor && (
+                        {/* 改為只有圖示，加上 p-2 變成正方形，並加上 title 提示 */}
+                        <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
+                            <PlusIcon className="w-5 h-5" />
                         </button>
                     )}
                 </div>
