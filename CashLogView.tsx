@@ -169,21 +169,18 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 <span className="text-2xl">🟣</span>
                             </div>
                             <h4 className="text-xl font-black text-gray-800">碩業零用金</h4>
-                            <p className="text-sm text-gray-500 mt-1">總帳、客戶代墊款連動</p>
                         </button>
                         <button onClick={() => setViewMode('yongye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-green-100 hover:border-green-300 transition-all group text-left">
                             <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                                 <span className="text-2xl">🟢</span>
                             </div>
                             <h4 className="text-xl font-black text-gray-800">永業零用金</h4>
-                            <p className="text-sm text-gray-500 mt-1">獨立帳本</p>
                         </button>
                         <button onClick={() => setViewMode('puhe')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-orange-100 hover:border-orange-300 transition-all group text-left">
                             <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                                 <span className="text-2xl">🟠</span>
                             </div>
                             <h4 className="text-xl font-black text-gray-800">璞和零用金</h4>
-                            <p className="text-sm text-gray-500 mt-1">簡易紀錄</p>
                         </button>
                     </div>
                 </div>
@@ -218,7 +215,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     // 2. 詳細頁面
     let pageTitle = '';
     let headerColor = '';
-    if (viewMode === 'shuoye') { pageTitle = '碩業零用金 (總帳)'; headerColor = 'bg-purple-600'; }
+    if (viewMode === 'shuoye') { pageTitle = '碩業零用金'; headerColor = 'bg-purple-600'; }
     else if (viewMode === 'yongye') { pageTitle = '永業零用金'; headerColor = 'bg-green-600'; }
     else if (viewMode === 'puhe') { pageTitle = '璞和零用金'; headerColor = 'bg-orange-500'; }
     else { pageTitle = `代墊款：${selectedClient?.name}`; headerColor = 'bg-blue-600'; }
