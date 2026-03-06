@@ -627,7 +627,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         </button>
                         <button onClick={() => { setIsClientMasterOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-indigo-50 rounded-xl text-gray-600 hover:text-indigo-600 transition-colors">
                             <div className="w-6 h-6 flex items-center justify-center text-lg">🏢</div>
-                            <span className="text-xs font-bold">客戶總署</span>
+                            <span className="text-xs font-bold">客戶</span>
                         </button>
                     </div>
                 )}
