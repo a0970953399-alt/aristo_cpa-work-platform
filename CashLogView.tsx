@@ -236,7 +236,6 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </button>
 
                   {isSupervisor && (
-                        {/* 改為只有圖示，加上 p-2 變成正方形，並加上 title 提示 */}
                         <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
                             <PlusIcon className="w-5 h-5" />
                         </button>
