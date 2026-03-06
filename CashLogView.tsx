@@ -185,8 +185,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </div>
                 </div>
 
-                <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
-                    <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm sticky top-0 bg-gray-50 z-10 py-2">
+              <div className="flex-1 p-6 overflow-y-auto custom-scrollbar">
+                    <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
                         <span className="text-xl">👥</span> 客戶代墊紀錄
                     </h3>
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
