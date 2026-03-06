@@ -231,7 +231,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 </div>
                 
                 <div className="flex items-center gap-2">
-                    <button onClick={() => setSortDesc(!sortDesc)} className="flex items-center gap-1 px-3 py-2 bg-white border rounded-lg hover:bg-gray-50 text-gray-600 text-sm font-bold shadow-sm">
+                  <button onClick={() => setSortDesc(!sortDesc)} className="flex items-center gap-1 px-3 py-2 bg-white border rounded-lg hover:bg-gray-50 text-gray-600 text-sm font-bold shadow-sm">
                         <SortIcon className="w-4 h-4" /> {sortDesc ? "日期：新→舊" : "日期：舊→新"}
                     </button>
 
