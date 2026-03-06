@@ -131,9 +131,7 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                 </div>
 
                 <div className="flex items-center gap-2">
-                  <button onClick={() => setSortDesc(!sortDesc)} className="flex items-center gap-1 px-3 py-2 bg-white border rounded-lg hover:bg-gray-50 text-gray-600 text-sm font-bold shadow-sm">
-                        <SortIcon className="w-4 h-4" /> {sortDesc ? "日期：新→舊" : "日期：舊→新"}
-                    </button>
+
                     
                     {/* 🔒 只有主管看得到操作按鈕 */}
                     {isSupervisor && (
@@ -156,7 +154,19 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                 <table className="w-full text-left border-collapse min-w-[1000px]"> 
                     <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider">
                         <tr>
-                            <th className="p-3 border-b w-28 whitespace-nowrap">日期</th>
+                            {/* 變成可點擊的表頭，加入 hover 效果與箭頭指示 */}
+                            <th 
+                                className="p-3 border-b w-32 whitespace-nowrap cursor-pointer hover:bg-gray-200 transition-colors select-none group"
+                                onClick={() => setSortDesc(!sortDesc)}
+                                title="點擊切換新舊排序"
+                            >
+                                <div className="flex items-center gap-1">
+                                    日期
+                                    <span className="text-gray-400 group-hover:text-blue-500 font-black">
+                                        {sortDesc ? '↓' : '↑'}
+                                    </span>
+                                </div>
+                            </th>
                             <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[35%] min-w-[300px]' : 'min-w-[200px]'}`}>文件名稱</th>
                             <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱(請款)'}</th>
                             <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '寄件者' : '收件者'}</th>
