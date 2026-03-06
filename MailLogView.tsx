@@ -138,12 +138,13 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                     {/* 🔒 只有主管看得到操作按鈕 */}
                     {isSupervisor && (
                         <>
-                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
-                            <button onClick={() => fileInputRef.current?.click()} className="flex items-center gap-1 px-3 py-2 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 text-sm font-bold">
-                                <DocumentTextIcon className="w-4 h-4" /> Excel 匯入
+                          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
+                            {/* 改為只有圖示，並加上 title 提示與 p-2 讓它變成正方形 */}
+                            <button onClick={() => fileInputRef.current?.click()} title="Excel 匯入" className="p-2 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition-colors shadow-sm">
+                                <DocumentTextIcon className="w-5 h-5" />
                             </button>
-                            <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} className="flex items-center gap-1 px-3 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 text-sm font-bold shadow-sm">
-                                <PlusIcon className="w-4 h-4" /> 手動新增
+                            <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} title="手動新增" className="p-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors shadow-sm">
+                                <PlusIcon className="w-5 h-5" />
                             </button>
                         </>
                     )}
