@@ -278,6 +278,18 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
     // --- 渲染部分 ---
 
+    // ✨ 計算三個零用金帳戶的目前總結餘供 Dashboard 顯示
+    const accountBalances = useMemo(() => {
+        const balances = { shuoye: 0, yongye: 0, puhe: 0 };
+        records.forEach(r => {
+            if (r.account === 'shuoye' || r.account === 'yongye' || r.account === 'puhe') {
+                if (r.type === 'income') balances[r.account] += Number(r.amount);
+                else balances[r.account] -= Number(r.amount);
+            }
+        });
+        return balances;
+    }, [records]);
+
     // 1. Dashboard (入口畫面)
     if (viewMode === 'dashboard') {
         return (
@@ -286,24 +298,46 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
                         <BanknotesIcon className="w-5 h-5" /> 事務所帳本
                     </h3>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
-                        <button onClick={() => setViewMode('shuoye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-purple-100 hover:border-purple-300 transition-all group text-left">
-                            <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                <span className="text-2xl">🟣</span>
+                  {/* 碩業零用金 */}
+                        <button onClick={() => setViewMode('shuoye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-purple-100 hover:border-purple-300 transition-all group text-left flex justify-between items-end">
+                            <div>
+                                <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                    <span className="text-2xl">🟣</span>
+                                </div>
+                                <h4 className="text-xl font-black text-gray-800">碩業零用金</h4>
                             </div>
-                            <h4 className="text-xl font-black text-gray-800">碩業零用金</h4>
+                            <div className="text-right mb-1">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">目前結餘</span>
+                                <span className="text-3xl font-black text-purple-600">${accountBalances.shuoye.toLocaleString()}</span>
+                            </div>
                         </button>
-                        <button onClick={() => setViewMode('yongye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-green-100 hover:border-green-300 transition-all group text-left">
-                            <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                <span className="text-2xl">🟢</span>
+                        
+                        {/* 永業零用金 */}
+                        <button onClick={() => setViewMode('yongye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-green-100 hover:border-green-300 transition-all group text-left flex justify-between items-end">
+                            <div>
+                                <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                    <span className="text-2xl">🟢</span>
+                                </div>
+                                <h4 className="text-xl font-black text-gray-800">永業零用金</h4>
                             </div>
-                            <h4 className="text-xl font-black text-gray-800">永業零用金</h4>
+                            <div className="text-right mb-1">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">目前結餘</span>
+                                <span className="text-3xl font-black text-green-600">${accountBalances.yongye.toLocaleString()}</span>
+                            </div>
                         </button>
-                        <button onClick={() => setViewMode('puhe')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-orange-100 hover:border-orange-300 transition-all group text-left">
-                            <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
-                                <span className="text-2xl">🟠</span>
+
+                        {/* 璞和零用金 */}
+                        <button onClick={() => setViewMode('puhe')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-orange-100 hover:border-orange-300 transition-all group text-left flex justify-between items-end">
+                            <div>
+                                <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
+                                    <span className="text-2xl">🟠</span>
+                                </div>
+                                <h4 className="text-xl font-black text-gray-800">璞和零用金</h4>
                             </div>
-                            <h4 className="text-xl font-black text-gray-800">璞和零用金</h4>
+                            <div className="text-right mb-1">
+                                <span className="text-[10px] font-bold text-gray-400 uppercase tracking-wider block mb-0.5">目前結餘</span>
+                                <span className="text-3xl font-black text-orange-500">${accountBalances.puhe.toLocaleString()}</span>
+                            </div>
                         </button>
                     </div>
                 </div>
