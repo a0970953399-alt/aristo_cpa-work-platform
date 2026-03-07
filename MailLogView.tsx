@@ -243,7 +243,7 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                                 )}
                             </th>
                             <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[35%] min-w-[300px]' : 'min-w-[200px]'}`}>文件名稱</th>
-                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱(請款)'}</th>
+                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱'}</th>
                             <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '寄件者' : '收件者'}</th>
                             {activeSubTab !== 'inbound' && <th className="p-3 border-b w-[25%] min-w-[200px]">地址</th>}
                             <th className="p-3 border-b w-24 whitespace-nowrap text-center">送件方式</th>
