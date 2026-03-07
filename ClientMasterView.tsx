@@ -369,7 +369,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         </div>
 
                         {/* 底部操作區 */}
-                        <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
+                      <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
                             {/* ✨ 單筆刪除按鈕 (純圖示) */}
                             <button 
                                 onClick={() => handleDeleteClient(selectedClient.id, selectedClient.name)}
