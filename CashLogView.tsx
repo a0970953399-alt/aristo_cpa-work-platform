@@ -305,8 +305,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </h3>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
                       {/* 碩業零用金 */}
-                        {/* ✨ 將 transition-all 改成 transition */}
-                        <button onClick={() => setViewMode('shuoye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-purple-100 hover:border-purple-300 transition group text-left flex justify-between items-end">
+                        {/* ✨ 移除 transition 屬性 */}
+                        <button onClick={() => setViewMode('shuoye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-purple-100 hover:border-purple-300 group text-left flex justify-between items-end">
                             <div>
                                 <div className="w-12 h-12 bg-purple-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                                     <span className="text-2xl">🟣</span>
@@ -322,8 +322,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                         </button>
                         
                         {/* 永業零用金 */}
-                        {/* ✨ 將 transition-all 改成 transition */}
-                        <button onClick={() => setViewMode('yongye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-green-100 hover:border-green-300 transition group text-left flex justify-between items-end">
+                        {/* ✨ 移除 transition 屬性 */}
+                        <button onClick={() => setViewMode('yongye')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-green-100 hover:border-green-300 group text-left flex justify-between items-end">
                             <div>
                                 <div className="w-12 h-12 bg-green-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                                     <span className="text-2xl">🟢</span>
@@ -339,8 +339,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                         </button>
 
                         {/* 璞和零用金 */}
-                        {/* ✨ 將 transition-all 改成 transition */}
-                        <button onClick={() => setViewMode('puhe')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-orange-100 hover:border-orange-300 transition group text-left flex justify-between items-end">
+                        {/* ✨ 移除 transition 屬性 */}
+                        <button onClick={() => setViewMode('puhe')} className="bg-white p-6 rounded-2xl shadow-sm hover:shadow-md border border-orange-100 hover:border-orange-300 group text-left flex justify-between items-end">
                             <div>
                                 <div className="w-12 h-12 bg-orange-100 rounded-full flex items-center justify-center mb-3 group-hover:scale-110 transition-transform">
                                     <span className="text-2xl">🟠</span>
