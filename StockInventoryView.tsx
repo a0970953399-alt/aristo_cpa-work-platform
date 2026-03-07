@@ -1,5 +1,6 @@
 import { ReturnIcon, PlusIcon, TrashIcon } from './Icons';
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Client, StockClientConfig, StockTarget } from './types';
 import { TaskService } from './taskService'; // ✨ 引入我們剛才寫好的 API 服務
 // ✨ 新增這行：引入 Recharts 圖表庫
@@ -22,6 +23,13 @@ const SortIcon = ({ className }: { className?: string }) => (
 const FunnelIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
     <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+  </svg>
+);
+
+// ✨ 新增上傳圖示
+const UploadIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3 16.5v2.25A2.25 2.25 0 0 0 5.25 21h13.5A2.25 2.25 0 0 0 21 18.75V16.5m-13.5-9L12 3m0 0 4.5 4.5M12 3v13.5" />
   </svg>
 );
 
@@ -305,6 +313,102 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     setEditingTxId(null);
     setTxType('buy'); setTxDate(''); setTxVoucherNo(''); setTxUnits('');
     setTxUnitPrice(''); setTxFee(''); setTxTax(''); setTxPaymentDate('');
+  };
+
+  // ✨ 處理 Excel 匯入的核心邏輯 (雙核防呆解析引擎)
+  const stockFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportStockExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedStock || !selectedClient) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+        const newTxs: StockTransaction[] = [];
+
+        // 假設第一行是標題，從第二行 (i=1) 開始讀取
+        for (let i = 1; i < data.length; i++) {
+          const row = data[i] as any[];
+          // A:日期(0), B:傳票(1), C:類型(2), D:股數(3), E:單價(4), F:手續費(5), G:證交稅(6), H:交割日(7)
+          if (!row[0] || !row[2] || !row[3] || !row[4]) continue;
+
+          // 1. 日期格式防呆轉換
+          let dateStr = row[0] instanceof Date 
+              ? new Date(row[0].getTime() - (row[0].getTimezoneOffset() * 60000)).toISOString().split('T')[0] 
+              : String(row[0]).replace(/\//g, '-').trim();
+              
+          let paymentDateStr = row[7] instanceof Date 
+              ? new Date(row[7].getTime() - (row[7].getTimezoneOffset() * 60000)).toISOString().split('T')[0] 
+              : (row[7] ? String(row[7]).replace(/\//g, '-').trim() : dateStr); // 沒填交割日預設同交易日
+
+          // 2. 類型與數值防呆提取
+          const typeStr = String(row[2]).trim();
+          const type: 'buy' | 'sell' = (typeStr.includes('賣') || typeStr.toUpperCase() === 'SELL') ? 'sell' : 'buy';
+
+          const units = Number(row[3]) || 0;
+          const unitPrice = Number(row[4]) || 0;
+          const fee = Number(row[5]) || 0;
+          const tax = type === 'sell' ? (Number(row[6]) || 0) : 0; // ✨ 買入強制忽略證交稅
+
+          // 若沒填傳票號碼，自動生成一個帶有時間戳的流水號
+          const voucherNo = String(row[1] || '').trim() || `EX-${Date.now().toString().slice(-4)}-${i}`;
+
+          if (units <= 0 || unitPrice <= 0) continue;
+
+          // 3. 組裝標準資料格式
+          const tx: StockTransaction = {
+            id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
+            stockTargetId: selectedStock.id,
+            clientId: String(selectedClient.id),
+            type,
+            date: dateStr,
+            voucherNo,
+            units,
+            unitPrice,
+            fee,
+            paymentDate: paymentDateStr,
+            createdAt: new Date().toISOString()
+          };
+
+          // 預先計算外圍衍生數值
+          if (type === 'buy') {
+              tx.buyAmount = units * unitPrice;
+              tx.buyActualCost = (units * unitPrice) + fee;
+          } else {
+              tx.sellAmount = units * unitPrice;
+              tx.sellTax = tax;
+              tx.sellNetAmount = (units * unitPrice) - fee - tax;
+              tx.matchedCost = 0; // 結餘與損益留給畫面渲染引擎精算
+              tx.realizedPnl = 0;
+          }
+          newTxs.push(tx);
+        }
+
+        if (newTxs.length > 0) {
+          // 循序漸進寫入資料庫，確保安全
+          for (const tx of newTxs) {
+              await TaskService.addStockTransaction(tx);
+          }
+          alert(`✅ 成功匯入 ${newTxs.length} 筆紀錄！系統已自動完成 FIFO 結算。`);
+          await loadData();
+        } else {
+          alert('沒有找到有效的紀錄，請確認 Excel 是否有漏填 (必填：日期、類型、股數、單價)。');
+        }
+      } catch (error) {
+        console.error("Excel解析錯誤:", error);
+        alert('檔案讀取失敗，請確認是否為標準的 Excel 檔案。');
+      }
+      
+      // 清空 input，允許連續上傳同一個檔案
+      if (stockFileInputRef.current) stockFileInputRef.current.value = '';
+    };
+    reader.readAsBinaryString(file);
   };
 
 // ✨ 點擊明細表列時，把資料倒灌回表單
@@ -781,14 +885,28 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                       </>
                   )}
                 </div>
-                {/* ✨ 登錄新交易按鈕 (純圖示) */}
-                <button
-                  onClick={() => setIsAddTxModalOpen(true)}
-                  title="登錄新交易"
-                  className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 flex items-center justify-center"
-                >
-                  <PlusIcon className="w-5 h-5" />
-                </button>
+                <div className="flex items-center gap-2">
+                  {/* ✨ 隱藏的實體檔案上傳輸入框 */}
+                  <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={stockFileInputRef} onChange={handleImportStockExcel} />
+                  
+                  {/* ✨ 匯入 Excel 按鈕 */}
+                  <button
+                    onClick={() => stockFileInputRef.current?.click()}
+                    title="匯入券商 Excel"
+                    className="px-3 py-1.5 bg-gray-900 text-white font-bold rounded-xl shadow-md hover:bg-gray-800 active:scale-95 flex items-center justify-center gap-2 text-sm"
+                  >
+                    <UploadIcon className="w-4 h-4" /> 匯入
+                  </button>
+
+                  {/* ✨ 登錄新交易按鈕 (純圖示) */}
+                  <button
+                    onClick={() => setIsAddTxModalOpen(true)}
+                    title="手動登錄交易"
+                    className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 flex items-center justify-center"
+                  >
+                    <PlusIcon className="w-5 h-5" />
+                  </button>
+                </div>
               </div>
               
               {/* B. 專業對帳表格 */}
