@@ -573,7 +573,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                   <div className="flex-1 w-full min-h-0">
                     {trendData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
-                        <LineChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
+                        {/* ✨ 把 left 從 0 改成 30，給大數字留出顯示空間 */}
+                        <LineChart data={trendData} margin={{ top: 10, right: 10, left: 30, bottom: 0 }}>
                           <CartesianGrid strokeDasharray="3 3" vertical={false} stroke="#f1f5f9" />
                           <XAxis dataKey="date" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dy={10} minTickGap={20} />
                           <YAxis yAxisId="left" axisLine={false} tickLine={false} tick={{ fontSize: 12, fill: '#94a3b8' }} dx={-10} tickFormatter={(val) => `$${(val/1000).toFixed(0)}k`} />
