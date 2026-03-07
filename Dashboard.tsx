@@ -28,6 +28,13 @@ import {
     LightBulbIcon, ClockIcon, DocumentTextIcon, Squares2X2Icon, FunnelIcon, ChatBubbleIcon 
 } from './Icons';
 
+// ✨ 新增：用於編輯懶人包的鉛筆圖示
+const PencilIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+  </svg>
+);
+
 import { 
     COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS, 
     YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS 
@@ -993,12 +1000,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   <div className="p-6 border-b bg-gray-50 flex items-center justify-between">
                       <div className="flex items-center gap-3 text-yellow-600">
                           <LightBulbIcon className="w-8 h-8" />
-                          <h3 className="text-2xl font-black">碩業知識庫：一圖流懶人包</h3>
+                          {/* ✨ 標題修改 */}
+                          <h3 className="text-2xl font-black">懶人包提醒</h3>
                       </div>
                       <div className="flex items-center gap-4">
                           {isSupervisor && (
-                              <button onClick={() => { setEditingInstruction({}); setIsInstructionModalOpen(true); }} className="bg-yellow-500 hover:bg-yellow-600 text-white px-4 py-2 rounded-xl font-bold text-sm shadow-sm transition-colors">
-                                  + 新增懶人包
+                              {/* ✨ 按鈕改為純加號圖示 */}
+                              <button onClick={() => { setEditingInstruction({}); setIsInstructionModalOpen(true); }} title="新增懶人包" className="bg-yellow-500 hover:bg-yellow-600 text-white w-10 h-10 flex items-center justify-center rounded-xl font-black text-xl shadow-sm transition-colors active:scale-95">
+                                  +
                               </button>
                           )}
                           <button onClick={() => setIsGalleryOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
@@ -1032,14 +1041,22 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               <div className="bg-white rounded-3xl max-w-4xl w-full flex flex-col max-h-[90vh] overflow-hidden" onClick={e => e.stopPropagation()}>
                   <div className="p-5 border-b flex justify-between items-center">
                       <h3 className="text-xl font-bold">{selectedInstruction.title}</h3>
-                      <div className="flex items-center gap-3">
+                      <div className="flex items-center gap-2">
                           {isSupervisor && (
                               <>
-                                  <button onClick={() => { setEditingInstruction(selectedInstruction); setIsInstructionModalOpen(true); setSelectedInstruction(null); }} className="text-blue-600 hover:bg-blue-50 font-bold text-sm px-4 py-2 border border-blue-200 rounded-xl transition-colors">編輯</button>
-                                  <button onClick={() => handleInstructionDelete(selectedInstruction.id)} className="text-red-600 hover:bg-red-50 font-bold text-sm px-4 py-2 border border-red-200 rounded-xl transition-colors">刪除</button>
+                                  {/* ✨ 編輯按鈕 (純圖示) */}
+                                  <button onClick={() => { setEditingInstruction(selectedInstruction); setIsInstructionModalOpen(true); setSelectedInstruction(null); }} title="編輯" className="p-2 bg-white border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors shadow-sm">
+                                      <PencilIcon className="w-5 h-5" />
+                                  </button>
+                                  {/* ✨ 刪除按鈕 (純圖示) */}
+                                  <button onClick={() => handleInstructionDelete(selectedInstruction.id)} title="刪除" className="p-2 bg-white border border-red-200 text-red-600 rounded-xl hover:bg-red-50 transition-colors shadow-sm">
+                                      <TrashIcon className="w-5 h-5" />
+                                  </button>
                               </>
                           )}
-                          <button onClick={() => setSelectedInstruction(null)} className="p-2 hover:bg-gray-100 rounded-full text-xl ml-2">✕</button>
+                          {/* 增加一點間距讓關閉按鈕獨立 */}
+                          <div className="w-px h-6 bg-gray-200 mx-1"></div>
+                          <button onClick={() => setSelectedInstruction(null)} className="p-2 hover:bg-gray-100 rounded-full text-xl text-gray-500">✕</button>
                       </div>
                   </div>
                   <div className="flex-1 overflow-y-auto p-5 flex flex-col gap-6">
