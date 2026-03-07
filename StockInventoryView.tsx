@@ -110,13 +110,30 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
   const [stocksToDelete, setStocksToDelete] = useState<string[]>([]);
 
-  // ✨ 1. 準備股票大字典 (優先從本地快取讀取，瞬間完成！)
+// ✨ 0. 內建保底熱門股票字典 (防止網路斷線或被 Proxy 封鎖時完全無法使用)
+  const FALLBACK_STOCKS: Record<string, string> = {
+      "2330": "台積電", "0050": "元大台灣50", "0056": "元大高股息", "2317": "鴻海",
+      "2454": "聯發科", "2412": "中華電", "2881": "富邦金", "2882": "國泰金",
+      "2891": "中信金", "2886": "兆豐金", "2002": "中鋼", "1301": "台塑",
+      "1303": "南亞", "2308": "台達電", "2884": "玉山金", "1216": "統一",
+      "2892": "第一金", "2885": "元大金", "2880": "華南金", "2382": "廣達",
+      "2357": "華碩", "3231": "緯創", "2324": "仁寶", "2353": "宏碁",
+      "2303": "聯電", "2603": "長榮", "2609": "陽明", "2615": "萬海",
+      "3711": "日月光投控", "2379": "瑞昱", "3008": "大立光", "2395": "研華",
+      "00878": "國泰永續高股息", "00929": "復華台灣科技優息", "00919": "群益台灣精選高息",
+      "00713": "元大台灣高息低波", "006208": "富邦台50", "00939": "統一台灣高息動能",
+      "00940": "元大台灣價值高息"
+  };
+
+  // ✨ 1. 準備股票大字典 (優先合併「本地快取」與「保底名單」)
   const [stockDictionary, setStockDictionary] = useState<Record<string, string>>(() => {
     try {
       const saved = localStorage.getItem("secretary_stock_directory");
-      return saved ? JSON.parse(saved) : {};
+      const parsed = saved ? JSON.parse(saved) : {};
+      // 將保底字典與快取字典無縫合併，確保熱門股絕對不會失效
+      return { ...FALLBACK_STOCKS, ...parsed };
     } catch (e) {
-      return {};
+      return FALLBACK_STOCKS;
     }
   });
 
