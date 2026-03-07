@@ -647,8 +647,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
           {/* --- 分頁二：交易明細表 (Ledger Tab) --- */}
           {activeSubTab === 'ledger' && (
-            {/* ✨ 移除固定的 min-h，改用 h-full 讓明細表完美貼齊視窗高度 */}
             <div className="max-w-[1600px] mx-auto w-full h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
+              {/* ✨ 移除固定的 min-h，改用 h-full 讓明細表完美貼齊視窗高度 */}
               {/* A. 功能操作列 */}
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
                 <div className="flex items-center gap-4">
