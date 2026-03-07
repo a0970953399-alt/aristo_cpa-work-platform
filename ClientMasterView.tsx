@@ -1,6 +1,6 @@
 // src/ClientMasterView.tsx
 
-import React, { useState } from 'react';
+import React, { useState, useRef } from 'react';
 import { Client } from './types';
 import { TaskService } from './taskService';
 
@@ -36,6 +36,9 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
     const [isSaving, setIsSaving] = useState(false);
     // 🆕 新增：控制總署牆面是否處於「刪除模式」
     const [isDeleteMode, setIsDeleteMode] = useState(false);
+
+    // ✨ 新增這行：用來觸發隱藏的 Excel 檔案上傳框
+    const fileInputRef = useRef<HTMLInputElement>(null);
 
     const handleChange = (field: keyof Client, value: any) => {
         if (selectedClient) {
@@ -237,41 +240,38 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
 
     return (
         <div className="fixed inset-0 bg-gray-100 z-[100] overflow-hidden flex flex-col animate-fade-in">
+          {/* --- 統一合併後的頂部操作列 --- */}
             <div className="bg-white shadow-sm p-4 flex justify-between items-center z-10">
-                <div className="flex items-center gap-3">
+                <div className="flex items-center gap-4">
+                    {/* ✨ 返回/關閉按鈕 */}
+                    <button onClick={onClose} title="返回首頁" className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
+                        <ReturnIcon className="w-6 h-6" />
+                    </button>
                     <div className="w-10 h-10 bg-indigo-100 rounded-xl flex items-center justify-center text-indigo-600 text-xl">🏢</div>
-                    <h2 className="text-xl font-bold text-gray-800">客戶資訊總署 (Client Master)</h2>
+                    {/* ✨ 標題修改 */}
+                    <h2 className="text-2xl font-black text-gray-800">客戶總覽</h2>
                 </div>
                 
-                {/* --- 頂部操作列 --- */}
-                <div className="flex justify-between items-center mb-6">
-                    <div className="flex items-center gap-4">
-                        {/* ✨ 返回/關閉按鈕 */}
-                        <button onClick={onClose} title="返回首頁" className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
-                            <ReturnIcon className="w-6 h-6" />
-                        </button>
-                        {/* ✨ 標題修改 */}
-                        <h2 className="text-2xl font-black text-gray-800">客戶總覽</h2>
-                    </div>
-                    <div className="flex gap-2">
-                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
-                        
-                        {/* ✨ 匯入 Excel 按鈕 (純圖示) */}
-                        <button onClick={() => fileInputRef.current?.click()} title="匯入 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 rounded-xl hover:bg-green-50 font-bold transition-colors shadow-sm flex items-center justify-center">
-                            <ExcelFileIcon className="w-5 h-5" />
-                        </button>
-                        
-                        {/* ✨ 刪除模式切換按鈕 (純圖示) */}
-                        <button onClick={() => setIsDeleteMode(!isDeleteMode)} title="刪除客戶" className={`p-2.5 rounded-xl border transition-colors flex items-center justify-center shadow-sm ${isDeleteMode ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}>
-                            <TrashIcon className="w-5 h-5" />
-                        </button>
+                <div className="flex gap-2">
+                    {/* ✨ 修復：將 onChange 綁定到正確的 handleExcelImport */}
+                    <input type="file" ref={fileInputRef} onChange={handleExcelImport} accept=".xlsx, .xls" className="hidden" />
+                    
+                    {/* ✨ 匯入 Excel 按鈕 (純圖示) */}
+                    <button onClick={() => fileInputRef.current?.click()} title="匯入 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 rounded-xl hover:bg-green-50 font-bold transition-colors shadow-sm flex items-center justify-center">
+                        <ExcelFileIcon className="w-5 h-5" />
+                    </button>
+                    
+                    {/* ✨ 刪除模式切換按鈕 (純圖示) */}
+                    <button onClick={() => setIsDeleteMode(!isDeleteMode)} title="刪除客戶" className={`p-2.5 rounded-xl border transition-colors flex items-center justify-center shadow-sm ${isDeleteMode ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}>
+                        <TrashIcon className="w-5 h-5" />
+                    </button>
 
-                        {/* ✨ 新增客戶按鈕 (純圖示) */}
-                        <button onClick={handleAddClient} title="新增客戶" className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold shadow-sm transition-colors flex items-center justify-center">
-                            <PlusIcon className="w-5 h-5" />
-                        </button>
-                    </div>
+                    {/* ✨ 新增客戶按鈕 (純圖示) */}
+                    <button onClick={handleAddClient} title="新增客戶" className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold shadow-sm transition-colors flex items-center justify-center">
+                        <PlusIcon className="w-5 h-5" />
+                    </button>
                 </div>
+            </div>
 
             <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                 <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
