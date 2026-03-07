@@ -33,6 +33,20 @@ import {
     YEAR_OPTIONS, DEFAULT_YEAR, INSTRUCTIONS 
 } from './constants';
 
+// ✨ 新增：用於「臨時交辦」的紙飛機圖示
+const PaperAirplaneIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+  </svg>
+);
+
+// ✨ 新增：用於「登出」的標準離開圖示
+const LogoutIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.75 9V5.25A2.25 2.25 0 0 0 13.5 3h-6a2.25 2.25 0 0 0-2.25 2.25v13.5A2.25 2.25 0 0 0 7.5 21h6a2.25 2.25 0 0 0 2.25-2.25V15m3 0 3-3m0 0-3-3m3 3H9" />
+  </svg>
+);
+
 const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款', '股票進銷存'];
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
@@ -532,60 +546,54 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             </div>
           </div>
 
-          {/* Right: Actions */}
-          <div className="flex items-center gap-4">
+            {/* Right: Actions */}
+          <div className="flex items-center gap-3">
             
+            {/* 時間顯示 */}
             <div className="flex flex-col items-end mr-2 leading-tight">
                 <span className="text-xs text-gray-400 font-medium">{dateStr}</span>
                 <span className="text-base font-bold text-gray-600 font-mono">{timeStr}</span>
             </div>
             
-            {/* 1. Misc Task */}
+            {/* 1. 臨時交辦 (純圖示：紙飛機) */}
             {isSupervisor && dbConnected && (
-                <button onClick={handleOpenMiscModal} className="flex items-center gap-2 bg-purple-600 text-white px-4 py-2 rounded-xl shadow-sm hover:bg-purple-700 transition-all active:scale-95 text-base font-bold">
-                    <span className="hidden sm:inline">臨時交辦</span>
-                    <span className="sm:hidden">+</span>
+                <button onClick={handleOpenMiscModal} title="新增臨時交辦" className="flex items-center justify-center p-2.5 bg-purple-600 text-white rounded-xl shadow-sm hover:bg-purple-700 transition-all active:scale-95 border border-purple-700">
+                    <PaperAirplaneIcon className="w-5 h-5" />
                 </button>
             )}
 
-            {/* 2. Check In/Out */}
+            {/* 2. 上班打卡 (純圖示：時鐘) */}
             <button 
                 onClick={() => isWorking ? setIsCheckOutModalOpen(true) : handleCheckIn()} 
-                className={`hidden sm:flex items-center gap-2 px-4 py-2 rounded-xl text-base font-bold shadow-sm transition-all active:scale-95 ${
+                title={isWorking ? "工作中...點擊下班" : "上班打卡"}
+                className={`flex items-center justify-center p-2.5 rounded-xl shadow-sm transition-all active:scale-95 border ${
                     isWorking 
-                    ? 'bg-green-500 text-white hover:bg-green-600 animate-pulse' 
-                    : 'bg-white border border-gray-300 text-gray-600 hover:bg-gray-50'
+                    ? 'bg-green-500 border-green-600 text-white hover:bg-green-600 animate-pulse' 
+                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                 }`}
             >
-                {isWorking ? (
-                    <>
-                        <ClockIcon className="w-5 h-5" />
-                        <span>工作中...</span>
-                    </>
-                ) : (
-                    <span>上班打卡</span>
-                )}
+                <ClockIcon className="w-5 h-5" />
             </button>
 
-            {/* 3. View Switch */}
+            {/* 3. 視圖切換 (純圖示：群組/表格) */}
             {isSupervisor ? (
-                <button onClick={() => setShowMyList(!showMyList)} className={`px-4 py-2 rounded-xl text-base font-medium transition-colors border flex items-center gap-2 ${showMyList ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-                    {showMyList ? <ReturnIcon className="w-5 h-5"/> : <><UserGroupIcon className="w-5 h-5"/><span>每日進度</span></>}
+                <button onClick={() => setShowMyList(!showMyList)} title={showMyList ? "返回全所進度" : "查看每日進度"} className={`flex items-center justify-center p-2.5 rounded-xl transition-colors border shadow-sm ${showMyList ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                    {showMyList ? <ReturnIcon className="w-5 h-5"/> : <UserGroupIcon className="w-5 h-5"/>}
                 </button>
             ) : (
-                <button onClick={() => setShowOverview(!showOverview)} className={`px-4 py-2 rounded-xl text-base font-medium transition-colors border flex items-center gap-2 ${showOverview ? 'bg-blue-600 text-white border-blue-600' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
-                    {showOverview ? <ReturnIcon className="w-5 h-5"/> : <><TableCellsIcon className="w-5 h-5"/><span>全所進度</span></>}
+                <button onClick={() => setShowOverview(!showOverview)} title={showOverview ? "返回我的進度" : "查看全所進度"} className={`flex items-center justify-center p-2.5 rounded-xl transition-colors border shadow-sm ${showOverview ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
+                    {showOverview ? <ReturnIcon className="w-5 h-5"/> : <TableCellsIcon className="w-5 h-5"/>}
                 </button>
             )}
 
-            {/* 4. App Menu */}
+            {/* 4. 應用程式選單 */}
             <div className="relative" ref={appMenuRef}>
                 <button 
                     onClick={() => setIsAppMenuOpen(!isAppMenuOpen)} 
-                    className={`p-2 rounded-xl transition-all border ${isAppMenuOpen ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-gray-100 text-gray-500 border-transparent hover:bg-gray-200'}`}
                     title="應用程式選單"
+                    className={`flex items-center justify-center p-2.5 rounded-xl transition-all border shadow-sm ${isAppMenuOpen ? 'bg-blue-100 text-blue-600 border-blue-200' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}
                 >
-                    <Squares2X2Icon className="w-6 h-6" />
+                    <Squares2X2Icon className="w-5 h-5" />
                 </button>
 
                 {isAppMenuOpen && (
@@ -633,12 +641,22 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 )}
             </div>
 
-            {/* User Avatar */}
-            <div className={`flex items-center gap-3 pr-4 pl-2 py-1.5 rounded-full ${isSupervisor ? 'bg-purple-50 text-purple-700' : 'bg-blue-50 text-blue-700'}`}>
-                <img src={activeUser.avatar} alt="User" className="w-10 h-10 rounded-full border border-blue-100 object-cover" />
-                <span className="font-medium text-base hidden sm:inline">{currentUser.name}</span>
+            {/* 視覺分隔線 */}
+            <div className="h-8 w-px bg-gray-200 mx-1"></div>
+
+            {/* 5. 人員頭像與登出區 (純圖示) */}
+            <div className="flex items-center justify-center gap-3">
+                {/* 圓形頭像，Hover時會顯示名字，並附帶上線狀態小綠點 */}
+                <div className={`relative rounded-full border-2 cursor-help ${isSupervisor ? 'border-purple-300' : 'border-blue-300'} p-0.5`} title={currentUser.name}>
+                    <img src={activeUser.avatar} alt="User" className="w-9 h-9 rounded-full object-cover bg-white" />
+                    <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isWorking ? 'bg-green-500' : 'bg-gray-300'}`}></div>
+                </div>
+
+                {/* 登出按鈕 (純圖示) */}
+                <button onClick={onLogout} title="登出系統" className="flex items-center justify-center p-2.5 bg-gray-100 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200 shadow-sm">
+                    <LogoutIcon className="w-5 h-5" />
+                </button>
             </div>
-            <button onClick={onLogout} className="text-gray-500 hover:text-red-600 text-base font-medium transition-colors">登出</button>
             
           </div>
         </div>
