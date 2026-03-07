@@ -70,7 +70,6 @@ export const MessageBoard: React.FC<MessageBoardProps> = ({ currentUser, message
                 <div className="p-5 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
                     <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
                         💬 事務所留言板
-                        <span className="text-sm font-normal text-gray-500 bg-white px-2 py-1 rounded border">暢所欲言區</span>
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
                 </div>
@@ -122,9 +121,10 @@ export const MessageBoard: React.FC<MessageBoardProps> = ({ currentUser, message
                 </div>
 
                 {/* 輸入區 (Footer) */}
-                <form onSubmit={handleSubmit} className="p-4 border-t bg-white rounded-b-2xl">
-                    <div className="flex gap-2 mb-2">
-                        {/* 類別選擇按鈕 */}
+                <form onSubmit={handleSubmit} className="p-4 border-t bg-white rounded-b-2xl flex items-center gap-3">
+                    
+                    {/* 左側：類別選擇按鈕 (正方形圖示) */}
+                    <div className="flex gap-2 bg-gray-100 p-1 rounded-xl shrink-0">
                         {(['chat', 'bug', 'announcement'] as MessageCategory[]).map(cat => {
                             const conf = getCategoryConfig(cat);
                             const isActive = category === cat;
@@ -133,29 +133,32 @@ export const MessageBoard: React.FC<MessageBoardProps> = ({ currentUser, message
                                     key={cat}
                                     type="button"
                                     onClick={() => setCategory(cat)}
-                                    className={`flex-1 py-2 rounded-lg text-sm font-bold border transition-all flex justify-center items-center gap-1 ${
+                                    title={`切換為：${conf.label}`}
+                                    className={`w-10 h-10 rounded-lg text-lg flex justify-center items-center transition-all ${
                                         isActive 
-                                        ? 'bg-gray-800 text-white border-gray-800 shadow-md transform scale-105' 
-                                        : 'bg-white text-gray-600 border-gray-200 hover:bg-gray-50'
+                                        ? 'bg-white shadow-sm ring-1 ring-gray-200 transform scale-105' 
+                                        : 'text-gray-500 hover:bg-gray-200 opacity-60 hover:opacity-100'
                                     }`}
                                 >
-                                    <span>{conf.icon}</span> {conf.label}
+                                    {conf.icon}
                                 </button>
                             );
                         })}
                     </div>
-                    <div className="flex gap-3">
+
+                    {/* 右側：輸入框與送出按鈕 */}
+                    <div className="flex-1 flex gap-3">
                         <input
                             type="text"
                             value={content}
                             onChange={e => setContent(e.target.value)}
                             placeholder={category === 'announcement' ? "輸入公告內容..." : category === 'bug' ? "發現什麼 BUG？請告訴我們..." : "想聊什麼？(匿名)"}
-                            className="flex-1 bg-gray-100 border-transparent focus:bg-white focus:border-blue-500 border rounded-xl px-4 py-3 outline-none transition-colors"
+                            className="flex-1 bg-gray-100 border-transparent focus:bg-white focus:ring-2 focus:ring-blue-100 border rounded-xl px-4 py-3 outline-none transition-all text-gray-800"
                         />
                         <button 
                             type="submit" 
                             disabled={!content.trim() || isSubmitting}
-                            className="bg-blue-600 text-white px-6 rounded-xl font-bold shadow hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-all active:scale-95"
+                            className="bg-blue-600 text-white px-6 rounded-xl font-bold shadow-md shadow-blue-100 hover:bg-blue-700 disabled:opacity-50 disabled:shadow-none disabled:cursor-not-allowed transition-all active:scale-95 shrink-0"
                         >
                             送出
                         </button>
