@@ -23,8 +23,8 @@ const UniversalDonutChart = React.memo(({
   let cumulativeOffset = 0;
 
   return (
-    {/* ✨ 改用 flex-1 與 min-h，確保它會隨畫面縮放而不會撐爆容器 */}
     <div className="flex flex-col items-center justify-center flex-1 relative min-h-[160px] w-full mt-2">
+      {/* ✨ 改用 flex-1 與 min-h，確保它會隨畫面縮放而不會撐爆容器 */}
       <svg viewBox="0 0 100 100" className="h-full max-h-[200px] aspect-square transform -rotate-90 overflow-visible">
         <circle cx="50" cy="50" r={radius} stroke="#f8fafc" strokeWidth="10" fill="none" />
         {total > 0 && data.map((item, i) => {
