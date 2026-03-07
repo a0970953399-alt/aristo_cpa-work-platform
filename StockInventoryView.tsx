@@ -113,44 +113,60 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 // ✨ 1. 準備一本空的股票大字典
   const [stockDictionary, setStockDictionary] = useState<Record<string, string>>({});
 
-  // ✨ 2. 一進畫面就去抓取上市櫃的股票清單 (加上 CORS 代理伺服器)
+// ✨ 2. 一進畫面就去抓取上市櫃的股票清單 (強化穩定版)
   useEffect(() => {
     const fetchDictionary = async () => {
       try {
         const newDict: Record<string, string> = {};
         const timeStamp = new Date().getTime();
 
-        // 🚀 從你的 Stocks.tsx 移植過來的「破壁機」，用來繞過證交所的 CORS 阻擋
+        // 🚀 升級版「破壁機」：包含直接連線與 JSON 嚴格驗證
         const fetchWithProxy = async (targetUrl: string) => {
+          // 1. 優先嘗試直接抓取 (政府 Open Data 現在很多都有開放 CORS)
+          try {
+              const res = await fetch(targetUrl);
+              if (res.ok) return await res.json();
+          } catch (e) {
+              // 直接連線失敗，準備啟動代理伺服器
+          }
+
+          // 2. 若直接連線失敗，才使用代理伺服器輪詢 (移除最常壞的 corsproxy.io，改用穩定的)
           const proxies = [
-            `https://corsproxy.io/?${encodeURIComponent(targetUrl)}`,
             `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
             `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
           ];
+          
           for (const proxy of proxies) {
             try {
               const res = await fetch(proxy);
-              if (res.ok) return res;
-            } catch (e) {}
+              if (res.ok) {
+                  // ✨ 關鍵修復：在這裡嘗試解析 JSON，如果伺服器給的是壞掉的 HTML 就不會讓系統崩潰
+                  const data = await res.json(); 
+                  return data;
+              }
+            } catch (e) {
+                // 這個代理壞了，安靜地換下一個
+            }
           }
           return null;
         };
         
         // 抓取上市資料
-        const twseRes = await fetchWithProxy(`https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL?t=${timeStamp}`);
-        if (twseRes) {
-          const twseData = await twseRes.json();
+        const twseData = await fetchWithProxy(`https://openapi.twse.com.tw/v1/exchangeReport/STOCK_DAY_ALL?t=${timeStamp}`);
+        if (twseData && Array.isArray(twseData)) {
           twseData.forEach((item: any) => { if (item.Code && item.Name) newDict[item.Code] = item.Name.trim(); });
         }
         
         // 抓取上櫃資料
-        const tpexRes = await fetchWithProxy(`https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes?t=${timeStamp}`);
-        if (tpexRes) {
-          const tpexData = await tpexRes.json();
+        const tpexData = await fetchWithProxy(`https://www.tpex.org.tw/openapi/v1/tpex_mainboard_quotes?t=${timeStamp}`);
+        if (tpexData && Array.isArray(tpexData)) {
           tpexData.forEach((item: any) => { if (item.SecuritiesCompanyCode && item.CompanyName) newDict[item.SecuritiesCompanyCode] = item.CompanyName.trim(); });
         }
         
-        setStockDictionary(newDict);
+        if (Object.keys(newDict).length > 0) {
+            setStockDictionary(newDict);
+            console.log(`✅ 股票字典載入成功！共 ${Object.keys(newDict).length} 檔標的`);
+        }
       } catch (error) {
         console.warn("股票字典載入失敗，將採手動輸入", error);
       }
