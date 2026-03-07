@@ -18,6 +18,13 @@ const SortIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 
+// ✨ 新增漏斗圖示
+const FunnelIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 3c2.755 0 5.455.232 8.083.678.533.09.917.556.917 1.096v1.044a2.25 2.25 0 0 1-.659 1.591l-5.432 5.432a2.25 2.25 0 0 0-.659 1.591v2.927a2.25 2.25 0 0 1-1.244 2.013L9.75 21v-6.568a2.25 2.25 0 0 0-.659-1.591L3.659 7.409A2.25 2.25 0 0 1 3 5.818V4.774c0-.54.384-1.006.917-1.096A48.32 48.32 0 0 1 12 3Z" />
+  </svg>
+);
+
 // ✨ 從 Stocks.tsx 移植過來的專屬動態圓餅圖 (已放大並支援自訂中間文字)
 const UniversalDonutChart = React.memo(({ 
   data, total, centerTitle, centerValue, valueColorClass 
@@ -163,6 +170,11 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
   // ✨ 新增排序狀態 (預設為 true：降序/新到舊)
   const [sortTxDesc, setSortTxDesc] = useState(true);
+
+  // ✨ 新增年月篩選狀態
+  const [filterYear, setFilterYear] = useState<string>('');
+  const [filterMonth, setFilterMonth] = useState<string>('');
+  const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
 
   // --- 新增交易表單的 State (放在元件最上方) ---
   const [isAddTxModalOpen, setIsAddTxModalOpen] = useState(false);
@@ -468,8 +480,23 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
       };
     });
 
-    // ✨ 依照排序狀態決定畫面顯示順序
-    const displayTxs = sortTxDesc ? [...enrichedTxs].reverse() : [...enrichedTxs];
+    // ✨ 1. 自動從已處理好的交易中抓取有紀錄的年份，供下拉選單使用
+    const availableYears = Array.from(new Set(enrichedTxs.map(r => r.date.substring(0, 4)))).sort((a, b) => Number(b) - Number(a));
+
+    // ✨ 2. 從算好餘額的 enrichedTxs 中進行年月篩選 (⚠️ 絕對不可在算餘額前篩選，否則 FIFO 與結餘會錯亂！)
+    const filteredTxs = enrichedTxs.filter(r => {
+        if (!filterYear && !filterMonth) return true;
+        const dateParts = r.date.split('-');
+        if (dateParts.length >= 2) {
+            const yMatch = filterYear ? dateParts[0] === filterYear : true;
+            const mMatch = filterMonth ? parseInt(dateParts[1], 10).toString() === filterMonth : true;
+            return yMatch && mMatch;
+        }
+        return true;
+    });
+
+    // ✨ 3. 最後再依照排序狀態決定畫面顯示順序
+    const displayTxs = sortTxDesc ? [...filteredTxs].reverse() : [...filteredTxs];
     
     // ✨ 取出最新庫存狀態 (餵給 KPI 卡片)
     const currentStockUnits = runningUnits;
@@ -661,7 +688,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
               {/* ✨ 移除固定的 min-h，改用 h-full 讓明細表完美貼齊視窗高度 */}
               {/* A. 功能操作列 */}
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
-                <div className="flex items-center gap-4">
+                <div className="flex items-center gap-2 relative">
                   {/* ✨ 可點擊的排序切換按鈕 */}
                   <button 
                     onClick={() => setSortTxDesc(!sortTxDesc)}
@@ -670,6 +697,44 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                     <SortIcon className={`w-4 h-4 transition-transform ${sortTxDesc ? '' : 'rotate-180'}`} />
                     {sortTxDesc ? '日期降序 (新→舊)' : '日期升序 (舊→新)'}
                   </button>
+
+                  {/* ✨ 漏斗篩選按鈕 */}
+                  <button 
+                      onClick={() => setIsDateFilterOpen(!isDateFilterOpen)}
+                      className={`p-1.5 border rounded-lg transition-colors shadow-sm flex items-center justify-center ${filterYear || filterMonth ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-gray-500 bg-gray-50 hover:bg-gray-100 border-gray-200'}`}
+                      title="篩選年月"
+                  >
+                      <FunnelIcon className="w-5 h-5" />
+                  </button>
+
+                  {/* ✨ 漏斗彈出視窗 */}
+                  {isDateFilterOpen && (
+                      <>
+                          {/* 透明背景遮罩 */}
+                          <div className="fixed inset-0 z-40" onClick={() => setIsDateFilterOpen(false)}></div>
+                          
+                          <div className="absolute top-full left-0 mt-2 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                              <div className="mb-3">
+                                  <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">年份</label>
+                                  <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50">
+                                      <option value="">所有年份</option>
+                                      {availableYears.map(y => <option key={y} value={y}>{y} 年</option>)}
+                                  </select>
+                              </div>
+                              <div className="mb-4">
+                                  <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">月份</label>
+                                  <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50">
+                                      <option value="">所有月份</option>
+                                      {Array.from({length: 12}, (_, i) => i + 1).map(m => <option key={m} value={m.toString()}>{m} 月</option>)}
+                                  </select>
+                              </div>
+                              <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-1">
+                                  <button onClick={() => { setFilterYear(''); setFilterMonth(''); setIsDateFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1 transition-colors">清除</button>
+                                  <button onClick={() => setIsDateFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-colors">套用</button>
+                              </div>
+                          </div>
+                      </>
+                  )}
                 </div>
                 {/* ✨ 登錄新交易按鈕 (純圖示) */}
                 <button
