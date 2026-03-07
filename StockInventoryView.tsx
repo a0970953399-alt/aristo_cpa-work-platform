@@ -850,17 +850,21 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
       <div className="h-full flex flex-col animate-fade-in">
         <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
-            <button onClick={() => setSelectedClient(null)} className="px-4 py-2 bg-gray-100 text-gray-700 font-bold rounded-xl hover:bg-gray-200 transition-colors">
-              ← 返回所有客戶
+            {/* ✨ 圓形返回圖示按鈕 (與零用金系統一致) */}
+            <button onClick={() => setSelectedClient(null)} title="返回所有客戶" className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
+              <ReturnIcon className="w-6 h-6" />
             </button>
             <h2 className="text-2xl font-black text-gray-800">{selectedClient.name} 的投資標的</h2>
           </div>
           <div className="flex gap-2">
-            <button onClick={() => setIsAddStockModalOpen(true)} className="px-4 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors">
-              + 新增交易股票
+            {/* ✨ 新增交易股票按鈕 (純圖示) */}
+            <button onClick={() => setIsAddStockModalOpen(true)} title="新增交易股票" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center">
+              <PlusIcon className="w-5 h-5" />
             </button>
-            <button onClick={() => { setStocksToDelete([]); setIsDeleteStockModalOpen(true); }} className="px-4 py-2 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors">
-              刪除標的
+            
+            {/* ✨ 刪除標的按鈕 (純圖示) */}
+            <button onClick={() => { setStocksToDelete([]); setIsDeleteStockModalOpen(true); }} title="刪除標的" className="p-2.5 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center">
+              <TrashIcon className="w-5 h-5" />
             </button>
           </div>
         </div>
