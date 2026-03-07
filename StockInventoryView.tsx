@@ -1,4 +1,4 @@
-import { ReturnIcon } from './Icons';
+import { ReturnIcon, PlusIcon, TrashIcon } from './Icons';
 import React, { useState, useEffect } from 'react';
 import { Client, StockClientConfig, StockTarget } from './types';
 import { TaskService } from './taskService'; // ✨ 引入我們剛才寫好的 API 服務
@@ -926,11 +926,14 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">📊 股票進銷存系統</h2>
         <div className="flex gap-2">
-          <button onClick={() => setIsAddClientModalOpen(true)} className="px-5 py-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 transition-colors">
-            + 加入進銷存客戶
+          {/* ✨ 加入進銷存客戶按鈕 (純圖示) */}
+          <button onClick={() => setIsAddClientModalOpen(true)} title="加入進銷存客戶" className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 transition-colors flex items-center justify-center">
+            <PlusIcon className="w-5 h-5" />
           </button>
-          <button onClick={() => { setClientsToDelete([]); setIsDeleteClientModalOpen(true); }} className="px-5 py-2.5 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors">
-            移除客戶
+          
+          {/* ✨ 移除客戶按鈕 (純圖示) */}
+          <button onClick={() => { setClientsToDelete([]); setIsDeleteClientModalOpen(true); }} title="移除客戶" className="p-2.5 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center">
+            <TrashIcon className="w-5 h-5" />
           </button>
         </div>
       </div>
