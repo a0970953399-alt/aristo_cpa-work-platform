@@ -110,27 +110,40 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
   const [stocksToDelete, setStocksToDelete] = useState<string[]>([]);
 
-// ✨ 1. 準備一本空的股票大字典
-  const [stockDictionary, setStockDictionary] = useState<Record<string, string>>({});
+  // ✨ 1. 準備股票大字典 (優先從本地快取讀取，瞬間完成！)
+  const [stockDictionary, setStockDictionary] = useState<Record<string, string>>(() => {
+    try {
+      const saved = localStorage.getItem("secretary_stock_directory");
+      return saved ? JSON.parse(saved) : {};
+    } catch (e) {
+      return {};
+    }
+  });
 
-// ✨ 2. 一進畫面就去抓取上市櫃的股票清單 (強化穩定版)
+  // ✨ 新增：當字典有更新時，自動背景存入本地快取
+  useEffect(() => {
+    if (Object.keys(stockDictionary).length > 0) {
+      localStorage.setItem("secretary_stock_directory", JSON.stringify(stockDictionary));
+    }
+  }, [stockDictionary]);
+
+  // ✨ 2. 只有在「打開新增股票彈窗」且「本地字典是空的」時，才發動網路連線
   useEffect(() => {
     const fetchDictionary = async () => {
+      // 如果字典已經有資料（從快取讀到的），直接中斷，不浪費筆電網路資源！
+      if (Object.keys(stockDictionary).length > 0) return;
+
       try {
         const newDict: Record<string, string> = {};
         const timeStamp = new Date().getTime();
 
         // 🚀 升級版「破壁機」：包含直接連線與 JSON 嚴格驗證
         const fetchWithProxy = async (targetUrl: string) => {
-          // 1. 優先嘗試直接抓取 (政府 Open Data 現在很多都有開放 CORS)
           try {
               const res = await fetch(targetUrl);
               if (res.ok) return await res.json();
-          } catch (e) {
-              // 直接連線失敗，準備啟動代理伺服器
-          }
+          } catch (e) {}
 
-          // 2. 若直接連線失敗，才使用代理伺服器輪詢 (移除最常壞的 corsproxy.io，改用穩定的)
           const proxies = [
             `https://api.allorigins.win/raw?url=${encodeURIComponent(targetUrl)}`,
             `https://api.codetabs.com/v1/proxy?quest=${encodeURIComponent(targetUrl)}`
@@ -139,14 +152,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           for (const proxy of proxies) {
             try {
               const res = await fetch(proxy);
-              if (res.ok) {
-                  // ✨ 關鍵修復：在這裡嘗試解析 JSON，如果伺服器給的是壞掉的 HTML 就不會讓系統崩潰
-                  const data = await res.json(); 
-                  return data;
-              }
-            } catch (e) {
-                // 這個代理壞了，安靜地換下一個
-            }
+              if (res.ok) return await res.json();
+            } catch (e) {}
           }
           return null;
         };
@@ -165,14 +172,18 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         
         if (Object.keys(newDict).length > 0) {
             setStockDictionary(newDict);
-            console.log(`✅ 股票字典載入成功！共 ${Object.keys(newDict).length} 檔標的`);
+            console.log(`✅ 股票字典載入成功並已快取！共 ${Object.keys(newDict).length} 檔標的`);
         }
       } catch (error) {
         console.warn("股票字典載入失敗，將採手動輸入", error);
       }
     };
-    fetchDictionary();
-  }, []);
+
+    // ✨ 觸發條件：只有當你點開「新增交易股票」彈窗時，才去檢查要不要抓資料
+    if (isAddStockModalOpen) {
+        fetchDictionary();
+    }
+  }, [isAddStockModalOpen, stockDictionary]);
 
   // ✨ 3. 監聽代號輸入框，一打滿 4 碼就自動查字典帶入名稱
   useEffect(() => {
