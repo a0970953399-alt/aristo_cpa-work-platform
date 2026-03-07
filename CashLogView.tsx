@@ -37,6 +37,12 @@ const FunnelIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const MagnifyingGlassIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
+  </svg>
+);
+
 interface CashLogViewProps {
     records: CashRecord[];
     clients: Client[];
@@ -55,6 +61,20 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     const [filterYear, setFilterYear] = useState<string>('');
     const [filterMonth, setFilterMonth] = useState<string>('');
     const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
+
+    // ✨ 客戶名稱搜尋狀態 (放大鏡)
+    const [filterClient, setFilterClient] = useState<string>('');
+    const [isClientFilterOpen, setIsClientFilterOpen] = useState(false);
+
+    // ✨ 篩選客戶名單供 Dashboard 顯示 (支援名稱與代碼搜尋)
+    const filteredClients = useMemo(() => {
+        if (!filterClient.trim()) return clients;
+        const keyword = filterClient.trim().toLowerCase();
+        return clients.filter(c => 
+            c.name.toLowerCase().includes(keyword) || 
+            c.code.toLowerCase().includes(keyword)
+        );
+    }, [clients, filterClient]);
 
     // ✨ 自動從資料中抓取有紀錄的年份，供下拉選單使用
     const availableYears = useMemo(() => {
@@ -358,12 +378,52 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 </div>
 
               {/* ✨ 將 auto 改成 scroll 強制保留軌道 */}
-                <div className="flex-1 p-6 overflow-y-scroll custom-scrollbar">
-                    <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
-                        <span className="text-xl">👥</span> 客戶代墊紀錄
-                    </h3>
+              <div className="flex-1 p-6 overflow-y-scroll custom-scrollbar">
+                    {/* ✨ 修改標題區塊，加入搜尋按鈕與相對定位 */}
+                    <div className="relative mb-4 flex items-center gap-2">
+                        <h3 className="text-gray-500 font-bold flex items-center gap-2 uppercase tracking-wider text-sm">
+                            <span className="text-xl">👥</span> 客戶代墊紀錄
+                        </h3>
+                        
+                        {/* 放大鏡按鈕 */}
+                        <button 
+                            onClick={(e) => { e.stopPropagation(); setIsClientFilterOpen(!isClientFilterOpen); }}
+                            className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterClient ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
+                            title="搜尋客戶"
+                        >
+                            <MagnifyingGlassIcon className="w-5 h-5" />
+                        </button>
+
+                        {/* 客戶搜尋彈出視窗 */}
+                        {isClientFilterOpen && (
+                            <>
+                                {/* 透明背景遮罩 */}
+                                <div className="fixed inset-0 z-40" onClick={() => setIsClientFilterOpen(false)}></div>
+                                
+                                <div className="absolute top-8 left-0 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                    <div className="mb-2">
+                                        <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋客戶名稱或代碼</label>
+                                        <input 
+                                            type="text" 
+                                            value={filterClient} 
+                                            onChange={e => setFilterClient(e.target.value)} 
+                                            placeholder="輸入關鍵字..."
+                                            className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50"
+                                            autoFocus
+                                        />
+                                    </div>
+                                    <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-2">
+                                        <button onClick={() => { setFilterClient(''); setIsClientFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1 transition-colors">清除</button>
+                                        <button onClick={() => setIsClientFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-colors">完成</button>
+                                    </div>
+                                </div>
+                            </>
+                        )}
+                    </div>
+
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
-                        {clients.map(client => (
+                        {/* ✨ 把原本的 clients.map 改成 filteredClients.map */}
+                        {filteredClients.map(client => (
                         <button 
                             key={client.id}
                             onClick={() => { setSelectedClient(client); setViewMode('client_detail'); }}
