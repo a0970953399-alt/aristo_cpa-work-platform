@@ -274,7 +274,19 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                 </div>
                 <div className="p-4 bg-white border-t flex justify-between items-center">
                     <div className="text-xl font-bold text-gray-800">總應收：<span className="text-blue-600 text-2xl">${grandTotal.toLocaleString()}</span></div>
-                    <div className="flex gap-3"><button onClick={onClose} className="px-6 py-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold">取消</button><button onClick={handleDownloadExcel} disabled={isGenerating} className="flex items-center gap-2 bg-green-600 hover:bg-green-700 text-white px-8 py-3 rounded-lg font-bold shadow-lg"><CloudArrowDownIcon className="w-6 h-6"/> 下載 Excel</button></div>
+                    <div className="flex gap-3">
+                        <button onClick={onClose} className="px-6 py-2 text-gray-500 hover:bg-gray-100 rounded-lg font-bold transition-colors">取消</button>
+                        
+                        {/* ✨ 下載 Excel 按鈕 (純圖示版本) */}
+                        <button 
+                            onClick={handleDownloadExcel} 
+                            disabled={isGenerating} 
+                            title="下載 Excel" 
+                            className="flex items-center justify-center p-3 bg-green-600 hover:bg-green-700 text-white rounded-xl shadow-lg transition-all active:scale-95 disabled:opacity-50"
+                        >
+                            <CloudArrowDownIcon className="w-6 h-6" />
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
