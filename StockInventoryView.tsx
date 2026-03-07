@@ -23,10 +23,9 @@ const UniversalDonutChart = React.memo(({
   let cumulativeOffset = 0;
 
   return (
-    // 👇 1. 容器高度從 h-52 增加到 h-64
-    <div className="flex flex-col items-center justify-center h-64 relative mt-4">
-      {/* 👇 2. SVG 寬高從 w-48 放大為 w-60 */}
-      <svg viewBox="0 0 100 100" className="w-60 h-60 transform -rotate-90 overflow-visible">
+    {/* ✨ 改用 flex-1 與 min-h，確保它會隨畫面縮放而不會撐爆容器 */}
+    <div className="flex flex-col items-center justify-center flex-1 relative min-h-[160px] w-full mt-2">
+      <svg viewBox="0 0 100 100" className="h-full max-h-[200px] aspect-square transform -rotate-90 overflow-visible">
         <circle cx="50" cy="50" r={radius} stroke="#f8fafc" strokeWidth="10" fill="none" />
         {total > 0 && data.map((item, i) => {
           const percentage = item.value / total;
@@ -532,43 +531,46 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         </div>
 
         {/* 2. 內容顯示區 */}
-        <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
+        {/* ✨ 將外層改為 overflow-hidden flex flex-col，強迫內容不超出視窗高度 */}
+        <div className="flex-1 overflow-hidden p-4 sm:p-6 flex flex-col">
           
           {/* --- 分頁一：圖表總覽 (Charts Tab) --- */}
           {activeSubTab === 'overview' && (
-            <div className="max-w-6xl mx-auto space-y-6">
+            {/* ✨ 加上 h-full 讓它可以被垂直伸展 */}
+            <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4 sm:gap-6">
               
-              {/* 1. KPI 數值摘要 (改為 4 格) */}
-              <div className="grid grid-cols-2 lg:grid-cols-4 gap-6">
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">當前庫存股數</p>
-                  <p className="text-3xl font-black text-gray-800">{currentStockUnits.toLocaleString()} <span className="text-sm font-medium text-gray-400">股</span></p>
+              {/* 1. KPI 數值摘要 (改為 shrink-0 防止被擠壓，並縮小 padding) */}
+              <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 shrink-0">
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">當前庫存股數</p>
+                  <p className="text-2xl sm:text-3xl font-black text-gray-800">{currentStockUnits.toLocaleString()} <span className="text-xs sm:text-sm font-medium text-gray-400">股</span></p>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">帳列總成本</p>
-                  <p className="text-3xl font-black text-gray-800">${currentStockTotalCost.toLocaleString()}</p>
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">帳列總成本</p>
+                  <p className="text-2xl sm:text-3xl font-black text-gray-800">${currentStockTotalCost.toLocaleString()}</p>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">當前平均成本</p>
-                  <p className="text-3xl font-black text-gray-500">${Math.round(currentStockAvgCost).toLocaleString()}</p>
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">當前平均成本</p>
+                  <p className="text-2xl sm:text-3xl font-black text-gray-500">${Math.round(currentStockAvgCost).toLocaleString()}</p>
                 </div>
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
-                  <p className="text-xs font-bold text-gray-400 uppercase mb-2">累計已處分損益</p>
-                  <p className={`text-3xl font-black ${totalRealizedPnl >= 0 ? 'text-red-500' : 'text-green-500'}`}>
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                  <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">累計已處分損益</p>
+                  <p className={`text-2xl sm:text-3xl font-black ${totalRealizedPnl >= 0 ? 'text-red-500' : 'text-green-500'}`}>
                     {totalRealizedPnl >= 0 ? '+' : ''}{totalRealizedPnl.toLocaleString()}
                   </p>
                 </div>
               </div>
-
-              {/* 2. 圖示化區塊 */}
-              <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
+                  
+  {/* 2. 圖示化區塊 (✨ 加上 flex-1 min-h-0，讓圖表自動吃滿所有剩下的高度) */}
+              <div className="grid grid-cols-1 lg:grid-cols-3 gap-4 sm:gap-6 flex-1 min-h-0">
                 
                 {/* 折線圖 (佔 2/3 寬度) */}
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm h-96 flex flex-col lg:col-span-2">
-                  <h4 className="font-bold text-gray-700 mb-6 flex items-center gap-2">
+                {/* ✨ 移除固定的 h-96，改為 min-h-0 */}
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col lg:col-span-2 min-h-0">
+                  <h4 className="font-bold text-gray-700 mb-4 flex items-center gap-2 shrink-0">
                     <div className="w-1.5 h-5 bg-blue-500 rounded-full"></div> 帳列成本與均價走勢
                   </h4>
-                  <div className="flex-1 w-full">
+                  <div className="flex-1 w-full min-h-0">
                     {trendData.length > 0 ? (
               <ResponsiveContainer width="100%" height="100%">
                         <LineChart data={trendData} margin={{ top: 10, right: 10, left: 0, bottom: 0 }}>
@@ -608,11 +610,12 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                 </div>
 
                 {/* 圓餅圖 (佔 1/3 寬度) */}
-                <div className="bg-white p-6 rounded-3xl border border-gray-100 shadow-sm h-96 flex flex-col">
-                   <h4 className="font-bold text-gray-700 mb-6 flex items-center gap-2">
+                {/* ✨ 移除固定的 h-96，改為 min-h-0 */}
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm flex flex-col min-h-0">
+                   <h4 className="font-bold text-gray-700 mb-4 flex items-center gap-2 shrink-0">
                     <div className="w-1.5 h-5 bg-emerald-500 rounded-full"></div> 累計資金流向比例
                   </h4>
-                  <div className="flex-1 w-full relative flex flex-col">
+                  <div className="flex-1 w-full relative flex flex-col min-h-0">
                     {cashFlowData.reduce((acc, cur) => acc + cur.value, 0) > 0 ? (
                       <>
                         <UniversalDonutChart 
@@ -644,7 +647,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
           {/* --- 分頁二：交易明細表 (Ledger Tab) --- */}
           {activeSubTab === 'ledger' && (
-            <div className="max-w-[1600px] mx-auto bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col min-h-[600px]">
+            {/* ✨ 移除固定的 min-h，改用 h-full 讓明細表完美貼齊視窗高度 */}
+            <div className="max-w-[1600px] mx-auto w-full h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden flex flex-col">
               {/* A. 功能操作列 */}
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
                 <div className="flex items-center gap-4">
