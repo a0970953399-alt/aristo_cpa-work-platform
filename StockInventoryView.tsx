@@ -33,6 +33,13 @@ const UploadIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// ✨ 新增 Excel 檔案匯入專用圖示 (空心檔案 + 向上箭頭)
+const ExcelFileIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+  </svg>
+);
+
 // ✨ 從 Stocks.tsx 移植過來的專屬動態圓餅圖 (已放大並支援自訂中間文字)
 const UniversalDonutChart = React.memo(({ 
   data, total, centerTitle, centerValue, valueColorClass 
@@ -889,13 +896,13 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                   {/* ✨ 隱藏的實體檔案上傳輸入框 */}
                   <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={stockFileInputRef} onChange={handleImportStockExcel} />
                   
-                  {/* ✨ 匯入 Excel 按鈕 */}
+                  {/* ✨ 匯入 Excel 按鈕 (純圖示，綠色空心風格) */}
                   <button
                     onClick={() => stockFileInputRef.current?.click()}
                     title="匯入券商 Excel"
-                    className="px-3 py-1.5 bg-gray-900 text-white font-bold rounded-xl shadow-md hover:bg-gray-800 active:scale-95 flex items-center justify-center gap-2 text-sm"
+                    className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors"
                   >
-                    <UploadIcon className="w-4 h-4" /> 匯入
+                    <ExcelFileIcon className="w-5 h-5" />
                   </button>
 
                   {/* ✨ 登錄新交易按鈕 (純圖示) */}
