@@ -9,7 +9,22 @@ import Docxtemplater from 'docxtemplater';
 import { saveAs } from 'file-saver';
 import { WORK_ORDER_TEMPLATE_BASE64 } from './wordTemplate';
 import * as XLSX from 'xlsx';
+// ✨ 新增：引入系統共用圖示
+import { PlusIcon, TrashIcon, ReturnIcon, DocumentTextIcon } from './Icons';
 
+// ✨ 新增：Excel 檔案匯入專用圖示 (空心檔案 + 向上箭頭)
+const ExcelFileIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
+  </svg>
+);
+
+// ✨ 新增：儲存資料專用圖示 (磁碟片)
+const SaveIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-.113-.037-.226-.108-.322L17.8 3.553A.75.75 0 0 0 17.2 3.25H6A2.25 2.25 0 0 0 3.75 5.5v13.5A2.25 2.25 0 0 0 6 21.25h12ZM12 6.75h3v3.75h-3v-3.75Z" />
+  </svg>
+);
 interface ClientMasterViewProps {
     clients: Client[];
     onClose: () => void;
@@ -228,33 +243,35 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                     <h2 className="text-xl font-bold text-gray-800">客戶資訊總署 (Client Master)</h2>
                 </div>
                 
-                {/* 🆕 右上角按鈕：新增 -> 刪除 -> 匯入 -> 關閉 */}
-                <div className="flex gap-2">
-                    <button 
-                        onClick={handleAddClient}
-                        className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold transition-colors"
-                    >
-                        ➕ 新增
-                    </button>
-                    
-                    <button 
-                        onClick={() => setIsDeleteMode(!isDeleteMode)}
-                        className={`${isDeleteMode ? 'bg-red-600 text-white shadow-inner' : 'bg-red-50 text-red-600 hover:bg-red-100'} px-4 py-2 rounded-lg flex items-center gap-2 font-bold transition-all`}
-                    >
-                        🗑️ {isDeleteMode ? '取消刪除模式' : '刪除'}
-                    </button>
+                {/* --- 頂部操作列 --- */}
+                <div className="flex justify-between items-center mb-6">
+                    <div className="flex items-center gap-4">
+                        {/* ✨ 返回/關閉按鈕 */}
+                        <button onClick={onClose} title="返回首頁" className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
+                            <ReturnIcon className="w-6 h-6" />
+                        </button>
+                        {/* ✨ 標題修改 */}
+                        <h2 className="text-2xl font-black text-gray-800">客戶總覽</h2>
+                    </div>
+                    <div className="flex gap-2">
+                        <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
+                        
+                        {/* ✨ 匯入 Excel 按鈕 (純圖示) */}
+                        <button onClick={() => fileInputRef.current?.click()} title="匯入 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 rounded-xl hover:bg-green-50 font-bold transition-colors shadow-sm flex items-center justify-center">
+                            <ExcelFileIcon className="w-5 h-5" />
+                        </button>
+                        
+                        {/* ✨ 刪除模式切換按鈕 (純圖示) */}
+                        <button onClick={() => setIsDeleteMode(!isDeleteMode)} title="刪除客戶" className={`p-2.5 rounded-xl border transition-colors flex items-center justify-center shadow-sm ${isDeleteMode ? 'bg-red-600 text-white border-red-600' : 'bg-white text-red-500 border-red-200 hover:bg-red-50'}`}>
+                            <TrashIcon className="w-5 h-5" />
+                        </button>
 
-                    <button 
-                        onClick={() => document.getElementById('excel-upload')?.click()}
-                        className="bg-green-600 hover:bg-green-700 text-white px-4 py-2 rounded-lg flex items-center gap-2 font-bold transition-colors"
-                    >
-                        📊 匯入 EXCEL
-                    </button>
-                    <input type="file" id="excel-upload" className="hidden" accept=".xlsx, .xls" onChange={handleExcelImport} />
-                    
-                    <button onClick={onClose} className="text-gray-500 hover:text-gray-800 font-bold px-4 py-2 bg-gray-100 rounded-lg">✕ 關閉</button>
+                        {/* ✨ 新增客戶按鈕 (純圖示) */}
+                        <button onClick={handleAddClient} title="新增客戶" className="p-2.5 bg-blue-600 text-white rounded-xl hover:bg-blue-700 font-bold shadow-sm transition-colors flex items-center justify-center">
+                            <PlusIcon className="w-5 h-5" />
+                        </button>
+                    </div>
                 </div>
-            </div>
 
             <div className="flex-1 overflow-y-auto p-6 bg-gray-50">
                 <div className="max-w-7xl mx-auto grid grid-cols-2 md:grid-cols-4 lg:grid-cols-6 gap-6">
@@ -352,28 +369,38 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         </div>
 
                         {/* 底部操作區 */}
-                        <div className="p-4 bg-gray-50 border-t rounded-b-3xl flex justify-between items-center">
-                            {/* 🆕 單筆刪除按鈕 (位於左側) */}
+                        <div className="p-4 border-t bg-gray-50 flex justify-between items-center">
+                            {/* ✨ 單筆刪除按鈕 (純圖示) */}
                             <button 
                                 onClick={() => handleDeleteClient(selectedClient.id, selectedClient.name)}
-                                className="px-4 py-3 bg-red-50 text-red-600 font-bold rounded-xl hover:bg-red-600 hover:text-white transition-colors"
+                                title="刪除此客戶"
+                                className="p-3 bg-red-50 border border-red-200 text-red-600 rounded-xl hover:bg-red-100 transition-colors shadow-sm flex items-center justify-center active:scale-95"
                             >
-                                🗑️ 刪除此客戶
+                                <TrashIcon className="w-6 h-6" />
                             </button>
                             
                             <div className="flex gap-3">
+                                {/* ✨ 生成記帳工作單 (純圖示：文件) */}
+                                <button 
+                                    onClick={handleGenerateWord}
+                                    title="生成記帳工作單"
+                                    className="p-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 shadow-md transition-colors flex items-center justify-center active:scale-95"
+                                >
+                                    <DocumentTextIcon className="w-6 h-6" />
+                                </button>
+
+                                {/* ✨ 儲存資料 (純圖示：磁碟片) */}
                                 <button 
                                     onClick={handleSave} 
                                     disabled={isSaving}
-                                    className="px-6 py-3 bg-indigo-600 text-white font-bold rounded-xl hover:bg-indigo-700 shadow-lg"
+                                    title={isSaving ? '儲存中...' : '儲存資料'}
+                                    className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md transition-colors disabled:opacity-50 flex items-center justify-center active:scale-95"
                                 >
-                                    {isSaving ? '儲存中...' : '💾 儲存資料'}
-                                </button>
-                                <button 
-                                    onClick={handleGenerateWord}
-                                    className="px-6 py-3 bg-black text-white font-bold rounded-xl hover:bg-gray-800 shadow-lg"
-                                >
-                                    🖨️ 生成記帳工作單
+                                    {isSaving ? (
+                                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                    ) : (
+                                        <SaveIcon className="w-6 h-6" />
+                                    )}
                                 </button>
                             </div>
                         </div>
