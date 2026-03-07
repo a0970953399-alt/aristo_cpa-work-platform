@@ -1004,8 +1004,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           <h3 className="text-2xl font-black">懶人包提醒</h3>
                       </div>
                       <div className="flex items-center gap-4">
+                          {/* ✨ 按鈕改為純加號圖示 */}
                           {isSupervisor && (
-                              {/* ✨ 按鈕改為純加號圖示 */}
                               <button onClick={() => { setEditingInstruction({}); setIsInstructionModalOpen(true); }} title="新增懶人包" className="bg-yellow-500 hover:bg-yellow-600 text-white w-10 h-10 flex items-center justify-center rounded-xl font-black text-xl shadow-sm transition-colors active:scale-95">
                                   +
                               </button>
