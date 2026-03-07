@@ -65,7 +65,8 @@ const UniversalDonutChart = React.memo(({
         })}
       </svg>
       <div className="absolute inset-0 flex flex-col items-center justify-center pointer-events-none">
-        <AnimatePresence mode="wait">
+        {/* ✨ 加上 initial={false}，阻止第一次載入時的放大動畫 */}
+        <AnimatePresence mode="wait" initial={false}>
           <motion.div key={hoveredItem ? hoveredItem.name : 'default'} initial={{ opacity: 0, scale: 0.9 }} animate={{ opacity: 1, scale: 1 }} exit={{ opacity: 0, scale: 0.9 }} transition={{ duration: 0.15 }} className="text-center flex flex-col items-center">
             {hoveredItem ? (
               <>
@@ -597,13 +598,13 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           <div className="flex p-1 bg-gray-100 rounded-xl w-64 shadow-inner">
             <button 
               onClick={() => setActiveSubTab('overview')}
-              className={`flex-1 py-2 text-sm font-black rounded-lg transition-all ${activeSubTab === 'overview' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 py-2 text-sm font-black rounded-lg ${activeSubTab === 'overview' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
               📊 統計圖表
             </button>
             <button 
               onClick={() => setActiveSubTab('ledger')}
-              className={`flex-1 py-2 text-sm font-black rounded-lg transition-all ${activeSubTab === 'ledger' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
+              className={`flex-1 py-2 text-sm font-black rounded-lg ${activeSubTab === 'ledger' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}
             >
               📋 交易明細
             </button>
@@ -621,19 +622,19 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
               
               {/* 1. KPI 數值摘要 (改為 shrink-0 防止被擠壓，並縮小 padding) */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 shrink-0">
-                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md">
                   <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">當前庫存股數</p>
                   <p className="text-2xl sm:text-3xl font-black text-gray-800">{currentStockUnits.toLocaleString()} <span className="text-xs sm:text-sm font-medium text-gray-400">股</span></p>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md">
                   <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">帳列總成本</p>
                   <p className="text-2xl sm:text-3xl font-black text-gray-800">${currentStockTotalCost.toLocaleString()}</p>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md">
                   <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">當前平均成本</p>
                   <p className="text-2xl sm:text-3xl font-black text-gray-500">${Math.round(currentStockAvgCost).toLocaleString()}</p>
                 </div>
-                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md transition-shadow">
+                <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md">
                   <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">累計已處分損益</p>
                   <p className={`text-2xl sm:text-3xl font-black ${totalRealizedPnl >= 0 ? 'text-red-500' : 'text-green-500'}`}>
                     {totalRealizedPnl >= 0 ? '+' : ''}{totalRealizedPnl.toLocaleString()}
@@ -736,7 +737,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                   {/* ✨ 可點擊的排序切換按鈕 */}
                   <button 
                     onClick={() => setSortTxDesc(!sortTxDesc)}
-                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 transition-colors shadow-sm"
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 shadow-sm"
                   >
                     <SortIcon className={`w-4 h-4 transition-transform ${sortTxDesc ? '' : 'rotate-180'}`} />
                     {sortTxDesc ? '日期降序 (新→舊)' : '日期升序 (舊→新)'}
@@ -745,7 +746,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                   {/* ✨ 漏斗篩選按鈕 */}
                   <button 
                       onClick={() => setIsDateFilterOpen(!isDateFilterOpen)}
-                      className={`p-1.5 border rounded-lg transition-colors shadow-sm flex items-center justify-center ${filterYear || filterMonth ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-gray-500 bg-gray-50 hover:bg-gray-100 border-gray-200'}`}
+                      className={`p-1.5 border rounded-lg shadow-sm flex items-center justify-center ${filterYear || filterMonth ? 'text-blue-600 bg-blue-50 border-blue-200' : 'text-gray-500 bg-gray-50 hover:bg-gray-100 border-gray-200'}`}
                       title="篩選年月"
                   >
                       <FunnelIcon className="w-5 h-5" />
@@ -784,7 +785,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                 <button
                   onClick={() => setIsAddTxModalOpen(true)}
                   title="登錄新交易"
-                  className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center"
+                  className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 flex items-center justify-center"
                 >
                   <PlusIcon className="w-5 h-5" />
                 </button>
