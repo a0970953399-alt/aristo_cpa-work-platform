@@ -11,6 +11,13 @@ interface StockInventoryViewProps {
   clients: Client[];
 }
 
+// ✨ 新增排序圖示
+const SortIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 7.5L7.5 3m0 0L12 7.5M7.5 3v13.5m13.5 0L16.5 21m0 0L12 16.5m4.5 4.5V7.5" />
+    </svg>
+);
+
 // ✨ 從 Stocks.tsx 移植過來的專屬動態圓餅圖 (已放大並支援自訂中間文字)
 const UniversalDonutChart = React.memo(({ 
   data, total, centerTitle, centerValue, valueColorClass 
@@ -153,6 +160,9 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   }, [newStockCode, stockDictionary]);
 
   const [activeSubTab, setActiveSubTab] = useState<'overview' | 'ledger'>('overview');
+
+  // ✨ 新增排序狀態 (預設為 true：降序/新到舊)
+  const [sortTxDesc, setSortTxDesc] = useState(true);
 
   // --- 新增交易表單的 State (放在元件最上方) ---
   const [isAddTxModalOpen, setIsAddTxModalOpen] = useState(false);
@@ -458,8 +468,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
       };
     });
 
-    // ✨ 畫面顯示要倒序 (最新的交易在最上方)
-    const displayTxs = [...enrichedTxs].reverse();
+    // ✨ 依照排序狀態決定畫面顯示順序
+    const displayTxs = sortTxDesc ? [...enrichedTxs].reverse() : [...enrichedTxs];
     
     // ✨ 取出最新庫存狀態 (餵給 KPI 卡片)
     const currentStockUnits = runningUnits;
@@ -501,15 +511,14 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             <button 
               onClick={() => { setSelectedStock(null); setActiveSubTab('overview'); }} 
               className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+              title="返回客戶標的列表"
             >
               <ReturnIcon className="w-6 h-6" />
             </button>
-            <div className="flex flex-col">
-              <div className="flex items-center gap-2">
-                <span className="px-2 py-0.5 bg-blue-50 text-blue-600 text-xs font-black rounded-md tracking-wider">STOCK</span>
-                <h2 className="text-xl font-black text-gray-800">{selectedStock.code} {selectedStock.name}</h2>
-              </div>
-              <p className="text-xs text-gray-400 font-bold tracking-tight">歸屬客戶：{selectedClient.name}</p>
+            {/* ✨ 移除 STOCK 標籤，並將文字統一靠左對齊 */}
+            <div className="flex flex-col items-start justify-center">
+              <h2 className="text-xl font-black text-gray-800 leading-tight">{selectedStock.code} {selectedStock.name}</h2>
+              <p className="text-xs text-gray-400 font-bold tracking-tight mt-1">歸屬客戶：{selectedClient.name}</p>
             </div>
           </div>
 
@@ -653,12 +662,22 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
               {/* A. 功能操作列 */}
               <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-white sticky top-0 z-20">
                 <div className="flex items-center gap-4">
-                  <span className="text-sm font-bold text-gray-400">排序：日期降序</span>
+                  {/* ✨ 可點擊的排序切換按鈕 */}
+                  <button 
+                    onClick={() => setSortTxDesc(!sortTxDesc)}
+                    className="flex items-center gap-2 px-3 py-1.5 bg-gray-50 hover:bg-gray-100 border border-gray-200 rounded-lg text-sm font-bold text-gray-600 transition-colors shadow-sm"
+                  >
+                    <SortIcon className={`w-4 h-4 transition-transform ${sortTxDesc ? '' : 'rotate-180'}`} />
+                    {sortTxDesc ? '日期降序 (新→舊)' : '日期升序 (舊→新)'}
+                  </button>
                 </div>
+                {/* ✨ 登錄新交易按鈕 (純圖示) */}
                 <button
                   onClick={() => setIsAddTxModalOpen(true)}
-                  className="px-5 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-lg shadow-blue-100 hover:bg-blue-700 active:scale-95 transition-all text-sm">
-                   + 登錄新交易
+                  title="登錄新交易"
+                  className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center"
+                >
+                  <PlusIcon className="w-5 h-5" />
                 </button>
               </div>
               
