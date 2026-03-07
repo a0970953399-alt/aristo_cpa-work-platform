@@ -82,10 +82,12 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
             });
         }
 
-        // 2. ✨ 客戶名稱搜尋邏輯 (模糊比對，不分大小寫)
+      // 2. ✨ 客戶與收件者複合搜尋邏輯 (模糊比對，不分大小寫)
         if (filterClient.trim() !== '') {
+            const keyword = filterClient.trim().toLowerCase();
             filtered = filtered.filter(r => 
-                r.clientName.toLowerCase().includes(filterClient.trim().toLowerCase())
+                r.clientName.toLowerCase().includes(keyword) ||
+                r.counterpart.toLowerCase().includes(keyword)
             );
         }
         
@@ -261,36 +263,27 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                             </th>
                             <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[35%] min-w-[300px]' : 'min-w-[200px]'}`}>文件名稱</th>
                             
-                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '寄件者' : '收件者'}</th>
-                            {activeSubTab !== 'inbound' && <th className="p-3 border-b w-[25%] min-w-[200px]">地址</th>}
-                            <th className="p-3 border-b w-24 whitespace-nowrap text-center">送件方式</th>
-                            {activeSubTab !== 'inbound' && <th className="p-3 border-b w-20 text-right whitespace-nowrap">金額</th>}
-                            <th className={`p-3 border-b whitespace-nowrap ${activeSubTab === 'inbound' ? 'w-auto min-w-[180px]' : 'w-40'}`}>{activeSubTab === 'inbound' ? '掛號編號' : '單號'}</th>
-                            
-                            {/* 🔒 只有主管看得到操作欄位 */}{/* ✨ 客戶名稱欄位 (包含放大鏡搜尋彈窗) */}
-                            <th className={`p-3 border-b relative select-none ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>
+                            {/* ✨ 結合後的：收件者/客戶名稱 欄位 (包含放大鏡搜尋彈窗) */}
+                            <th className={`p-3 border-b relative select-none ${activeSubTab === 'inbound' ? 'w-[20%] min-w-[180px]' : 'w-48 min-w-[160px]'}`}>
                                 <div className="flex items-center gap-2">
-                                    {activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱'}
+                                    {activeSubTab === 'inbound' ? '寄件者 / 客戶' : '收件者 / 客戶'}
                                     
-                                    {/* 放大鏡按鈕 */}
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); setIsClientFilterOpen(!isClientFilterOpen); }}
                                         className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterClient ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
-                                        title="搜尋客戶"
+                                        title="搜尋名稱"
                                     >
                                         <MagnifyingGlassIcon className="w-4 h-4" />
                                     </button>
                                 </div>
 
-                                {/* 客戶搜尋彈出視窗 */}
+                                {/* 搜尋彈出視窗 */}
                                 {isClientFilterOpen && (
                                     <>
-                                        {/* 透明背景遮罩 */}
                                         <div className="fixed inset-0 z-40" onClick={() => setIsClientFilterOpen(false)}></div>
-                                        
-                                        <div className="absolute top-full left-3 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                        <div className="absolute top-full left-3 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
                                             <div className="mb-2">
-                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋客戶名稱</label>
+                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋客戶或收件者</label>
                                                 <input 
                                                     type="text" 
                                                     value={filterClient} 
@@ -308,7 +301,10 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                                     </>
                                 )}
                             </th>
-                            {isSupervisor && <th className="p-3 border-b w-20 text-center">操作</th>}
+                            {activeSubTab !== 'inbound' && <th className="p-3 border-b w-[25%] min-w-[200px]">地址</th>}
+                            <th className="p-3 border-b w-24 whitespace-nowrap text-center">送件方式</th>
+                            {activeSubTab !== 'inbound' && <th className="p-3 border-b w-20 text-right whitespace-nowrap">金額</th>}
+                            <th className={`p-3 border-b whitespace-nowrap ${activeSubTab === 'inbound' ? 'w-auto min-w-[180px]' : 'w-40'}`}>{activeSubTab === 'inbound' ? '掛號編號' : '單號'}</th>
                         </tr>
                     </thead>
                     
@@ -317,8 +313,15 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                             <tr key={r.id} className="hover:bg-blue-50 transition-colors group">
                                 <td className="p-3 text-gray-500 font-mono whitespace-nowrap">{r.date}</td>
                                 <td className="p-3 font-medium text-gray-800 break-words leading-relaxed">{r.fileName}</td>
-                                <td className="p-3 text-blue-600 font-medium truncate" title={r.clientName}>{r.clientName}</td>
-                                <td className="p-3 text-gray-700 truncate" title={r.counterpart}>{r.counterpart}</td>
+                              {/* ✨ 結合後的：收件者與客戶 顯示區塊 */}
+                                <td className="p-3">
+                                    <div className="text-gray-800 font-bold truncate" title={r.counterpart}>{r.counterpart || '-'}</div>
+                                    {r.clientName && (
+                                        <div className="text-blue-600 text-xs font-bold mt-0.5 truncate" title={r.clientName}>
+                                            {r.clientName}
+                                        </div>
+                                    )}
+                                </td>
                                 {activeSubTab !== 'inbound' && (
                                     <td className="p-3 text-gray-500 text-xs">
                                         <div className="truncate max-w-[250px]" title={r.address}>{r.address}</div>
