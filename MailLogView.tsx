@@ -31,12 +31,6 @@ const DocumentTextIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const MagnifyingGlassIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="m21 21-5.197-5.197m0 0A7.5 7.5 0 1 0 5.196 5.196a7.5 7.5 0 0 0 10.607 10.607Z" />
-  </svg>
-);
-
 interface MailLogViewProps {
     records: MailRecord[];
     onUpdate: () => void;
@@ -55,21 +49,17 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
     const [filterMonth, setFilterMonth] = useState<string>('');
     const [isDateFilterOpen, setIsDateFilterOpen] = useState(false);
 
-    // ✨ 客戶名稱搜尋狀態 (放大鏡)
-    const [filterClient, setFilterClient] = useState<string>('');
-    const [isClientFilterOpen, setIsClientFilterOpen] = useState(false);
-
     // ✨ 自動從資料中抓取有紀錄的年份，供下拉選單使用
     const availableYears = useMemo(() => {
         const years = new Set(records.map(r => r.date.substring(0, 4)));
         return Array.from(years).sort((a, b) => Number(b) - Number(a));
     }, [records]);
 
-  // ✨ 篩選當前分頁的資料 (加入年月篩選引擎 & 客戶搜尋引擎)
+   // ✨ 篩選當前分頁的資料 (加入年月篩選引擎)
     const currentRecords = useMemo(() => {
         let filtered = records.filter(r => r.category === activeSubTab);
         
-        // 1. 年月篩選邏輯
+        // 年月篩選邏輯
         if (filterYear || filterMonth) {
             filtered = filtered.filter(r => {
                 const dateParts = r.date.split('-'); // 格式: YYYY-MM-DD
@@ -81,23 +71,14 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                 return true;
             });
         }
-
-      // 2. ✨ 客戶與收件者複合搜尋邏輯 (模糊比對，不分大小寫)
-        if (filterClient.trim() !== '') {
-            const keyword = filterClient.trim().toLowerCase();
-            filtered = filtered.filter(r => 
-                r.clientName.toLowerCase().includes(keyword) ||
-                r.counterpart.toLowerCase().includes(keyword)
-            );
-        }
         
-        // 3. 日期排序
+        // 日期排序
         return filtered.sort((a, b) => {
             const dateA = new Date(a.date).getTime();
             const dateB = new Date(b.date).getTime();
             return sortDesc ? dateB - dateA : dateA - dateB;
         });
-    }, [records, activeSubTab, filterYear, filterMonth, filterClient, sortDesc]);
+    }, [records, activeSubTab, filterYear, filterMonth, sortDesc]);
 
     // 處理 Excel 匯入
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -262,49 +243,15 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                                 )}
                             </th>
                             <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[35%] min-w-[300px]' : 'min-w-[200px]'}`}>文件名稱</th>
-                            
-                            {/* ✨ 結合後的：收件者/客戶名稱 欄位 (包含放大鏡搜尋彈窗) */}
-                            <th className={`p-3 border-b relative select-none ${activeSubTab === 'inbound' ? 'w-[20%] min-w-[180px]' : 'w-48 min-w-[160px]'}`}>
-                                <div className="flex items-center gap-2">
-                                    {activeSubTab === 'inbound' ? '寄件者 / 客戶' : '收件者 / 客戶'}
-                                    
-                                    <button 
-                                        onClick={(e) => { e.stopPropagation(); setIsClientFilterOpen(!isClientFilterOpen); }}
-                                        className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterClient ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
-                                        title="搜尋名稱"
-                                    >
-                                        <MagnifyingGlassIcon className="w-4 h-4" />
-                                    </button>
-                                </div>
-
-                                {/* 搜尋彈出視窗 */}
-                                {isClientFilterOpen && (
-                                    <>
-                                        <div className="fixed inset-0 z-40" onClick={() => setIsClientFilterOpen(false)}></div>
-                                        <div className="absolute top-full left-3 mt-1 w-64 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
-                                            <div className="mb-2">
-                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋客戶或收件者</label>
-                                                <input 
-                                                    type="text" 
-                                                    value={filterClient} 
-                                                    onChange={e => setFilterClient(e.target.value)} 
-                                                    placeholder="輸入關鍵字..."
-                                                    className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50"
-                                                    autoFocus
-                                                />
-                                            </div>
-                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-2">
-                                                <button onClick={() => { setFilterClient(''); setIsClientFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1 transition-colors">清除</button>
-                                                <button onClick={() => setIsClientFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-colors">完成</button>
-                                            </div>
-                                        </div>
-                                    </>
-                                )}
-                            </th>
+                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱(請款)'}</th>
+                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '寄件者' : '收件者'}</th>
                             {activeSubTab !== 'inbound' && <th className="p-3 border-b w-[25%] min-w-[200px]">地址</th>}
                             <th className="p-3 border-b w-24 whitespace-nowrap text-center">送件方式</th>
                             {activeSubTab !== 'inbound' && <th className="p-3 border-b w-20 text-right whitespace-nowrap">金額</th>}
                             <th className={`p-3 border-b whitespace-nowrap ${activeSubTab === 'inbound' ? 'w-auto min-w-[180px]' : 'w-40'}`}>{activeSubTab === 'inbound' ? '掛號編號' : '單號'}</th>
+                            
+                            {/* 🔒 只有主管看得到操作欄位 */}
+                            {isSupervisor && <th className="p-3 border-b w-20 text-center">操作</th>}
                         </tr>
                     </thead>
                     
@@ -313,15 +260,8 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                             <tr key={r.id} className="hover:bg-blue-50 transition-colors group">
                                 <td className="p-3 text-gray-500 font-mono whitespace-nowrap">{r.date}</td>
                                 <td className="p-3 font-medium text-gray-800 break-words leading-relaxed">{r.fileName}</td>
-                              {/* ✨ 結合後的：收件者與客戶 顯示區塊 */}
-                                <td className="p-3">
-                                    <div className="text-gray-800 font-bold truncate" title={r.counterpart}>{r.counterpart || '-'}</div>
-                                    {r.clientName && (
-                                        <div className="text-blue-600 text-xs font-bold mt-0.5 truncate" title={r.clientName}>
-                                            {r.clientName}
-                                        </div>
-                                    )}
-                                </td>
+                                <td className="p-3 text-blue-600 font-medium truncate" title={r.clientName}>{r.clientName}</td>
+                                <td className="p-3 text-gray-700 truncate" title={r.counterpart}>{r.counterpart}</td>
                                 {activeSubTab !== 'inbound' && (
                                     <td className="p-3 text-gray-500 text-xs">
                                         <div className="truncate max-w-[250px]" title={r.address}>{r.address}</div>
@@ -401,7 +341,7 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                                 </div>
                                 <label className="block text-sm font-bold text-gray-700">文件名稱 <input name="fileName" required defaultValue={editingRecord?.fileName} className="w-full mt-1 p-2 border rounded-lg" /></label>
                                 <div className="grid grid-cols-2 gap-3">
-                                    <label className="block text-sm font-bold text-gray-700">{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱'} <input name="clientName" defaultValue={editingRecord?.clientName} className="w-full mt-1 p-2 border rounded-lg" /></label>
+                                    <label className="block text-sm font-bold text-gray-700">{activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱(請款)'} <input name="clientName" defaultValue={editingRecord?.clientName} className="w-full mt-1 p-2 border rounded-lg" /></label>
                                     <label className="block text-sm font-bold text-gray-700">{activeSubTab === 'inbound' ? '寄件者' : '收件者'} <input name="counterpart" defaultValue={editingRecord?.counterpart} className="w-full mt-1 p-2 border rounded-lg" /></label>
                                 </div>
                                 {activeSubTab !== 'inbound' && (
