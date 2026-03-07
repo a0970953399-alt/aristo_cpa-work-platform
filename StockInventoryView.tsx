@@ -536,8 +536,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
           
           {/* --- 分頁一：圖表總覽 (Charts Tab) --- */}
           {activeSubTab === 'overview' && (
-            {/* ✨ 加上 h-full 讓它可以被垂直伸展 */}
             <div className="max-w-7xl mx-auto w-full h-full flex flex-col gap-4 sm:gap-6">
+              {/* ✨ 加上 h-full 讓它可以被垂直伸展 */}
               
               {/* 1. KPI 數值摘要 (改為 shrink-0 防止被擠壓，並縮小 padding) */}
               <div className="grid grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6 shrink-0">
