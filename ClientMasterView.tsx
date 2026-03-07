@@ -25,6 +25,21 @@ const SaveIcon = ({ className }: { className?: string }) => (
     <path strokeLinecap="round" strokeLinejoin="round" d="M9 12h3.75M9 15h3.75M9 18h3.75m3 .75H18a2.25 2.25 0 0 0 2.25-2.25V6.108c0-.113-.037-.226-.108-.322L17.8 3.553A.75.75 0 0 0 17.2 3.25H6A2.25 2.25 0 0 0 3.75 5.5v13.5A2.25 2.25 0 0 0 6 21.25h12ZM12 6.75h3v3.75h-3v-3.75Z" />
   </svg>
 );
+
+// ✨ 新增：下載/匯出專用圖示 (雲端向下箭頭，與請款單一致)
+const CloudArrowDownIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5v-7.5m0 7.5-3-3m3 3 3-3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+  </svg>
+);
+
+// ✨ 新增：儲存/更新專用圖示 (雲端向上箭頭，直觀代表資料上傳至系統)
+const CloudArrowUpIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 7.5v7.5m0-7.5-3 3m3-3 3 3M6.75 19.5a4.5 4.5 0 0 1-1.41-8.775 5.25 5.25 0 0 1 10.233-2.33 3 3 0 0 1 3.758 3.848A3.752 3.752 0 0 1 18 19.5H6.75Z" />
+  </svg>
+);
+
 interface ClientMasterViewProps {
     clients: Client[];
     onClose: () => void;
@@ -378,29 +393,28 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                             >
                                 <TrashIcon className="w-6 h-6" />
                             </button>
-                            
-                            <div className="flex gap-3">
-                                {/* ✨ 生成記帳工作單 (純圖示：文件) */}
-                                <button 
-                                    onClick={handleGenerateWord}
-                                    title="生成記帳工作單"
-                                    className="p-3 bg-gray-900 text-white rounded-xl hover:bg-gray-800 shadow-md transition-colors flex items-center justify-center active:scale-95"
-                                >
-                                    <DocumentTextIcon className="w-6 h-6" />
-                                </button>
-
-                                {/* ✨ 儲存資料 (純圖示：磁碟片) */}
+                        <div className="flex gap-3">
+                                {/* ✨ 儲存資料 (改為藍色、雲端上傳圖示，並移至左側) */}
                                 <button 
                                     onClick={handleSave} 
                                     disabled={isSaving}
                                     title={isSaving ? '儲存中...' : '儲存資料'}
-                                    className="p-3 bg-indigo-600 text-white rounded-xl hover:bg-indigo-700 shadow-md transition-colors disabled:opacity-50 flex items-center justify-center active:scale-95"
+                                    className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md transition-colors disabled:opacity-50 flex items-center justify-center active:scale-95"
                                 >
                                     {isSaving ? (
                                         <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                     ) : (
-                                        <SaveIcon className="w-6 h-6" />
+                                        <CloudArrowUpIcon className="w-6 h-6" />
                                     )}
+                                </button>
+                                
+                                {/* ✨ 下載工作單 (改為綠色、雲端下載圖示，並移至右側) */}
+                                <button 
+                                    onClick={handleGenerateWord}
+                                    title="下載記帳工作單"
+                                    className="p-3 bg-green-600 text-white rounded-xl hover:bg-green-700 shadow-md transition-colors flex items-center justify-center active:scale-95"
+                                >
+                                    <CloudArrowDownIcon className="w-6 h-6" />
                                 </button>
                             </div>
                         </div>
