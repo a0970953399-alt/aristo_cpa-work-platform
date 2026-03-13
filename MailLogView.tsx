@@ -38,6 +38,13 @@ const MagnifyingGlassIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// ✨ 新增：用於複製紀錄的剪貼板圖示
+const ClipboardIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M15.666 3.888A2.25 2.25 0 0 0 13.5 2.25h-3c-1.03 0-1.9.693-2.166 1.638m7.332 0c.055.194.084.4.084.612v0a.75.75 0 0 1-.75.75H9a.75.75 0 0 1-.75-.75v0c0-.212.03-.418.084-.612m7.332 0c.646.049 1.288.11 1.927.184 1.1.128 1.907 1.077 1.907 2.185V19.5a2.25 2.25 0 0 1-2.25 2.25H6.75A2.25 2.25 0 0 1 4.5 19.5V6.257c0-1.108.806-2.057 1.907-2.185a48.208 48.208 0 0 1 1.927-.184" />
+  </svg>
+);
+
 interface MailLogViewProps {
     records: MailRecord[];
     onUpdate: () => void;
@@ -177,6 +184,63 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
         }
     };
 
+
+    // ✨ 一鍵複製今日所有收發信件紀錄
+    const handleCopyTodayRecords = () => {
+        // 取得台灣時間的今天日期 (YYYY-MM-DD)
+        const today = new Date();
+        const yyyy = today.getFullYear();
+        const mm = String(today.getMonth() + 1).padStart(2, '0');
+        const dd = String(today.getDate()).padStart(2, '0');
+        const todayStr = `${yyyy}-${mm}-${dd}`;
+
+        // 篩出今天的紀錄
+        const todaysRecords = records.filter(r => r.date === todayStr);
+
+        if (todaysRecords.length === 0) {
+            alert(`📅 ${todayStr} 尚無任何收發信件紀錄！`);
+            return;
+        }
+
+        const inbound = todaysRecords.filter(r => r.category === 'inbound');
+        const aristoOut = todaysRecords.filter(r => r.category === 'aristo_out');
+        const lawyerOut = todaysRecords.filter(r => r.category === 'lawyer_out');
+
+        // 組裝文字報告
+        let report = `【今日收發信件總表 - ${todayStr}】\n\n`;
+
+        if (inbound.length > 0) {
+            report += `📥 [收文]\n`;
+            inbound.forEach((r, i) => {
+                report += `${i + 1}. ${r.fileName} | 收件客戶: ${r.clientName} | 寄件者: ${r.counterpart} | ${r.method} ${r.trackingNumber ? `(${r.trackingNumber})` : ''}\n`;
+            });
+            report += `\n`;
+        }
+
+        if (aristoOut.length > 0) {
+            report += `📤 [寄件 - 碩業]\n`;
+            aristoOut.forEach((r, i) => {
+                report += `${i + 1}. ${r.fileName} | 客戶: ${r.clientName} | 收件者: ${r.counterpart} | ${r.method} ${r.trackingNumber ? `(${r.trackingNumber})` : ''} | 金額: $${r.amount || 0}\n`;
+            });
+            report += `\n`;
+        }
+
+        if (lawyerOut.length > 0) {
+            report += `📤 [寄件 - 張律師]\n`;
+            lawyerOut.forEach((r, i) => {
+                report += `${i + 1}. ${r.fileName} | 客戶: ${r.clientName} | 收件者: ${r.counterpart} | ${r.method} ${r.trackingNumber ? `(${r.trackingNumber})` : ''} | 金額: $${r.amount || 0}\n`;
+            });
+            report += `\n`;
+        }
+
+        // 寫入剪貼簿
+        navigator.clipboard.writeText(report.trim()).then(() => {
+            alert(`✅ 已成功複製今日 (${todaysRecords.length}筆) 收發信件列表！\n可以直接貼上至 LINE 或工作群組囉。`);
+        }).catch(() => {
+            alert("❌ 複製失敗，請確認瀏覽器是否允許剪貼簿權限。");
+        });
+    };
+
     return (
         <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
             {/* Header & Tabs */}
@@ -187,11 +251,19 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                     <button onClick={() => setActiveSubTab('inbound')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeSubTab === 'inbound' ? 'bg-green-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>📥 收文表</button>
                 </div>
 
-                <div className="flex items-center gap-2">
+              <div className="flex items-center gap-2">
 
-                    
+                    {/* ✨ 一鍵複製今日紀錄按鈕 (不限權限，大家都能複製回報) */}
+                    <button 
+                        onClick={handleCopyTodayRecords} 
+                        title="一鍵複製今日信件清單" 
+                        className="p-2 bg-indigo-50 border border-indigo-200 text-indigo-700 rounded-lg hover:bg-indigo-100 transition-colors shadow-sm flex items-center justify-center active:scale-95"
+                    >
+                        <ClipboardIcon className="w-5 h-5" />
+                    </button>
+
                     {/* 🔒 只有主管看得到操作按鈕 */}
-                    {isSupervisor && (
+                    {isSupervisor && ((
                         <>
                           <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
                             {/* 改為只有圖示，並加上 title 提示與 p-2 讓它變成正方形 */}
