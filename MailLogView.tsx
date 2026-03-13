@@ -67,13 +67,25 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
     const [filterClient, setFilterClient] = useState<string>('');
     const [isClientFilterOpen, setIsClientFilterOpen] = useState(false);
 
+    // ✨ 文件名稱搜尋狀態
+    const [filterFileName, setFilterFileName] = useState<string>('');
+    const [isFileNameFilterOpen, setIsFileNameFilterOpen] = useState(false);
+
+    // ✨ 收件/寄件者搜尋狀態
+    const [filterCounterpart, setFilterCounterpart] = useState<string>('');
+    const [isCounterpartFilterOpen, setIsCounterpartFilterOpen] = useState(false);
+
+    // ✨ 地址搜尋狀態
+    const [filterAddress, setFilterAddress] = useState<string>('');
+    const [isAddressFilterOpen, setIsAddressFilterOpen] = useState(false);
+
     // ✨ 自動從資料中抓取有紀錄的年份，供下拉選單使用
     const availableYears = useMemo(() => {
         const years = new Set(records.map(r => r.date.substring(0, 4)));
         return Array.from(years).sort((a, b) => Number(b) - Number(a));
     }, [records]);
 
-  // ✨ 篩選當前分頁的資料 (加入年月篩選引擎 & 客戶名稱篩選)
+    // ✨ 篩選當前分頁的資料 (加入所有新欄位的篩選引擎)
     const currentRecords = useMemo(() => {
         let filtered = records.filter(r => r.category === activeSubTab);
         
@@ -90,11 +102,18 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
             });
         }
 
-        // ✨ 客戶名稱搜尋邏輯 (模糊比對，不分大小寫)
+        // ✨ 模糊比對各個欄位 (不分大小寫)
         if (filterClient.trim() !== '') {
-            filtered = filtered.filter(r => 
-                r.clientName.toLowerCase().includes(filterClient.trim().toLowerCase())
-            );
+            filtered = filtered.filter(r => r.clientName.toLowerCase().includes(filterClient.trim().toLowerCase()));
+        }
+        if (filterFileName.trim() !== '') {
+            filtered = filtered.filter(r => r.fileName.toLowerCase().includes(filterFileName.trim().toLowerCase()));
+        }
+        if (filterCounterpart.trim() !== '') {
+            filtered = filtered.filter(r => r.counterpart.toLowerCase().includes(filterCounterpart.trim().toLowerCase()));
+        }
+        if (filterAddress.trim() !== '') {
+            filtered = filtered.filter(r => (r.address || '').toLowerCase().includes(filterAddress.trim().toLowerCase()));
         }
         
         // 日期排序
@@ -103,7 +122,7 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
             const dateB = new Date(b.date).getTime();
             return sortDesc ? dateB - dateA : dateA - dateB;
         });
-    }, [records, activeSubTab, filterYear, filterMonth, filterClient, sortDesc]);
+    }, [records, activeSubTab, filterYear, filterMonth, filterClient, filterFileName, filterCounterpart, filterAddress, sortDesc]);
 
     // 處理 Excel 匯入
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -280,9 +299,9 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
             {/* Table Area */}
             <div className="flex-1 overflow-auto custom-scrollbar">
                 <table className="w-full text-left border-collapse min-w-[1000px]"> 
-                    <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider">
+                  <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider">
                         <tr>
-                          {/* ✨ 日期欄位 (包含排序與 Excel 漏斗篩選) */}
+                            {/* ✨ 日期欄位 (漏斗篩選) */}
                             <th className="p-3 border-b w-32 relative select-none">
                                 <div className="flex items-center gap-2">
                                     <div 
@@ -331,13 +350,40 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                                     </>
                                 )}
                             </th>
-                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[35%] min-w-[300px]' : 'min-w-[200px]'}`}>文件名稱</th>
-                            {/* ✨ 客戶名稱欄位 (文字已修改，包含放大鏡搜尋彈窗) */}
+                            
+                            {/* ✨ 文件名稱欄位 */}
+                            <th className={`p-3 border-b relative select-none ${activeSubTab === 'inbound' ? 'w-[35%] min-w-[300px]' : 'min-w-[200px]'}`}>
+                                <div className="flex items-center gap-2">
+                                    文件名稱
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setIsFileNameFilterOpen(!isFileNameFilterOpen); }}
+                                        className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterFileName ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
+                                        title="搜尋文件"
+                                    >
+                                        <MagnifyingGlassIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                {isFileNameFilterOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setIsFileNameFilterOpen(false)}></div>
+                                        <div className="absolute top-full left-3 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                            <div className="mb-2">
+                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋文件名稱</label>
+                                                <input type="text" value={filterFileName} onChange={e => setFilterFileName(e.target.value)} placeholder="輸入關鍵字..." className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50" autoFocus />
+                                            </div>
+                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-2">
+                                                <button onClick={() => { setFilterFileName(''); setIsFileNameFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1 transition-colors">清除</button>
+                                                <button onClick={() => setIsFileNameFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-colors">完成</button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </th>
+
+                            {/* ✨ 客戶名稱欄位 */}
                             <th className={`p-3 border-b relative select-none ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>
                                 <div className="flex items-center gap-2">
                                     {activeSubTab === 'inbound' ? '收件人-客戶' : '客戶名稱'}
-                                    
-                                    {/* 放大鏡按鈕 */}
                                     <button 
                                         onClick={(e) => { e.stopPropagation(); setIsClientFilterOpen(!isClientFilterOpen); }}
                                         className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterClient ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
@@ -346,24 +392,13 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                                         <MagnifyingGlassIcon className="w-4 h-4" />
                                     </button>
                                 </div>
-
-                                {/* 客戶搜尋彈出視窗 */}
                                 {isClientFilterOpen && (
                                     <>
-                                        {/* 透明背景遮罩 */}
                                         <div className="fixed inset-0 z-40" onClick={() => setIsClientFilterOpen(false)}></div>
-                                        
                                         <div className="absolute top-full left-3 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
                                             <div className="mb-2">
                                                 <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋客戶名稱</label>
-                                                <input 
-                                                    type="text" 
-                                                    value={filterClient} 
-                                                    onChange={e => setFilterClient(e.target.value)} 
-                                                    placeholder="輸入關鍵字..."
-                                                    className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50"
-                                                    autoFocus
-                                                />
+                                                <input type="text" value={filterClient} onChange={e => setFilterClient(e.target.value)} placeholder="輸入關鍵字..." className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50" autoFocus />
                                             </div>
                                             <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-2">
                                                 <button onClick={() => { setFilterClient(''); setIsClientFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1 transition-colors">清除</button>
@@ -373,13 +408,70 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                                     </>
                                 )}
                             </th>
-                            <th className={`p-3 border-b ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>{activeSubTab === 'inbound' ? '寄件者' : '收件者'}</th>
-                            {activeSubTab !== 'inbound' && <th className="p-3 border-b w-[25%] min-w-[200px]">地址</th>}
+
+                            {/* ✨ 收/寄件者欄位 */}
+                            <th className={`p-3 border-b relative select-none ${activeSubTab === 'inbound' ? 'w-[15%] min-w-[150px]' : 'w-32 min-w-[120px]'}`}>
+                                <div className="flex items-center gap-2">
+                                    {activeSubTab === 'inbound' ? '寄件者' : '收件者'}
+                                    <button 
+                                        onClick={(e) => { e.stopPropagation(); setIsCounterpartFilterOpen(!isCounterpartFilterOpen); }}
+                                        className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterCounterpart ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
+                                        title="搜尋"
+                                    >
+                                        <MagnifyingGlassIcon className="w-4 h-4" />
+                                    </button>
+                                </div>
+                                {isCounterpartFilterOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setIsCounterpartFilterOpen(false)}></div>
+                                        <div className="absolute top-full left-3 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                            <div className="mb-2">
+                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋{activeSubTab === 'inbound' ? '寄件者' : '收件者'}</label>
+                                                <input type="text" value={filterCounterpart} onChange={e => setFilterCounterpart(e.target.value)} placeholder="輸入關鍵字..." className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50" autoFocus />
+                                            </div>
+                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-2">
+                                                <button onClick={() => { setFilterCounterpart(''); setIsCounterpartFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1 transition-colors">清除</button>
+                                                <button onClick={() => setIsCounterpartFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-colors">完成</button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </th>
+
+                            {/* ✨ 地址欄位 */}
+                            {activeSubTab !== 'inbound' && (
+                                <th className="p-3 border-b relative select-none w-[25%] min-w-[200px]">
+                                    <div className="flex items-center gap-2">
+                                        地址
+                                        <button 
+                                            onClick={(e) => { e.stopPropagation(); setIsAddressFilterOpen(!isAddressFilterOpen); }}
+                                            className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterAddress ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
+                                            title="搜尋地址"
+                                        >
+                                            <MagnifyingGlassIcon className="w-4 h-4" />
+                                        </button>
+                                    </div>
+                                    {isAddressFilterOpen && (
+                                        <>
+                                            <div className="fixed inset-0 z-40" onClick={() => setIsAddressFilterOpen(false)}></div>
+                                            <div className="absolute top-full left-3 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                                <div className="mb-2">
+                                                    <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋地址</label>
+                                                    <input type="text" value={filterAddress} onChange={e => setFilterAddress(e.target.value)} placeholder="輸入關鍵字..." className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50" autoFocus />
+                                                </div>
+                                                <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-2">
+                                                    <button onClick={() => { setFilterAddress(''); setIsAddressFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1 transition-colors">清除</button>
+                                                    <button onClick={() => setIsAddressFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm transition-colors">完成</button>
+                                                </div>
+                                            </div>
+                                        </>
+                                    )}
+                                </th>
+                            )}
+                            
                             <th className="p-3 border-b w-24 whitespace-nowrap text-center">送件方式</th>
                             {activeSubTab !== 'inbound' && <th className="p-3 border-b w-20 text-right whitespace-nowrap">金額</th>}
                             <th className={`p-3 border-b whitespace-nowrap ${activeSubTab === 'inbound' ? 'w-auto min-w-[180px]' : 'w-40'}`}>{activeSubTab === 'inbound' ? '掛號編號' : '單號'}</th>
-                            
-                            {/* 🔒 只有主管看得到操作欄位 */}
                             {isSupervisor && <th className="p-3 border-b w-20 text-center">操作</th>}
                         </tr>
                     </thead>
