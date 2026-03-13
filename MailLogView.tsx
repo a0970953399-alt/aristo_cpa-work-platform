@@ -252,7 +252,6 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                 </div>
 
               <div className="flex items-center gap-2">
-
                     {/* ✨ 一鍵複製今日紀錄按鈕 (不限權限，大家都能複製回報) */}
                     <button 
                         onClick={handleCopyTodayRecords} 
@@ -263,9 +262,9 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                     </button>
 
                     {/* 🔒 只有主管看得到操作按鈕 */}
-                    {isSupervisor && ((
+                    {isSupervisor && (
                         <>
-                          <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
+                            <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
                             {/* 改為只有圖示，並加上 title 提示與 p-2 讓它變成正方形 */}
                             <button onClick={() => fileInputRef.current?.click()} title="Excel 匯入" className="p-2 bg-green-50 border border-green-200 text-green-700 rounded-lg hover:bg-green-100 transition-colors shadow-sm">
                                 <ExcelFileIcon className="w-5 h-5" />
