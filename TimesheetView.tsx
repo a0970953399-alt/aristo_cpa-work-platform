@@ -100,8 +100,11 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                     className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer"
                                 >
                                     <option value="ALL">全體人員</option>
-                                    {users.filter(u => u.role === 'intern').map(u => (
-                                        <option key={u.id} value={u.id}>{u.name}</option>
+                                    {/* ✨ 移除 filter 限制，讓包含主管在內的所有使用者都顯示 */}
+                                    {users.map(u => (
+                                        <option key={u.id} value={u.id}>
+                                            {u.id === currentUser.id ? `${u.name} (自己)` : u.name}
+                                        </option>
                                     ))}
                                 </select>
                             ) : (
