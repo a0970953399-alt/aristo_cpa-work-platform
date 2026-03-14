@@ -127,21 +127,19 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       <div className="h-full flex flex-col animate-fade-in bg-gray-50">
         
         {/* 頂部導航 */}
-        <div className="bg-white px-6 pt-4 border-b border-gray-200">
-          <div className="flex items-center justify-between mb-4">
-              <div className="flex items-center gap-4">
-                <button onClick={() => setSelectedClient(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
-                  <ReturnIcon className="w-6 h-6" />
-                </button>
-                <h2 className="text-2xl font-black text-gray-800">{selectedClient.name} - 薪資明細</h2>
-              </div>
+        <div className="bg-white px-6 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-4 py-4">
+            <button onClick={() => setSelectedClient(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+              <ReturnIcon className="w-6 h-6" />
+            </button>
+            <h2 className="text-2xl font-black text-gray-800">{selectedClient.name} - 薪資明細</h2>
           </div>
           
-          {/* ✨ 內部三層標籤頁 */}
-          <div className="flex gap-8 px-2">
-              <button onClick={() => setActiveInnerTab('employees')} className={`pb-3 text-lg font-bold border-b-4 transition-colors ${activeInnerTab === 'employees' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>👥 員工名單</button>
-              <button onClick={() => setActiveInnerTab('monthly')} className={`pb-3 text-lg font-bold border-b-4 transition-colors ${activeInnerTab === 'monthly' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>📅 每月薪資明細</button>
-              <button onClick={() => setActiveInnerTab('yearly')} className={`pb-3 text-lg font-bold border-b-4 transition-colors ${activeInnerTab === 'yearly' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>📖 年度薪資帳冊</button>
+          {/* ✨ 內部三層標籤頁 (移至右上角並貼齊底線) */}
+          <div className="flex gap-8 self-end">
+              <button onClick={() => setActiveInnerTab('employees')} className={`py-4 text-lg font-bold border-b-4 transition-colors ${activeInnerTab === 'employees' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>👥 員工名單</button>
+              <button onClick={() => setActiveInnerTab('monthly')} className={`py-4 text-lg font-bold border-b-4 transition-colors ${activeInnerTab === 'monthly' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>📅 每月薪資明細</button>
+              <button onClick={() => setActiveInnerTab('yearly')} className={`py-4 text-lg font-bold border-b-4 transition-colors ${activeInnerTab === 'yearly' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>📖 年度薪資帳冊</button>
           </div>
         </div>
 
@@ -151,10 +149,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             {/* 📍 標籤一：員工名單 */}
             {activeInnerTab === 'employees' && (
                 <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                        <h3 className="font-bold text-gray-700">在職與離職人員清單</h3>
-                        <button onClick={handleOpenAddEmp} className="flex items-center gap-2 px-4 py-2 bg-blue-600 text-white font-bold rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all">
-                            <PlusIcon className="w-5 h-5" /> 新增員工
+                  <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
+                        <h3 className="font-bold text-gray-700">員工名單</h3>
+                        <button onClick={handleOpenAddEmp} title="新增員工" className="flex items-center justify-center p-2 bg-blue-600 text-white font-bold rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all">
+                            <PlusIcon className="w-6 h-6" />
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
