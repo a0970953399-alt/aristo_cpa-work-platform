@@ -35,6 +35,7 @@ interface DataStore {
     stockTransactions?: StockTransaction[];
     payrollClients?: import('./types').PayrollClientConfig[];
     payrollRecords?: import('./types').PayrollRecord[];
+    employees?: import('./types').Employee[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -92,7 +93,8 @@ const normalizeData = (raw: any): DataStore => {
         stockTargets: Array.isArray(raw.stockTargets) ? raw.stockTargets : [],
         stockTransactions: Array.isArray(raw.stockTransactions) ? raw.stockTransactions : [],
         payrollClients: Array.isArray(raw.payrollClients) ? raw.payrollClients : [],
-        payrollRecords: Array.isArray(raw.payrollRecords) ? raw.payrollRecords : []
+        payrollRecords: Array.isArray(raw.payrollRecords) ? raw.payrollRecords : [],
+        employees: Array.isArray(raw.employees) ? raw.employees : []
 
 
 
@@ -770,6 +772,37 @@ async deleteInstruction(id: string): Promise<Instruction[]> {
     async savePayrollRecords(payrollRecords: import('./types').PayrollRecord[]): Promise<void> {
         const data = await this.loadFullData();
         await this.saveFullData({ ...data, payrollRecords });
+    },
+
+    // ==========================================
+    // ✨ 員工名單 API (Employee)
+    // ==========================================
+    async fetchEmployees(): Promise<import('./types').Employee[]> {
+        const data = await this.loadFullData();
+        return data.employees || [];
+    },
+    async saveEmployees(employees: import('./types').Employee[]): Promise<void> {
+        const data = await this.loadFullData();
+        await this.saveFullData({ ...data, employees });
+    },
+    async addEmployee(employee: import('./types').Employee): Promise<import('./types').Employee[]> {
+        const emps = await this.fetchEmployees();
+        emps.push(employee);
+        await this.saveEmployees(emps);
+        return emps;
+    },
+    async updateEmployee(updated: import('./types').Employee): Promise<import('./types').Employee[]> {
+        const emps = await this.fetchEmployees();
+        const idx = emps.findIndex(e => e.id === updated.id);
+        if (idx !== -1) emps[idx] = updated;
+        await this.saveEmployees(emps);
+        return emps;
+    },
+    async deleteEmployee(id: string): Promise<import('./types').Employee[]> {
+        const emps = await this.fetchEmployees();
+        const updated = emps.filter(e => e.id !== id);
+        await this.saveEmployees(updated);
+        return updated;
     }
 
 } // ✅ TaskService 結尾
