@@ -237,6 +237,31 @@ export interface StockTransaction {
 // ✨ 薪資計算系統相關定義 (Payroll System)
 // ==========================================
 
+export type EmploymentType = 'full_time' | 'part_time';
+
+// ✨ 新增：員工詳細資料結構
+export interface Employee {
+    id: string;
+    clientId: string;        // 屬於哪位客戶
+    empNo: string;           // 序號(流水編號)
+    employmentType: EmploymentType; // 職稱(正職或兼職)
+    name: string;            // 姓名
+    startDate: string;       // 到職日
+    endDate: string;         // 離職日 (若無則為空字串)
+    
+    // 隱藏的詳細資訊
+    idNumber: string;        // 身分證字號
+    bankBranch: string;      // 銀行分行名稱
+    bankAccount: string;     // 銀行戶頭代號
+    address: string;         // 戶籍地址
+    
+    // 預設薪資設定
+    defaultBaseSalary: number;    // 預設本薪
+    defaultFoodAllowance: number; // 預設伙食費 (僅正職擁有)
+    
+    createdAt: string;
+}
+
 // 1. 紀錄有開通薪資計算的客戶
 export interface PayrollClientConfig {
     id: string;
