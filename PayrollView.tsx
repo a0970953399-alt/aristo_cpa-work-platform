@@ -81,10 +81,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             >
               <ReturnIcon className="w-6 h-6" />
             </button>
-            <div className="flex flex-col">
-              <h2 className="text-2xl font-black text-gray-800 leading-tight">💰 {selectedClient.name} - 薪資明細</h2>
-              <p className="text-xs text-gray-400 font-bold tracking-tight mt-1">統一編號：{selectedClient.taxId || '未建立'}</p>
-            </div>
+            {/* ✨ 移除錢袋圖示與統一編號，簡化標題 */}
+            <h2 className="text-2xl font-black text-gray-800">{selectedClient.name} - 薪資明細</h2>
           </div>
           
           <button className="flex items-center gap-2 px-4 py-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-all active:scale-95">
