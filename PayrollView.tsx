@@ -277,8 +277,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 <tr>
                                   <th className="p-3 font-bold text-gray-500 w-16 text-center">序號</th>
                                     <th className="p-3 font-bold text-gray-500 w-20 text-center">職稱</th>
-                                    {/* ✨ 加寬姓名欄位來容納狀態標籤 */}
-                                    <th className="p-3 font-bold text-gray-500 w-40">姓名 / 狀態</th>
+                                    {/* ✨ 讓表頭回歸純粹的「姓名」 */}
+                                    <th className="p-3 font-bold text-gray-500 w-32">姓名</th>
                                     <th className="p-3 font-bold text-gray-500 w-48">電子郵件</th>
                                     <th className="p-3 font-bold text-gray-500 w-32 font-mono">身分證字號</th>
                                     <th className="p-3 font-bold text-gray-500 w-40">銀行分行</th>
@@ -313,18 +313,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     {emp.employmentType === 'full_time' ? '正職' : '兼職'}
                                                 </span>
                                             </td>
-                                          {/* ✨ 將狀態標籤縮小並與姓名合併 */}
-                                            <td className="p-3">
-                                                <div className="flex items-center gap-2">
-                                                    <span className={`font-black text-base transition-colors ${isResigned ? 'text-gray-500' : 'text-gray-800 group-hover:text-blue-600'}`}>
-                                                        {emp.name}
-                                                    </span>
-                                                    {isResigned ? (
-                                                        <span className="px-2 py-0.5 bg-gray-200 text-gray-500 text-[10px] font-bold rounded-md tracking-widest shrink-0">已離職</span>
-                                                    ) : (
-                                                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-md tracking-widest shrink-0">在職中</span>
-                                                    )}
-                                                </div>
+                                          {/* ✨ 徹底移除狀態標籤，只保留乾淨的姓名與懸停特效 */}
+                                            <td className={`p-3 font-black text-base transition-colors ${isResigned ? 'text-gray-500' : 'text-gray-800 group-hover:text-blue-600'}`}>
+                                                {emp.name}
                                             </td>
                                             <td className={`p-3 text-sm ${isResigned ? 'text-gray-400' : 'text-gray-500'}`}>{emp.email || '-'}</td>
                                             <td className={`p-3 font-mono text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.idNumber || '-'}</td>
