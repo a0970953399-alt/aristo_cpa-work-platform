@@ -14,6 +14,7 @@ import { CashLogView } from './CashLogView';
 import { TaskService } from './taskService';
 import { NotificationService } from './notificationService';
 import { StockInventoryView } from './StockInventoryView';
+import { PayrollView } from './PayrollView';
 
 // Types & Icons
 import { 
@@ -54,7 +55,7 @@ const LogoutIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
-const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款', '股票進銷存'];
+const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款', '股票進銷存', '薪資計算'];
 
 const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
     const totalMinutes = i * 30;
@@ -716,6 +717,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         <StockInventoryView 
                             clients={clients} 
                             />
+                    ) : 
+                    activeTab === '薪資計算' ? (
+                    // ✨ 新增：當點擊薪資計算時，渲染這個畫面
+                    <PayrollView 
+                        clients={clients}
+                    />
                 ) : (
                     <MatrixView 
                         tasks={tasks}
