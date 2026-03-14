@@ -246,6 +246,7 @@ export interface Employee {
     empNo: string;           // 序號(流水編號)
     employmentType: EmploymentType; // 職稱(正職或兼職)
     name: string;            // 姓名
+    email: string;
     startDate: string;       // 到職日
     endDate: string;         // 離職日 (若無則為空字串)
     
