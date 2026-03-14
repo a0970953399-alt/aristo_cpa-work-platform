@@ -275,15 +275,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                       <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead className="bg-gray-50 sticky top-0 border-b border-gray-200">
                                 <tr>
-                                    <th className="p-3 font-bold text-gray-500 w-16 text-center">序號</th>
+                                  <th className="p-3 font-bold text-gray-500 w-16 text-center">序號</th>
                                     <th className="p-3 font-bold text-gray-500 w-20 text-center">職稱</th>
-                                    <th className="p-3 font-bold text-gray-500 w-28">姓名</th>
+                                    {/* ✨ 加寬姓名欄位來容納狀態標籤 */}
+                                    <th className="p-3 font-bold text-gray-500 w-40">姓名 / 狀態</th>
                                     <th className="p-3 font-bold text-gray-500 w-48">電子郵件</th>
                                     <th className="p-3 font-bold text-gray-500 w-32 font-mono">身分證字號</th>
                                     <th className="p-3 font-bold text-gray-500 w-40">銀行分行</th>
                                     <th className="p-3 font-bold text-gray-500 w-40 font-mono">帳戶代號</th>
                                     <th className="p-3 font-bold text-gray-500">戶籍地址</th>
-                                    <th className="p-3 font-bold text-gray-500 w-24 text-center border-l border-gray-200">狀態</th>
+                                    {/* ✨ 狀態欄位已被移除 */}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
@@ -312,31 +313,34 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     {emp.employmentType === 'full_time' ? '正職' : '兼職'}
                                                 </span>
                                             </td>
-                                          <td className={`p-3 font-black text-base transition-colors ${isResigned ? 'text-gray-500' : 'text-gray-800 group-hover:text-blue-600'}`}>{emp.name}</td>
-                                            {/* ✨ 新增：電子郵件資料列 */}
+                                          {/* ✨ 將狀態標籤縮小並與姓名合併 */}
+                                            <td className="p-3">
+                                                <div className="flex items-center gap-2">
+                                                    <span className={`font-black text-base transition-colors ${isResigned ? 'text-gray-500' : 'text-gray-800 group-hover:text-blue-600'}`}>
+                                                        {emp.name}
+                                                    </span>
+                                                    {isResigned ? (
+                                                        <span className="px-2 py-0.5 bg-gray-200 text-gray-500 text-[10px] font-bold rounded-md tracking-widest shrink-0">已離職</span>
+                                                    ) : (
+                                                        <span className="px-2 py-0.5 bg-green-100 text-green-700 text-[10px] font-bold rounded-md tracking-widest shrink-0">在職中</span>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td className={`p-3 text-sm ${isResigned ? 'text-gray-400' : 'text-gray-500'}`}>{emp.email || '-'}</td>
                                             <td className={`p-3 font-mono text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.idNumber || '-'}</td>
                                             <td className={`p-3 text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.bankBranch || '-'}</td>
                                             <td className={`p-3 font-mono text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.bankAccount || '-'}</td>
                                             
-                                            {/* ✨ 地址如果太長會自動截斷，滑鼠移上去會顯示完整內容 (title屬性) */}
-                                            <td className={`p-3 text-sm truncate max-w-[200px] ${isResigned ? 'text-gray-400' : 'text-gray-600'}`} title={emp.address}>
+                                            {/* ✨ 移除 truncate 與 max-w，加入 whitespace-normal 讓超長地址自動換行顯示全部 */}
+                                            <td className={`p-3 text-sm whitespace-normal ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>
                                                 {emp.address || '-'}
-                                            </td>
-                                            
-                                            <td className="p-3 text-center border-l border-gray-100/50">
-                                                {isResigned ? (
-                                                    <span className="px-3 py-1 bg-gray-200 text-gray-500 text-xs font-bold rounded-lg tracking-widest">已離職</span>
-                                                ) : (
-                                                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg tracking-widest">在職中</span>
-                                                )}
                                             </td>
                                         </tr>
                                     );
                                 })}
-                              {/* ✨ 將 colSpan 從 8 改為 9 */}
+                              {/* ✨ 將 colSpan 改回 8 */}
                                 {currentEmps.length === 0 && (
-                                    <tr><td colSpan={9} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
+                                    <tr><td colSpan={8} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
                                 )}
                             </tbody>
                         </table>
