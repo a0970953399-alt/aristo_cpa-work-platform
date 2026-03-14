@@ -299,7 +299,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">💰 客戶薪資計算</h2>
         <div className="flex gap-2">
-          <button onClick={() => setIsAddClientModalOpen(true)} title="開通客戶" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center">
+          <button onClick={() => setIsAddClientModalOpen(true)} title="新增客戶" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center">
             <PlusIcon className="w-5 h-5" />
           </button>
           <button onClick={() => { setClientsToDelete([]); setIsDeleteClientModalOpen(true); }} title="移除客戶" className="p-2.5 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center">
