@@ -667,7 +667,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         date: tx.date.substring(5).replace('-', '/'), // 轉成 MM/DD
         fullDate: tx.date,
         帳列總成本: Math.round(tx.balanceTotalCost),
-        單位均價: Math.round(tx.balanceAvgCost)
+        // ✨ 改為儲存至小數點後 4 位，讓圖表繪製更平滑精準
+        單位均價: Number(tx.balanceAvgCost.toFixed(4))
     }));
     
     // 📊 圖表 2：圓餅圖資料 (累計資金流向)
@@ -743,7 +744,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                 </div>
                 <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md">
                   <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">當前平均成本</p>
-                  <p className="text-2xl sm:text-3xl font-black text-gray-500">${Math.round(currentStockAvgCost).toLocaleString()}</p>
+                  {/* ✨ 改為顯示到小數點後 4 位 */}
+                  <p className="text-2xl sm:text-3xl font-black text-gray-500">${currentStockAvgCost.toLocaleString('zh-TW', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</p>
                 </div>
                 <div className="bg-white p-5 rounded-3xl border border-gray-100 shadow-sm hover:shadow-md">
                   <p className="text-[11px] font-bold text-gray-400 uppercase mb-1">累計已處分損益</p>
@@ -965,10 +967,11 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                           {tx.units.toLocaleString()}
                         </td>
                         <td className="p-3 text-right">
+                          {/* ✨ 單價：最多顯示到小數點後 4 位 */}
                           {tx.type === 'buy' ? (
-                              <div className="text-xs font-medium text-gray-600">{Math.round(tx.unitPrice || 0).toLocaleString()}</div>
+                              <div className="text-xs font-medium text-gray-600">{(tx.unitPrice || 0).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}</div>
                           ) : (
-                              <div className="text-xs font-bold text-red-600">{Math.round(tx.unitPrice || 0).toLocaleString()}</div>
+                              <div className="text-xs font-bold text-red-600">{(tx.unitPrice || 0).toLocaleString('zh-TW', { minimumFractionDigits: 0, maximumFractionDigits: 4 })}</div>
                           )}
                         </td>
                         <td className="p-3 text-right text-[10px] text-gray-400 leading-tight">
@@ -981,7 +984,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                               </>
                           )}
                         </td>
-                        {/* 實際金額 / 損益區塊 (補上 Math.round) */}
                         <td className="p-3 text-right border-r">
                            {tx.type === 'buy' ? (
                                <div className="font-black text-blue-600 text-sm">{Math.round(tx.buyActualCost || 0).toLocaleString()}</div>
@@ -1000,7 +1002,8 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
                           {tx.balanceUnits.toLocaleString()}
                         </td>
                         <td className="p-3 text-right text-xs font-bold text-gray-600 bg-orange-50/5">
-                          {Math.round(tx.balanceAvgCost).toLocaleString()}
+                          {/* ✨ 結餘平均成本：強制顯示 4 位小數 */}
+                          {tx.balanceAvgCost.toLocaleString('zh-TW', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}
                         </td>
                         <td className="p-3 text-right text-sm font-black text-gray-800 bg-orange-50/5 italic underline decoration-orange-200">
                           {Math.round(tx.balanceTotalCost).toLocaleString()}
@@ -1053,17 +1056,19 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
 
                 <div className="col-span-2 text-sm font-black text-purple-500 border-b border-purple-100 pb-2 mt-2 flex items-center gap-2">🤖 系統自動計算</div>
                 
-                {txType === 'buy' ? (
+                        {txType === 'buy' ? (
                   <>
                     <div><label className="block text-xs font-bold text-gray-400 mb-1">金額 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{buyAmount.toLocaleString()}</div></div>
                     <div><label className="block text-xs font-bold text-gray-400 mb-1">實際成本 (金額 + 手續費)</label><div className="w-full bg-blue-50 border border-blue-100 p-2.5 rounded-xl font-mono font-bold text-blue-700">{buyActualCost.toLocaleString()}</div></div>
-                    <div><label className="block text-xs font-bold text-gray-400 mb-1">平均成本 (實際成本 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{Math.round(buyAvgCost).toLocaleString()}</div></div>
+                    {/* ✨ 預估平均成本：強制顯示 4 位小數 */}
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">平均成本 (實際成本 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{buyAvgCost.toLocaleString('zh-TW', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</div></div>
                   </>
                 ) : (
                   <>
                     <div><label className="block text-xs font-bold text-gray-400 mb-1">賣出總價 (單位數 * 單價)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellPrice.toLocaleString()}</div></div>
                     <div><label className="block text-xs font-bold text-gray-400 mb-1">實際賣出淨額 (賣價-費-稅)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellNetAmount.toLocaleString()}</div></div>
-                    <div><label className="block text-xs font-bold text-gray-400 mb-1">平均售價淨額 (淨額 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{Math.round(sellAvgPrice).toLocaleString()}</div></div>
+                    {/* ✨ 預估平均售價：強制顯示 4 位小數 */}
+                    <div><label className="block text-xs font-bold text-gray-400 mb-1">平均售價淨額 (淨額 / 單位數)</label><div className="w-full bg-gray-100 p-2.5 rounded-xl font-mono text-gray-600">{sellAvgPrice.toLocaleString('zh-TW', { minimumFractionDigits: 4, maximumFractionDigits: 4 })}</div></div>
                     
                     {/* FIFO 關鍵數據 */}
                     <div className="col-span-2 grid grid-cols-2 gap-5 mt-2">
