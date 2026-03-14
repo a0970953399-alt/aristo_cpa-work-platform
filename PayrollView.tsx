@@ -235,13 +235,22 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             <h2 className="text-xl sm:text-2xl font-black text-gray-800 leading-tight">{selectedClient.name} - 薪資明細</h2>
           </div>
           
-          {/* ✨ 隱藏的實體檔案上傳輸入框 */}
+          {/* ✨ 右側操作區：膠囊標籤頁 + 操作按鈕 */}
+          <div className="flex items-center gap-3">
+              {/* 膠囊標籤頁 */}
+              <div className="flex p-1 bg-gray-100 rounded-xl shadow-inner">
+                  <button onClick={() => setActiveInnerTab('employees')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'employees' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>👥 員工名單</button>
+                  <button onClick={() => setActiveInnerTab('monthly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'monthly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📅 每月薪資明細</button>
+                  <button onClick={() => setActiveInnerTab('yearly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'yearly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📖 年度薪資帳冊</button>
+              </div>
+
+              {/* ✨ 隱藏的實體檔案上傳輸入框 */}
               <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={empFileInputRef} onChange={handleImportEmpExcel} />
 
               {/* ✨ 新增按鈕區：當處於員工名單時才顯示 */}
               {activeInnerTab === 'employees' && (
                   <div className="flex items-center gap-2">
-                      {/* 匯入 Excel 按鈕 (綠色風格，與進銷存一致) */}
+                      {/* 匯入 Excel 按鈕 (綠色風格) */}
                       <button onClick={() => empFileInputRef.current?.click()} title="匯入 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
                           <ExcelFileIcon className="w-5 h-5" />
                       </button>
