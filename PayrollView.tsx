@@ -1,4 +1,5 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
+import * as XLSX from 'xlsx';
 import { Client, PayrollClientConfig, PayrollRecord, Employee, EmploymentType } from './types';
 import { ReturnIcon, PlusIcon, TrashIcon } from './Icons';
 import { TaskService } from './taskService';
@@ -11,6 +12,12 @@ interface PayrollViewProps {
 const EditIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
     <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
+  </svg>
+);
+
+const ExcelFileIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M19.5 14.25v-2.625a3.375 3.375 0 0 0-3.375-3.375h-1.5A1.125 1.125 0 0 1 13.5 7.125v-1.5a3.375 3.375 0 0 0-3.375-3.375H8.25m6.75 12-3-3m0 0-3 3m3-3v6m-1.5-15H5.625c-.621 0-1.125.504-1.125 1.125v17.25c0 .621.504 1.125 1.125 1.125h12.75c.621 0 1.125-.504 1.125-1.125V11.25a9 9 0 0 0-9-9Z" />
   </svg>
 );
 
@@ -34,6 +41,88 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [isEmpModalOpen, setIsEmpModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Partial<Employee> | null>(null);
 
+  // ✨ 新增：Excel 匯入的 Ref 與處理邏輯
+  const empFileInputRef = useRef<HTMLInputElement>(null);
+
+  const handleImportEmpExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file || !selectedClient) return;
+
+    const reader = new FileReader();
+    reader.onload = async (evt) => {
+      try {
+        const bstr = evt.target?.result;
+        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
+        const ws = wb.Sheets[wb.SheetNames[0]];
+        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
+
+        const newEmps: Employee[] = [];
+
+        // 假設第一行是標題，從第二行 (i=1) 開始讀取
+        for (let i = 1; i < data.length; i++) {
+          const row = data[i] as any[];
+          if (!row[2]) continue; // 防呆：姓名(2) 是必填
+
+          const empNo = String(row[0] || '').trim();
+          const typeStr = String(row[1] || '').trim();
+          const employmentType: EmploymentType = (typeStr.includes('兼職') || typeStr.toUpperCase() === 'PART_TIME') ? 'part_time' : 'full_time';
+          const name = String(row[2] || '').trim();
+          const email = String(row[3] || '').trim();
+
+          // 日期格式防呆轉換
+          const formatDate = (val: any) => {
+              if (!val) return '';
+              if (val instanceof Date) return new Date(val.getTime() - (val.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
+              return String(val).replace(/\//g, '-').trim();
+          };
+
+          const startDate = formatDate(row[4]) || new Date().toISOString().split('T')[0]; // 預設今天
+          const endDate = formatDate(row[5]);
+          const idNumber = String(row[6] || '').trim().toUpperCase();
+          const bankBranch = String(row[7] || '').trim();
+          const bankAccount = String(row[8] || '').trim();
+          const address = String(row[9] || '').trim();
+
+          const newEmp: Employee = {
+              id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
+              clientId: String(selectedClient.id),
+              empNo,
+              employmentType,
+              name,
+              email,
+              startDate,
+              endDate,
+              idNumber,
+              bankBranch,
+              bankAccount,
+              address,
+              defaultBaseSalary: 0, // Excel 沒匯入薪資，先預設 0
+              defaultFoodAllowance: 0,
+              createdAt: new Date().toISOString()
+          };
+          newEmps.push(newEmp);
+        }
+
+        if (newEmps.length > 0) {
+          // 循序寫入資料庫
+          for (const emp of newEmps) {
+              await TaskService.addEmployee(emp);
+          }
+          alert(`✅ 成功匯入 ${newEmps.length} 筆員工資料！`);
+          await loadData();
+        } else {
+          alert('沒有找到有效的員工紀錄，請確認 Excel 是否有填寫「姓名」。');
+        }
+      } catch (error) {
+        alert('檔案讀取失敗，請確認是否為標準的 Excel 檔案。');
+      }
+      
+      // 清空 input 讓同一個檔案能被重複選取
+      if (empFileInputRef.current) empFileInputRef.current.value = '';
+    };
+    reader.readAsBinaryString(file);
+  };
+
   useEffect(() => {
     loadData();
   }, []);
@@ -51,6 +140,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const handleOpenAddEmp = () => {
     setEditingEmp({
         employmentType: 'full_time',
+        email: '',
         defaultBaseSalary: 0,
         defaultFoodAllowance: 0,
         startDate: new Date().toISOString().split('T')[0]
@@ -68,6 +158,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
         empNo: editingEmp.empNo || '',
         employmentType: editingEmp.employmentType as EmploymentType,
         name: editingEmp.name || '',
+        email: editingEmp.email || '',
         startDate: editingEmp.startDate || '',
         endDate: editingEmp.endDate || '',
         idNumber: editingEmp.idNumber || '',
@@ -144,20 +235,22 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             <h2 className="text-xl sm:text-2xl font-black text-gray-800 leading-tight">{selectedClient.name} - 薪資明細</h2>
           </div>
           
-          {/* ✨ 右側操作區：膠囊標籤頁 + 操作按鈕 */}
-          <div className="flex items-center gap-3">
-              {/* 膠囊標籤頁 (移植自股票進銷存) */}
-              <div className="flex p-1 bg-gray-100 rounded-xl shadow-inner">
-                  <button onClick={() => setActiveInnerTab('employees')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'employees' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>👥 員工名單</button>
-                  <button onClick={() => setActiveInnerTab('monthly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'monthly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📅 每月薪資明細</button>
-                  <button onClick={() => setActiveInnerTab('yearly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'yearly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📖 年度薪資帳冊</button>
-              </div>
+          {/* ✨ 隱藏的實體檔案上傳輸入框 */}
+              <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={empFileInputRef} onChange={handleImportEmpExcel} />
 
-              {/* ✨ 新增按鈕：與標籤頁保持在同一水平線，且樣式統一 */}
+              {/* ✨ 新增按鈕區：當處於員工名單時才顯示 */}
               {activeInnerTab === 'employees' && (
-                  <button onClick={handleOpenAddEmp} title="新增員工" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
-                      <PlusIcon className="w-5 h-5" />
-                  </button>
+                  <div className="flex items-center gap-2">
+                      {/* 匯入 Excel 按鈕 (綠色風格，與進銷存一致) */}
+                      <button onClick={() => empFileInputRef.current?.click()} title="匯入 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
+                          <ExcelFileIcon className="w-5 h-5" />
+                      </button>
+                      
+                      {/* 新增單筆員工按鈕 (藍色風格) */}
+                      <button onClick={handleOpenAddEmp} title="新增員工" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
+                          <PlusIcon className="w-5 h-5" />
+                      </button>
+                  </div>
               )}
           </div>
         </div>
@@ -265,7 +358,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             <div className="grid grid-cols-3 gap-4">
                                 <div><label className="block text-xs font-bold text-gray-500 mb-1">序號</label><input type="text" value={editingEmp.empNo || ''} onChange={e => setEditingEmp({...editingEmp, empNo: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-mono text-sm" placeholder="例如: 001" /></div>
                                 <div><label className="block text-xs font-bold text-gray-500 mb-1">姓名</label><input type="text" required value={editingEmp.name || ''} onChange={e => setEditingEmp({...editingEmp, name: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold" /></div>
-                                <div>
+                                <div><label className="block text-xs font-bold text-gray-500 mb-1">電子郵件</label><input type="email" value={editingEmp.email || ''} onChange={e => setEditingEmp({...editingEmp, email: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm" /></div>
+                              <div>
                                     <label className="block text-xs font-bold text-gray-500 mb-1">職稱</label>
                                     <select value={editingEmp.employmentType || 'full_time'} onChange={e => setEditingEmp({...editingEmp, employmentType: e.target.value as EmploymentType})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-sm font-bold bg-white">
                                         <option value="full_time">正職</option>
