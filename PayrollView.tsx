@@ -132,7 +132,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             <button onClick={() => setSelectedClient(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
               <ReturnIcon className="w-6 h-6" />
             </button>
-            <h2 className="text-2xl font-black text-gray-800">{selectedClient.name} - 薪資明細</h2>
+            <h2 className="text-2xl font-black text-gray-800 mr-2">{selectedClient.name} - 薪資明細</h2>
+            
+            {/* ✨ 全域操作按鈕：當處於員工名單時才顯示新增按鈕 */}
+            {activeInnerTab === 'employees' && (
+                <button onClick={handleOpenAddEmp} title="新增員工" className="flex items-center justify-center p-2 bg-blue-600 text-white font-bold rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all">
+                    <PlusIcon className="w-5 h-5" />
+                </button>
+            )}
           </div>
           
           {/* ✨ 內部三層標籤頁 (移至右上角並貼齊底線) */}
@@ -146,17 +153,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
         {/* 內容區 */}
         <div className="flex-1 overflow-hidden flex flex-col p-6">
             
-            {/* 📍 標籤一：員工名單 */}
+          {/* 📍 標籤一：員工名單 */}
             {activeInnerTab === 'employees' && (
                 <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-                  <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50">
-                        <h3 className="font-bold text-gray-700">員工名單</h3>
-                        <button onClick={handleOpenAddEmp} title="新增員工" className="flex items-center justify-center p-2 bg-blue-600 text-white font-bold rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all">
-                            <PlusIcon className="w-6 h-6" />
-                        </button>
-                    </div>
+                    {/* ✨ 內層標題與按鈕已移除，表格直接滿版顯示 */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                      <table className="w-full text-left text-sm">
+                        <table className="w-full text-left text-sm">
                             <thead className="bg-gray-50 sticky top-0 border-b border-gray-200">
                                 <tr>
                                     <th className="p-4 font-bold text-gray-500 w-24 text-center">序號</th>
