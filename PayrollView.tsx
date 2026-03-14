@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { Client, PayrollClientConfig, PayrollRecord } from './types';
 import { ReturnIcon, PlusIcon, TrashIcon } from './Icons';
+import { TaskService } from './taskService'; // ✨ 引入資料庫服務
 
 interface PayrollViewProps {
   clients: Client[];
@@ -8,7 +9,6 @@ interface PayrollViewProps {
 
 export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   // --- 狀態管理 ---
-  // (未來這兩個 state 會改為從 TaskService 抓取真實資料，現在先用 useState 暫存來建構 UI)
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
 
@@ -21,27 +21,44 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [newClientSelectId, setNewClientSelectId] = useState('');
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
 
+  // ✨ 1. 畫面載入時，自動從資料庫抓取最新資料
+  useEffect(() => {
+    loadData();
+  }, []);
+
+  const loadData = async () => {
+    const fetchedClients = await TaskService.fetchPayrollClients();
+    const fetchedRecords = await TaskService.fetchPayrollRecords();
+    setPayrollClients(fetchedClients);
+    setPayrollRecords(fetchedRecords);
+  };
+
   // --- 衍生變數 ---
   const enabledClientIds = payrollClients.map(pc => pc.clientId);
   const availableClientsToAdd = clients.filter(c => !enabledClientIds.includes(String(c.id)));
   const displayClients = clients.filter(c => enabledClientIds.includes(String(c.id)));
 
-  // --- 操作邏輯 (模擬寫入) ---
-  const handleAddClient = () => {
+  // --- 操作邏輯 (真實寫入資料庫) ---
+  const handleAddClient = async () => {
     if (!newClientSelectId) return;
     const newConfig: PayrollClientConfig = {
       id: Date.now().toString(),
       clientId: newClientSelectId,
       createdAt: new Date().toISOString()
     };
-    setPayrollClients([...payrollClients, newConfig]);
+    // ✨ 2. 直接寫入資料庫並更新畫面
+    const updated = await TaskService.addPayrollClient(newConfig);
+    setPayrollClients(updated);
     setIsAddClientModalOpen(false);
     setNewClientSelectId('');
   };
 
-  const handleConfirmDeleteClients = () => {
-    const updated = payrollClients.filter(pc => !clientsToDelete.includes(pc.clientId));
-    setPayrollClients(updated);
+  const handleConfirmDeleteClients = async () => {
+    // ✨ 3. 逐一從資料庫刪除
+    for (const clientId of clientsToDelete) {
+        await TaskService.deletePayrollClient(clientId);
+    }
+    await loadData();
     setIsDeleteClientModalOpen(false);
     setClientsToDelete([]);
   };
@@ -53,14 +70,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   // 🔺 第二層：單一客戶的專屬薪資明細表
   if (selectedClient) {
     return (
-      <div className="h-full flex flex-col animate-fade-in bg-gray-50 overflow-hidden">
-        {/* 頂部導航 */}
-        <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between shadow-sm z-10">
+      // ✨ 修正排版：移除 bg-gray-50 和多餘的 padding，完美滿版
+      <div className="h-full flex flex-col animate-fade-in">
+        <div className="flex items-center justify-between mb-6">
           <div className="flex items-center gap-4">
             <button 
               onClick={() => setSelectedClient(null)} 
               title="返回客戶列表" 
-              className="p-2 hover:bg-gray-100 rounded-full text-gray-400 hover:text-gray-600 transition-colors"
+              className="p-2 hover:bg-gray-200 rounded-full text-gray-500 transition-colors"
             >
               <ReturnIcon className="w-6 h-6" />
             </button>
@@ -76,10 +93,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           </button>
         </div>
 
-        {/* 明細表內容區 */}
-        <div className="flex-1 p-6 overflow-y-auto">
-           {/* 未來我們要把試算表跟歷史紀錄放在這裡 */}
-           <div className="bg-white border-2 border-dashed border-gray-200 rounded-3xl p-20 text-center flex flex-col items-center justify-center">
+        <div className="flex-1 overflow-y-auto pb-6">
+           <div className="bg-white border-2 border-dashed border-gray-200 rounded-3xl p-20 text-center flex flex-col items-center justify-center h-full min-h-[400px]">
               <div className="text-5xl mb-4 opacity-50">👩‍💻</div>
               <h3 className="text-xl font-bold text-gray-600 mb-2">專屬薪資計算引擎準備就緒</h3>
               <p className="text-gray-400">接下來我們將在這裡打造「自動試算表單」與「一鍵匯出薪資單」的功能！</p>
@@ -91,8 +106,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
   // 🔺 第一層：薪資客戶牆 (Client Wall)
   return (
-    <div className="h-full flex flex-col animate-fade-in bg-gray-50 overflow-hidden">
-      <div className="p-6 pb-2 border-b border-transparent flex items-center justify-between">
+    // ✨ 修正排版：移除 bg-gray-50 和多餘的 padding，完美滿版
+    <div className="h-full flex flex-col animate-fade-in">
+      <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">💰 客戶薪資計算</h2>
         <div className="flex gap-2">
           <button onClick={() => setIsAddClientModalOpen(true)} title="開通客戶" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center">
@@ -104,8 +120,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
         </div>
       </div>
 
-      <div className="flex-1 overflow-y-auto p-6 custom-scrollbar">
-        <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6">
+      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto pb-6">
           {displayClients.map(client => (
             <div 
               key={client.id} 
@@ -121,10 +136,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               </h3>
             </div>
           ))}
-        </div>
-        {displayClients.length === 0 && (
-          <div className="py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300 w-full">目前沒有任何客戶開啟薪資計算功能</div>
-        )}
+          {displayClients.length === 0 && (
+            <div className="col-span-full py-20 text-center text-gray-400 font-bold text-lg bg-white rounded-2xl border border-dashed border-gray-300 w-full">目前沒有任何客戶開啟薪資計算功能</div>
+          )}
       </div>
 
       {/* 新增客戶 Modal */}
