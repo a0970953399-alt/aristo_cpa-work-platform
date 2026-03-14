@@ -168,7 +168,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <th className="p-4 font-bold text-gray-500 w-32 text-center">職稱</th>
                                     <th className="p-4 font-bold text-gray-500">姓名</th>
                                     <th className="p-4 font-bold text-gray-500 text-center">到職日</th>
-                                    <th className="p-4 font-bold text-gray-500 text-center">狀態 / 離職日</th>
+                                    <th className="p-4 font-bold text-gray-500 text-center">狀態</th>
                                     {/* ✨ 移除了操作欄位 */}
                                 </tr>
                             </thead>
@@ -190,14 +190,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         {/* ✨ 3. 滑過整列時，姓名會變成藍色，增加可點擊的視覺提示 */}
                                         <td className="p-4 font-black text-gray-800 text-base group-hover:text-blue-600 transition-colors">{emp.name}</td>
                                         <td className="p-4 text-center font-mono text-gray-600">{emp.startDate.replace(/-/g, '/')}</td>
-                                        <td className="p-4 text-center">
+                                      <td className="p-4 text-center">
                                             {emp.endDate ? (
-                                                <div className="flex flex-col items-center">
-                                                    <span className="px-2 py-0.5 bg-gray-200 text-gray-500 text-[10px] font-bold rounded mb-1">已離職</span>
-                                                    <span className="font-mono text-xs text-gray-400">{emp.endDate.replace(/-/g, '/')}</span>
-                                                </div>
+                                                <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-lg tracking-widest">已離職</span>
                                             ) : (
-                                                <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded">在職中</span>
+                                                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg tracking-widest">在職中</span>
                                             )}
                                         </td>
                                         {/* ✨ 移除了原本的按鈕 td */}
