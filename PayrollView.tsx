@@ -334,8 +334,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         </tr>
                                     );
                                 })}
-                              {currentEmps.length === 0 && (
-                                    {/* ✨ 將 colSpan 從 8 改為 9 */}
+                              {/* ✨ 將 colSpan 從 8 改為 9 */}
+                                {currentEmps.length === 0 && (
                                     <tr><td colSpan={9} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
                                 )}
                             </tbody>
