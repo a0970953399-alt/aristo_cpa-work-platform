@@ -112,7 +112,10 @@ export const TabCategory = {
   TAX: "營業稅申報",
   INCOME_TAX: "所得扣繳",
   ANNUAL: "年度申報",
-  SUBMISSION: "送件"
+  SUBMISSION: "送件",
+  CASH: "零用金/代墊款",
+  STOCK: "股票進銷存",
+  PAYROLL: "薪資計算"
 } as const;
 export type TabCategory = typeof TabCategory[keyof typeof TabCategory];
 
