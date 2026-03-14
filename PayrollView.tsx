@@ -121,7 +121,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
   // 🔺 第二層：單一客戶專屬薪資系統
   if (selectedClient) {
-    const currentEmps = employees.filter(e => e.clientId === String(selectedClient.id));
+    // ✨ 排序邏輯：過濾出該客戶的員工，並將「已離職 (有 endDate)」的員工排到最下面
+    const currentEmps = employees
+        .filter(e => e.clientId === String(selectedClient.id))
+        .sort((a, b) => {
+            const aResigned = !!a.endDate;
+            const bResigned = !!b.endDate;
+            if (aResigned && !bResigned) return 1;  // a 離職，往下沉
+            if (!aResigned && bResigned) return -1; // b 離職，往下沉
+            return (a.empNo || '').localeCompare(b.empNo || ''); // 都沒離職則照序號排
+        });
 
     return (
       <div className="h-full flex flex-col animate-fade-in bg-gray-50">
@@ -161,48 +170,67 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                 <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
                     {/* ✨ 內層標題與按鈕已移除，表格直接滿版顯示 */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        <table className="w-full text-left text-sm">
+                      <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead className="bg-gray-50 sticky top-0 border-b border-gray-200">
                                 <tr>
-                                    <th className="p-4 font-bold text-gray-500 w-24 text-center">序號</th>
-                                    <th className="p-4 font-bold text-gray-500 w-32 text-center">職稱</th>
-                                    <th className="p-4 font-bold text-gray-500">姓名</th>
-                                    <th className="p-4 font-bold text-gray-500 text-center">到職日</th>
-                                    <th className="p-4 font-bold text-gray-500 text-center">狀態</th>
-                                    {/* ✨ 移除了操作欄位 */}
+                                    <th className="p-3 font-bold text-gray-500 w-16 text-center">序號</th>
+                                    <th className="p-3 font-bold text-gray-500 w-20 text-center">職稱</th>
+                                    <th className="p-3 font-bold text-gray-500 w-28">姓名</th>
+                                    <th className="p-3 font-bold text-gray-500 w-32 font-mono">身分證字號</th>
+                                    <th className="p-3 font-bold text-gray-500 w-40">銀行分行</th>
+                                    <th className="p-3 font-bold text-gray-500 w-40 font-mono">帳戶代號</th>
+                                    <th className="p-3 font-bold text-gray-500">戶籍地址</th>
+                                    <th className="p-3 font-bold text-gray-500 w-24 text-center border-l border-gray-200">狀態</th>
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
-                                {currentEmps.map((emp, index) => (
-                                    <tr 
-                                        key={emp.id} 
-                                        // ✨ 1. 將 onClick 事件綁定在整條 tr 上
-                                        onClick={() => { setEditingEmp(emp); setIsEmpModalOpen(true); }}
-                                        // ✨ 2. 加入 cursor-pointer 讓滑鼠移過去變成手指圖示
-                                        className="hover:bg-blue-50/50 transition-colors group cursor-pointer"
-                                    >
-                                        <td className="p-4 text-center font-mono text-gray-400">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
-                                        <td className="p-4 text-center">
-                                            <span className={`px-3 py-1 rounded-lg text-xs font-bold ${emp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                {emp.employmentType === 'full_time' ? '正職' : '兼職'}
-                                            </span>
-                                        </td>
-                                        {/* ✨ 3. 滑過整列時，姓名會變成藍色，增加可點擊的視覺提示 */}
-                                        <td className="p-4 font-black text-gray-800 text-base group-hover:text-blue-600 transition-colors">{emp.name}</td>
-                                        <td className="p-4 text-center font-mono text-gray-600">{emp.startDate.replace(/-/g, '/')}</td>
-                                      <td className="p-4 text-center">
-                                            {emp.endDate ? (
-                                                <span className="px-3 py-1 bg-red-100 text-red-700 text-xs font-bold rounded-lg tracking-widest">已離職</span>
-                                            ) : (
-                                                <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg tracking-widest">在職中</span>
-                                            )}
-                                        </td>
-                                        {/* ✨ 移除了原本的按鈕 td */}
-                                    </tr>
-                                ))}
-                              {/* ✨ colSpan 從 6 改為 5 */}
-                              {currentEmps.length === 0 && (
-                                    <tr><td colSpan={5} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
+                                {currentEmps.map((emp, index) => {
+                                    const isResigned = !!emp.endDate; // 判斷是否離職
+
+                                    return (
+                                        <tr 
+                                            key={emp.id} 
+                                            onClick={() => { setEditingEmp(emp); setIsEmpModalOpen(true); }}
+                                            // ✨ 灰色濾鏡與互動特效：如果離職就套用灰底、透明度與灰色文字
+                                            className={`cursor-pointer transition-colors group ${
+                                                isResigned 
+                                                ? 'bg-gray-100/50 opacity-75 hover:bg-gray-200/50' 
+                                                : 'hover:bg-blue-50/50'
+                                            }`}
+                                        >
+                                            <td className={`p-3 text-center font-mono ${isResigned ? 'text-gray-400' : 'text-gray-400'}`}>{emp.empNo || String(index + 1).padStart(3, '0')}</td>
+                                            <td className="p-3 text-center">
+                                                {/* ✨ 離職員工的職稱標籤也一併灰階化 */}
+                                                <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
+                                                    isResigned 
+                                                    ? 'bg-gray-200 text-gray-500' 
+                                                    : (emp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700')
+                                                }`}>
+                                                    {emp.employmentType === 'full_time' ? '正職' : '兼職'}
+                                                </span>
+                                            </td>
+                                            <td className={`p-3 font-black text-base transition-colors ${isResigned ? 'text-gray-500' : 'text-gray-800 group-hover:text-blue-600'}`}>{emp.name}</td>
+                                            <td className={`p-3 font-mono text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.idNumber || '-'}</td>
+                                            <td className={`p-3 text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.bankBranch || '-'}</td>
+                                            <td className={`p-3 font-mono text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.bankAccount || '-'}</td>
+                                            
+                                            {/* ✨ 地址如果太長會自動截斷，滑鼠移上去會顯示完整內容 (title屬性) */}
+                                            <td className={`p-3 text-sm truncate max-w-[200px] ${isResigned ? 'text-gray-400' : 'text-gray-600'}`} title={emp.address}>
+                                                {emp.address || '-'}
+                                            </td>
+                                            
+                                            <td className="p-3 text-center border-l border-gray-100/50">
+                                                {isResigned ? (
+                                                    <span className="px-3 py-1 bg-gray-200 text-gray-500 text-xs font-bold rounded-lg tracking-widest">已離職</span>
+                                                ) : (
+                                                    <span className="px-3 py-1 bg-green-100 text-green-700 text-xs font-bold rounded-lg tracking-widest">在職中</span>
+                                                )}
+                                            </td>
+                                        </tr>
+                                    );
+                                })}
+                                {currentEmps.length === 0 && (
+                                    <tr><td colSpan={8} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
                                 )}
                             </tbody>
                         </table>
