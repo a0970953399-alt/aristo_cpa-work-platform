@@ -725,6 +725,40 @@ async deleteInstruction(id: string): Promise<Instruction[]> {
         data.stockTransactions = data.stockTransactions.filter(tx => tx.id !== id);
         await this.saveFullData(data);
         return data.stockTransactions;
+    },
+
+    // ==========================================
+    // ✨ 薪資計算系統 (Payroll) API
+    // ==========================================
+    
+    static async fetchPayrollClients(): Promise<import('./types').PayrollClientConfig[]> {
+        return this.readData<import('./types').PayrollClientConfig[]>('payrollClients', []);
+    }
+    
+    static async savePayrollClients(clients: import('./types').PayrollClientConfig[]): Promise<void> {
+        await this.writeData('payrollClients', clients);
+    }
+    
+    static async addPayrollClient(client: import('./types').PayrollClientConfig): Promise<import('./types').PayrollClientConfig[]> {
+        const clients = await this.fetchPayrollClients();
+        clients.push(client);
+        await this.savePayrollClients(clients);
+        return clients;
+    }
+    
+    static async deletePayrollClient(clientId: string): Promise<import('./types').PayrollClientConfig[]> {
+        const clients = await this.fetchPayrollClients();
+        const updated = clients.filter(c => c.clientId !== clientId);
+        await this.savePayrollClients(updated);
+        return updated;
+    }
+
+    static async fetchPayrollRecords(): Promise<import('./types').PayrollRecord[]> {
+        return this.readData<import('./types').PayrollRecord[]>('payrollRecords', []);
+    }
+    
+    static async savePayrollRecords(records: import('./types').PayrollRecord[]): Promise<void> {
+        await this.writeData('payrollRecords', records);
     }
 
 }; // ✅ TaskService 結尾
