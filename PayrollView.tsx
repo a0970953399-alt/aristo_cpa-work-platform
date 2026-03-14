@@ -156,7 +156,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                         </button>
                     </div>
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
-                        <table className="w-full text-left text-sm">
+                      <table className="w-full text-left text-sm">
                             <thead className="bg-gray-50 sticky top-0 border-b border-gray-200">
                                 <tr>
                                     <th className="p-4 font-bold text-gray-500 w-24 text-center">序號</th>
@@ -164,19 +164,26 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <th className="p-4 font-bold text-gray-500">姓名</th>
                                     <th className="p-4 font-bold text-gray-500 text-center">到職日</th>
                                     <th className="p-4 font-bold text-gray-500 text-center">狀態 / 離職日</th>
-                                    <th className="p-4 font-bold text-gray-500 text-right pr-6">操作</th>
+                                    {/* ✨ 移除了操作欄位 */}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {currentEmps.map((emp, index) => (
-                                    <tr key={emp.id} className="hover:bg-blue-50/50 transition-colors group">
+                                    <tr 
+                                        key={emp.id} 
+                                        // ✨ 1. 將 onClick 事件綁定在整條 tr 上
+                                        onClick={() => { setEditingEmp(emp); setIsEmpModalOpen(true); }}
+                                        // ✨ 2. 加入 cursor-pointer 讓滑鼠移過去變成手指圖示
+                                        className="hover:bg-blue-50/50 transition-colors group cursor-pointer"
+                                    >
                                         <td className="p-4 text-center font-mono text-gray-400">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
                                         <td className="p-4 text-center">
                                             <span className={`px-3 py-1 rounded-lg text-xs font-bold ${emp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                 {emp.employmentType === 'full_time' ? '正職' : '兼職'}
                                             </span>
                                         </td>
-                                        <td className="p-4 font-black text-gray-800 text-base">{emp.name}</td>
+                                        {/* ✨ 3. 滑過整列時，姓名會變成藍色，增加可點擊的視覺提示 */}
+                                        <td className="p-4 font-black text-gray-800 text-base group-hover:text-blue-600 transition-colors">{emp.name}</td>
                                         <td className="p-4 text-center font-mono text-gray-600">{emp.startDate.replace(/-/g, '/')}</td>
                                         <td className="p-4 text-center">
                                             {emp.endDate ? (
@@ -188,15 +195,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 <span className="px-2 py-1 bg-green-100 text-green-700 text-xs font-bold rounded">在職中</span>
                                             )}
                                         </td>
-                                        <td className="p-4 text-right pr-6">
-                                            <button onClick={() => { setEditingEmp(emp); setIsEmpModalOpen(true); }} className="p-2 text-gray-400 hover:text-blue-600 hover:bg-blue-100 rounded-lg transition-colors">
-                                                <EditIcon className="w-5 h-5" />
-                                            </button>
-                                        </td>
+                                        {/* ✨ 移除了原本的按鈕 td */}
                                     </tr>
                                 ))}
                                 {currentEmps.length === 0 && (
-                                    <tr><td colSpan={6} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
+                                    {/* ✨ colSpan 從 6 改為 5 */}
+                                    <tr><td colSpan={5} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
                                 )}
                             </tbody>
                         </table>
