@@ -127,26 +127,29 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       <div className="h-full flex flex-col animate-fade-in bg-gray-50">
         
         {/* 頂部導航 */}
-        <div className="bg-white px-6 border-b border-gray-200 flex items-center justify-between">
-          <div className="flex items-center gap-4 py-4">
-            <button onClick={() => setSelectedClient(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors">
+        <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+          <div className="flex items-center gap-4">
+            <button onClick={() => setSelectedClient(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors" title="返回客戶列表">
               <ReturnIcon className="w-6 h-6" />
             </button>
-            <h2 className="text-2xl font-black text-gray-800 mr-2">{selectedClient.name} - 薪資明細</h2>
-            
-            {/* ✨ 全域操作按鈕：當處於員工名單時才顯示新增按鈕 */}
-            {activeInnerTab === 'employees' && (
-                <button onClick={handleOpenAddEmp} title="新增員工" className="flex items-center justify-center p-2 bg-blue-600 text-white font-bold rounded-xl shadow-sm hover:bg-blue-700 active:scale-95 transition-all">
-                    <PlusIcon className="w-5 h-5" />
-                </button>
-            )}
+            <h2 className="text-xl sm:text-2xl font-black text-gray-800 leading-tight">{selectedClient.name} - 薪資明細</h2>
           </div>
           
-          {/* ✨ 內部三層標籤頁 (移至右上角並貼齊底線) */}
-          <div className="flex gap-8 self-end">
-              <button onClick={() => setActiveInnerTab('employees')} className={`py-4 text-lg font-bold border-b-4 transition-colors ${activeInnerTab === 'employees' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>👥 員工名單</button>
-              <button onClick={() => setActiveInnerTab('monthly')} className={`py-4 text-lg font-bold border-b-4 transition-colors ${activeInnerTab === 'monthly' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>📅 每月薪資明細</button>
-              <button onClick={() => setActiveInnerTab('yearly')} className={`py-4 text-lg font-bold border-b-4 transition-colors ${activeInnerTab === 'yearly' ? 'border-blue-600 text-blue-600' : 'border-transparent text-gray-400 hover:text-gray-600'}`}>📖 年度薪資帳冊</button>
+          {/* ✨ 右側操作區：膠囊標籤頁 + 操作按鈕 */}
+          <div className="flex items-center gap-3">
+              {/* 膠囊標籤頁 (移植自股票進銷存) */}
+              <div className="flex p-1 bg-gray-100 rounded-xl shadow-inner">
+                  <button onClick={() => setActiveInnerTab('employees')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'employees' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>👥 員工名單</button>
+                  <button onClick={() => setActiveInnerTab('monthly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'monthly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📅 每月薪資明細</button>
+                  <button onClick={() => setActiveInnerTab('yearly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'yearly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📖 年度薪資帳冊</button>
+              </div>
+
+              {/* ✨ 新增按鈕：與標籤頁保持在同一水平線，且樣式統一 */}
+              {activeInnerTab === 'employees' && (
+                  <button onClick={handleOpenAddEmp} title="新增員工" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
+                      <PlusIcon className="w-5 h-5" />
+                  </button>
+              )}
           </div>
         </div>
 
