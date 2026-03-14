@@ -83,7 +83,7 @@ export interface Client {
     contactAddress?: string; // 聯絡地址
     cpa?: string; // 負責會計師
     period?: string; // 委任期限
-    feeMonthly?: string; // 每月公費
+    feeMonthly?: string; // 委任公費
     feeWithholding?: string; // 各類扣繳
     feeTax?: string; // 結算申報
     fee22_1?: string; // 22-1申報
