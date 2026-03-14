@@ -203,19 +203,22 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         fee22_1: row['22-1申報'] != null ? String(row['22-1申報']) : '',
                     };
 
-                    if (existingIndex !== -1) {
+                  if (existingIndex !== -1) {
                         // 🔄 這是舊客戶：進行覆寫 (Upsert)
                         const existingClient = currentClients[existingIndex];
                         const mergedClient = { ...existingClient };
 
                         Object.keys(excelData).forEach(key => {
-                            const val = (excelData as keyof Client);
-                            if (typeof excelData[val] === 'boolean') {
-                                // 勾選框完全被 Excel 覆蓋
-                                (mergedClient as any)[key] = excelData[val];
-                            } else if (excelData[val] !== '') {
-                                // 文字欄位：Excel 有寫才覆蓋，空白則保留舊資料
-                                (mergedClient as any)[key] = excelData[val];
+                            // ✨ 修正筆誤：將變數正確綁定為 key
+                            const k = key as keyof Client;
+                            
+                            // 1. 如果是布林值 (打勾項目)，直接以 Excel 為準
+                            if (typeof excelData[k] === 'boolean') {
+                                (mergedClient as any)[k] = excelData[k];
+                            } 
+                            // 2. ✨ 修正判斷：如果是文字欄位，且 Excel 裡確實有值 (不是空白也不是 undefined)，才覆蓋
+                            else if (excelData[k] !== undefined && excelData[k] !== '') {
+                                (mergedClient as any)[k] = excelData[k];
                             }
                         });
 
