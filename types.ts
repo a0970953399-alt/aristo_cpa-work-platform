@@ -232,3 +232,43 @@ export interface StockTransaction {
     note?: string;
     createdAt: string;
 }
+
+// ==========================================
+// ✨ 薪資計算系統相關定義 (Payroll System)
+// ==========================================
+
+// 1. 紀錄有開通薪資計算的客戶
+export interface PayrollClientConfig {
+    id: string;
+    clientId: string; 
+    createdAt: string;
+}
+
+// 2. 薪資發放明細紀錄
+export interface PayrollRecord {
+    id: string;
+    clientId: string;       // 屬於哪位客戶
+    yearMonth: string;      // 發放年月 (例如: "2026-03")
+    employeeName: string;   // 員工姓名
+    
+    // 加項
+    baseSalary: number;     // 本薪
+    foodAllowance: number;  // 伙食津貼
+    overtimePay: number;    // 加班費
+    bonus: number;          // 獎金/其他加項
+    
+    // 減項
+    leaveDays: number;      // 請假天數
+    leaveDeduction: number; // 請假扣薪
+    laborIns: number;       // 勞保代扣
+    healthIns: number;      // 健保代扣
+    
+    // 雇主負擔 (可能用來產出雇主報表，不扣員工薪水)
+    employerPension: number;// 勞退 6%
+    
+    // 結算
+    netPay: number;         // 實發薪資
+    
+    note?: string;          // 備註
+    createdAt: string;
+}
