@@ -55,10 +55,23 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
     // ✨ 新增這行：用來觸發隱藏的 Excel 檔案上傳框
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    const handleChange = (field: keyof Client, value: any) => {
+  const handleChange = (field: keyof Client, value: any) => {
         if (selectedClient) {
             setSelectedClient({ ...selectedClient, [field]: value });
         }
+    };
+
+    // ✨ 新增：專門處理千分位金額的函數
+    const handleCurrencyChange = (field: keyof Client, value: string) => {
+        // 先拔除所有非數字的字元 (包含原有的逗號)
+        const numStr = value.replace(/\D/g, ''); 
+        if (!numStr) {
+            handleChange(field, '');
+            return;
+        }
+        // 轉換為數字後，再自動加上千分位逗號
+        const formatted = parseInt(numStr, 10).toLocaleString('en-US');
+        handleChange(field, formatted);
     };
 
     // 🆕 新增客戶邏輯
@@ -168,6 +181,14 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         (formalName && c.fullName === formalName) 
                     );
 
+                  // ✨ 在組裝 excelData 之前，加入這個匯入專用千分位轉換器
+                    const formatImportCurrency = (val: any) => {
+                        if (val == null || val === '') return '';
+                        const numStr = String(val).replace(/\D/g, ''); // 只保留數字
+                        if (!numStr) return String(val); // 如果是純文字就保留
+                        return parseInt(numStr, 10).toLocaleString('en-US');
+                    };
+
                     // 整理從 Excel 讀到的這筆資料
                     const excelData: Partial<Client> = {
                         year: row['記帳年度'] != null ? String(row['記帳年度']) : '',
@@ -197,10 +218,10 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         boxCpa: isChecked(row['會計師簽證']),
 
                         period: row['委任期限'] != null ? String(row['委任期限']) : '',
-                        feeMonthly: row['每月公費'] != null ? String(row['每月公費']) : '',
-                        feeWithholding: row['各類扣繳'] != null ? String(row['各類扣繳']) : '',
-                        feeTax: row['結算申報'] != null ? String(row['結算申報']) : '',
-                        fee22_1: row['22-1申報'] != null ? String(row['22-1申報']) : '',
+                        feeMonthly: formatImportCurrency(row['委任公費']),
+                        feeWithholding: formatImportCurrency(row['各類扣繳']),
+                        feeTax: formatImportCurrency(row['結算申報']),
+                        fee22_1: formatImportCurrency(row['22-1申報']),
                     };
 
                   if (existingIndex !== -1) {
@@ -407,11 +428,11 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                         <div><label className="text-xs text-gray-500 font-bold">負責會計師</label><input type="text" value={selectedClient.cpa || ''} onChange={e => handleChange('cpa', e.target.value)} className="w-full border p-2 rounded-lg" /></div>
                                         <div><label className="text-xs text-gray-500 font-bold">委任期限</label><input type="text" value={selectedClient.period || ''} onChange={e => handleChange('period', e.target.value)} className="w-full border p-2 rounded-lg" /></div>
                                     </div>
-                                    <div className="grid grid-cols-2 gap-3 mt-2">
-                                        <div><label className="text-xs text-gray-500 font-bold">每月公費</label><input type="text" value={selectedClient.feeMonthly || ''} onChange={e => handleChange('feeMonthly', e.target.value)} className="w-full border p-2 rounded-lg font-mono text-blue-600" /></div>
-                                        <div><label className="text-xs text-gray-500 font-bold">各類扣繳 (f1)</label><input type="text" value={selectedClient.feeWithholding || ''} onChange={e => handleChange('feeWithholding', e.target.value)} className="w-full border p-2 rounded-lg font-mono text-blue-600" /></div>
-                                        <div><label className="text-xs text-gray-500 font-bold">結算申報 (f2)</label><input type="text" value={selectedClient.feeTax || ''} onChange={e => handleChange('feeTax', e.target.value)} className="w-full border p-2 rounded-lg font-mono text-blue-600" /></div>
-                                        <div><label className="text-xs text-gray-500 font-bold">22-1申報 (f3)</label><input type="text" value={selectedClient.fee22_1 || ''} onChange={e => handleChange('fee22_1', e.target.value)} className="w-full border p-2 rounded-lg font-mono text-blue-600" /></div>
+                                  <div className="grid grid-cols-2 gap-3 mt-2">
+                                        <div><label className="text-xs text-gray-500 font-bold">委任公費</label><input type="text" value={selectedClient.feeMonthly || ''} onChange={e => handleCurrencyChange('feeMonthly', e.target.value)} className="w-full border p-2 rounded-lg font-mono font-bold text-blue-600 text-right" placeholder="0" /></div>
+                                        <div><label className="text-xs text-gray-500 font-bold">各類扣繳 (f1)</label><input type="text" value={selectedClient.feeWithholding || ''} onChange={e => handleCurrencyChange('feeWithholding', e.target.value)} className="w-full border p-2 rounded-lg font-mono font-bold text-blue-600 text-right" placeholder="0" /></div>
+                                        <div><label className="text-xs text-gray-500 font-bold">結算申報 (f2)</label><input type="text" value={selectedClient.feeTax || ''} onChange={e => handleCurrencyChange('feeTax', e.target.value)} className="w-full border p-2 rounded-lg font-mono font-bold text-blue-600 text-right" placeholder="0" /></div>
+                                        <div><label className="text-xs text-gray-500 font-bold">22-1申報 (f3)</label><input type="text" value={selectedClient.fee22_1 || ''} onChange={e => handleCurrencyChange('fee22_1', e.target.value)} className="w-full border p-2 rounded-lg font-mono font-bold text-blue-600 text-right" placeholder="0" /></div>
                                     </div>
 
                                     <h4 className="font-bold text-indigo-600 border-b pb-2 mt-6">☑ 項目勾選</h4>
