@@ -198,8 +198,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         {/* ✨ 移除了原本的按鈕 td */}
                                     </tr>
                                 ))}
-                                {currentEmps.length === 0 && (
-                                    {/* ✨ colSpan 從 6 改為 5 */}
+                              {/* ✨ colSpan 從 6 改為 5 */}
+                              {currentEmps.length === 0 && (
                                     <tr><td colSpan={5} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
                                 )}
                             </tbody>
