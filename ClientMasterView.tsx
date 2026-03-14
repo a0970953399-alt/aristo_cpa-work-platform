@@ -118,7 +118,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         }
     };
 
-    // Excel 匯入邏輯 (保留您確認過的完美版)
+  // Excel 匯入邏輯 (防呆覆寫升級版)
     const handleExcelImport = (e: React.ChangeEvent<HTMLInputElement>) => {
         const file = e.target.files?.[0];
         if (!file) return;
@@ -133,11 +133,11 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
 
                 // 1. 先讀取原始資料
                 const rawJson: any[] = XLSX.utils.sheet_to_json(worksheet);
-                // 🧹 2. 啟動「空白吸塵器」：把 Excel 所有標題的頭尾空白全部清掉！
+                // 🧹 2. 啟動「空白吸塵器」
                 const json = rawJson.map(row => {
                     const cleanRow: any = {};
                     Object.keys(row).forEach(key => {
-                        cleanRow[key.trim()] = row[key]; // 去除標題空白
+                        cleanRow[key.trim()] = row[key]; 
                     });
                     return cleanRow;
                 });
@@ -148,18 +148,34 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                     return ['V', '1', 'TRUE', 'Y', '是', '☑', 'P', '■'].includes(str);
                 };
 
-                const newClients: Client[] = json.map((row) => {
+                let newCount = 0;
+                let updateCount = 0;
+                let currentClients = [...clients]; // 複製一份現有客戶清單準備操作
+
+                // 3. 逐行解析 Excel 資料並比對
+                json.forEach((row) => {
                     const formalName = String(row['客戶名稱'] || '').trim();
                     const shortName = formalName.replace(/(股份有限公司|有限公司|企業社|商行|實業|國際|廣告)/g, '').trim();
+                    const rowTaxId = row['統一編號'] != null ? String(row['統一編號']).trim() : '';
+                    const rowCode = row['客戶編號'] != null ? String(row['客戶編號']).trim() : '';
 
-                    return {
-                        id: Date.now() + Math.random(),
+                    if (!formalName && !rowCode) return; // 略過全空行
+
+                    // ✨ 三重防呆：找尋是否已存在相同統編、代號或全名的客戶
+                    const existingIndex = currentClients.findIndex(c => 
+                        (rowTaxId && c.taxId === rowTaxId) || 
+                        (rowCode && c.code === rowCode) ||
+                        (formalName && c.fullName === formalName) 
+                    );
+
+                    // 整理從 Excel 讀到的這筆資料
+                    const excelData: Partial<Client> = {
                         year: row['記帳年度'] != null ? String(row['記帳年度']) : '',
                         workNo: row['記帳工作'] != null ? String(row['記帳工作']) : '',
-                        code: row['客戶編號'] != null ? String(row['客戶編號']) : '',
+                        code: rowCode,
                         name: shortName,      
                         fullName: formalName, 
-                        taxId: row['統一編號'] != null ? String(row['統一編號']) : '',
+                        taxId: rowTaxId,
                         taxFileNo: row['稅籍編號'] != null ? String(row['稅籍編號']) : '',
                         owner: row['負責人'] != null ? String(row['負責人']) : '',
                         contact: row['聯絡人'] != null ? String(row['聯絡人']) : '',
@@ -169,35 +185,66 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         regAddress: row['公司登記地址'] != null ? String(row['公司登記地址']) : '',
                         contactAddress: row['公司聯絡地址'] != null ? String(row['公司聯絡地址']) : '',
                         cpa: row['負責會計師'] != null ? String(row['負責會計師']) : '',
+                        
+                        // ✨ 勾選狀態：完全聽從 Excel 決定
                         chkAccount: isChecked(row['會計帳務']),
                         chkInvoice: isChecked(row['買發票']),
                         chkVat: isChecked(row['申報營業稅']),
                         chkWithholding: isChecked(row['扣繳申報']),
                         chkHealth: isChecked(row['補充保費']),
+                        boxReview: isChecked(row['書審']),
+                        boxAudit: isChecked(row['查帳']),
+                        boxCpa: isChecked(row['會計師簽證']),
+
                         period: row['委任期限'] != null ? String(row['委任期限']) : '',
                         feeMonthly: row['每月公費'] != null ? String(row['每月公費']) : '',
                         feeWithholding: row['各類扣繳'] != null ? String(row['各類扣繳']) : '',
                         feeTax: row['結算申報'] != null ? String(row['結算申報']) : '',
                         fee22_1: row['22-1申報'] != null ? String(row['22-1申報']) : '',
-                        boxReview: isChecked(row['書審']),
-                        boxAudit: isChecked(row['查帳']),
-                        boxCpa: isChecked(row['會計師簽證']),
                     };
+
+                    if (existingIndex !== -1) {
+                        // 🔄 這是舊客戶：進行覆寫 (Upsert)
+                        const existingClient = currentClients[existingIndex];
+                        const mergedClient = { ...existingClient };
+
+                        Object.keys(excelData).forEach(key => {
+                            const val = (excelData as keyof Client);
+                            if (typeof excelData[val] === 'boolean') {
+                                // 勾選框完全被 Excel 覆蓋
+                                (mergedClient as any)[key] = excelData[val];
+                            } else if (excelData[val] !== '') {
+                                // 文字欄位：Excel 有寫才覆蓋，空白則保留舊資料
+                                (mergedClient as any)[key] = excelData[val];
+                            }
+                        });
+
+                        currentClients[existingIndex] = mergedClient as Client;
+                        updateCount++;
+                    } else {
+                        // 🆕 這是新客戶：直接新增
+                        currentClients.push({
+                            ...excelData,
+                            id: Date.now() + Math.random(), 
+                        } as Client);
+                        newCount++;
+                    }
                 });
 
-                if (window.confirm(`偵測到 ${newClients.length} 筆客戶資料，是否確定匯入？`)) {
-                    const combined = [...clients, ...newClients];
-                    await TaskService.saveClients(combined);
+                // 📊 顯示智能結算報告
+                if (window.confirm(`讀取完畢！系統比對結果如下：\n\n🔄 預計更新舊客戶：${updateCount} 筆\n🆕 預計新增新客戶：${newCount} 筆\n\n是否確定將 Excel 資料匯入系統並覆寫現有勾選項目？`)) {
+                    await TaskService.saveClients(currentClients);
                     onUpdate();
                     alert("🎉 匯入成功！資料已同步至系統。");
                 }
             } catch (err) {
                 alert("❌ 匯入失敗，請確認 Excel 欄位名稱是否正確。");
             }
+            // 清空 input 讓同一個檔案能被重複選取
+            if (fileInputRef.current) fileInputRef.current.value = '';
         };
         reader.readAsBinaryString(file);
     };
-
     const handleGenerateWord = () => {
         if (!selectedClient) return;
 
