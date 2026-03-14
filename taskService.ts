@@ -32,6 +32,8 @@ interface DataStore {
     stockClients?: StockClientConfig[];
     stockTargets?: StockTarget[];
     stockTransactions?: StockTransaction[];
+    payrollClients?: import('./types').PayrollClientConfig[];
+    payrollRecords?: import('./types').PayrollRecord[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -87,7 +89,11 @@ const normalizeData = (raw: any): DataStore => {
         instructions: Array.isArray(raw.instructions) ? raw.instructions : [],
         stockClients: Array.isArray(raw.stockClients) ? raw.stockClients : [],
         stockTargets: Array.isArray(raw.stockTargets) ? raw.stockTargets : [],
-        stockTransactions: Array.isArray(raw.stockTransactions) ? raw.stockTransactions : []
+        stockTransactions: Array.isArray(raw.stockTransactions) ? raw.stockTransactions : [],
+        payrollClients: Array.isArray(raw.payrollClients) ? raw.payrollClients : [],
+        payrollRecords: Array.isArray(raw.payrollRecords) ? raw.payrollRecords : []
+
+
 
 
 
@@ -731,34 +737,38 @@ async deleteInstruction(id: string): Promise<Instruction[]> {
     // ✨ 薪資計算系統 (Payroll) API
     // ==========================================
     
-    static async fetchPayrollClients(): Promise<import('./types').PayrollClientConfig[]> {
-        return this.readData<import('./types').PayrollClientConfig[]>('payrollClients', []);
-    }
+    async fetchPayrollClients(): Promise<import('./types').PayrollClientConfig[]> {
+        const data = await this.loadFullData();
+        return data.payrollClients || [];
+    },
     
-    static async savePayrollClients(clients: import('./types').PayrollClientConfig[]): Promise<void> {
-        await this.writeData('payrollClients', clients);
-    }
+    async savePayrollClients(payrollClients: import('./types').PayrollClientConfig[]): Promise<void> {
+        const data = await this.loadFullData();
+        await this.saveFullData({ ...data, payrollClients });
+    },
     
-    static async addPayrollClient(client: import('./types').PayrollClientConfig): Promise<import('./types').PayrollClientConfig[]> {
+    async addPayrollClient(client: import('./types').PayrollClientConfig): Promise<import('./types').PayrollClientConfig[]> {
         const clients = await this.fetchPayrollClients();
         clients.push(client);
         await this.savePayrollClients(clients);
         return clients;
-    }
+    },
     
-    static async deletePayrollClient(clientId: string): Promise<import('./types').PayrollClientConfig[]> {
+    async deletePayrollClient(clientId: string): Promise<import('./types').PayrollClientConfig[]> {
         const clients = await this.fetchPayrollClients();
         const updated = clients.filter(c => c.clientId !== clientId);
         await this.savePayrollClients(updated);
         return updated;
-    }
+    },
 
-    static async fetchPayrollRecords(): Promise<import('./types').PayrollRecord[]> {
-        return this.readData<import('./types').PayrollRecord[]>('payrollRecords', []);
-    }
+    async fetchPayrollRecords(): Promise<import('./types').PayrollRecord[]> {
+        const data = await this.loadFullData();
+        return data.payrollRecords || [];
+    },
     
-    static async savePayrollRecords(records: import('./types').PayrollRecord[]): Promise<void> {
-        await this.writeData('payrollRecords', records);
+    async savePayrollRecords(payrollRecords: import('./types').PayrollRecord[]): Promise<void> {
+        const data = await this.loadFullData();
+        await this.saveFullData({ ...data, payrollRecords });
     }
 
 } // ✅ TaskService 結尾
