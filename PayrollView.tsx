@@ -533,8 +533,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     const dummyPersonalDeduction = (rowData.personalLeave || 0) * 1600; 
                                     const isFullTime = emp.employmentType === 'full_time';
                                     
+                  // ✨ 將整列的懸停背景改為不透明的 bg-blue-50
                                     return (
-                                      {/* ✨ 將整列的懸停背景改為不透明的 bg-blue-50 */}
                                         <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
                                             {/* 凍結區 (✨ hover 時強制使用 100% 不透明的 bg-blue-50 遮擋下方文字) */}
                                             <td className="p-3 text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
