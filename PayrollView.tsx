@@ -339,8 +339,20 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                       </button>
                   </div>
               )}
+            {/* ✨ NEW: 新增按鈕區：當處於每月薪資明細時才顯示 */}
+              {activeInnerTab === 'monthly' && (
+                  <div className="flex items-center gap-2">
+                      <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
+                          <ExcelFileIcon className="w-5 h-5" />
+                      </button>
+                      <button title="新增結算紀錄" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
+                          <PlusIcon className="w-5 h-5" />
+                      </button>
+                  </div>
+              )}
           </div>
         </div>
+      </div>
 
         {/* 內容區 */}
         <div className="flex-1 overflow-hidden flex flex-col p-6">
@@ -429,15 +441,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 <option>2026 年 02 月</option>
                             </select>
                         </div>
-                        {/* ✨ 替換為純圖示按鈕 */}
-                        <div className="flex gap-2">
-                            <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
-                                <ExcelFileIcon className="w-5 h-5" />
-                            </button>
-                            <button title="新增結算紀錄" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
-                                <PlusIcon className="w-5 h-5" />
-                            </button>
-                        </div>
+                        {/* 按鈕已移至右上角全域導航列 */}
                     </div>
 
                     {/* 📊 核心試算表格區塊 */}
