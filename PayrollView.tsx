@@ -140,14 +140,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       const numValue = Number(value) || 0;
       let updatedData = { ...monthlyFormData, [field]: numValue };
       
-      // 1. 如果是兼職且修改了出勤時數，自動以「時數 * 預設時薪」重算本薪
-      if (field === 'workHours' && editingMonthlyEmp?.employmentType === 'part_time') {
-          updatedData.baseSalary = numValue * (editingMonthlyEmp.defaultBaseSalary || 0);
+      const isFullTime = editingMonthlyEmp?.employmentType === 'full_time';
+
+      // 1. 如果是兼職且修改了出勤時數，自動以「時數 * 預設時薪」重算本薪總額
+      if (field === 'workHours' && !isFullTime) {
+          updatedData.baseSalary = numValue * (editingMonthlyEmp?.defaultBaseSalary || 0);
       }
       
       // 2. ⚡ 核心薪資計算引擎 ⚡
-      // 隨時抓取最新的本薪與時數來試算
+      // 隨時抓取最新的變數來試算
       const currentBaseSalary = field === 'baseSalary' ? numValue : (updatedData.baseSalary || 0);
+      const currentFoodAllowance = field === 'foodAllowance' ? numValue : (updatedData.foodAllowance || 0);
+      
       const hourlyWage = currentBaseSalary / 240;
       const minuteWage = hourlyWage / 60;
 
@@ -155,17 +159,34 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       const currentSick = field === 'sickLeave' ? numValue : (updatedData.sickLeave || 0);
       const currentPersonal = field === 'personalLeave' ? numValue : (updatedData.personalLeave || 0);
 
-      // 遲到扣款：本薪/240/60*遲到分鐘數 (四捨五入)
+      // 🔴 扣款計算
       updatedData.lateDeduction = Math.round(minuteWage * currentLate);
-      
-      // 病假扣款：本薪/240*病假時數/2 (四捨五入)
       const sickDed = Math.round(hourlyWage * currentSick / 2);
-      
-      // 事假扣款：本薪/240*事假時數 (四捨五入)
       const personalDed = Math.round(hourlyWage * currentPersonal);
-      
-      // 總請假扣款
       updatedData.leaveDeduction = sickDed + personalDed;
+
+      // 🔵 免稅加班費計算
+      const currentAnnual = field === 'annualLeave' ? numValue : (updatedData.annualLeave || 0);
+      const currentHoliday = field === 'holidayOt' ? numValue : (updatedData.holidayOt || 0);
+      const currentNormal = field === 'normalOt' ? numValue : (updatedData.normalOt || 0);
+
+      let annualPay = 0;
+      let holidayPay = 0;
+      let normalPay = 0;
+
+      if (isFullTime) {
+          const otHourlyWage = (currentBaseSalary + currentFoodAllowance) / 240;
+          annualPay = Math.round(otHourlyWage * currentAnnual);
+          holidayPay = Math.round(otHourlyWage * currentHoliday);
+          normalPay = Math.round(otHourlyWage * currentNormal * 1.33);
+      } else {
+          // 兼職員工的時薪 (在系統中定義為 defaultBaseSalary)
+          const partTimeHourlyWage = editingMonthlyEmp?.defaultBaseSalary || 0;
+          holidayPay = Math.round(partTimeHourlyWage * currentHoliday * 2);
+      }
+
+      // 免稅加班費總額
+      updatedData.taxFreeOt = annualPay + holidayPay + normalPay;
       
       setMonthlyFormData(updatedData);
   };
@@ -624,6 +645,23 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     
                                     const isFullTime = emp.employmentType === 'full_time';
                                     
+                                    // ✨ 加班費即時試算 (供懸停特效使用)
+                                    const foodAllowanceForCalc = rowData.foodAllowance || 0;
+                                    let realAnnualPay = 0;
+                                    let realHolidayPay = 0;
+                                    let realNormalPay = 0;
+
+                                    if (isFullTime) {
+                                        const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
+                                        realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
+                                        realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
+                                        realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+                                    } else {
+                                        const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+                                        realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+                                    }
+                                    const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
+                                    
                                     return (
                                         <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
                                             {/* 凍結區 (✨ 同步套用絕對寬度，並確保 100% 不透明的 bg-white / bg-blue-50) */}
@@ -660,9 +698,29 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 </div>
                                             </td>
 
-                                            <td className="p-3 text-center font-bold text-gray-600">{rowData.annualLeave || 0}</td>
-                                            <td className="p-3 text-center font-bold text-gray-600">{rowData.holidayOt || 0}</td>
-                                            <td className="p-3 text-center font-bold text-gray-600 border-r border-gray-200">{rowData.normalOt || 0}</td>
+                                          {/* ✨ 神奇懸停加薪區 (特休/國定/日常加班) */}
+                                            <td className="p-3 border-l border-gray-100 group/cell relative text-center">
+                                                <span className={`font-bold transition-opacity ${isFullTime ? 'text-gray-600 group-hover/cell:opacity-0' : 'text-gray-300'}`}>{isFullTime ? (rowData.annualLeave || 0) : '-'}</span>
+                                                {isFullTime && (
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">
+                                                        +${realAnnualPay}
+                                                    </div>
+                                                )}
+                                            </td>
+                                            <td className="p-3 group/cell relative text-center">
+                                                <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.holidayOt || 0}</span>
+                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">
+                                                    +${realHolidayPay}
+                                                </div>
+                                            </td>
+                                            <td className="p-3 border-r border-gray-200 group/cell relative text-center">
+                                                <span className={`font-bold transition-opacity ${isFullTime ? 'text-gray-600 group-hover/cell:opacity-0' : 'text-gray-300'}`}>{isFullTime ? (rowData.normalOt || 0) : '-'}</span>
+                                                {isFullTime && (
+                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">
+                                                        +${realNormalPay}
+                                                    </div>
+                                                )}
+                                            </td>
 
                                             {/* 財務摺疊顯示區塊 */}
                                             {expandedGroups.additions ? (
@@ -689,9 +747,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             {expandedGroups.taxFree ? (
                                                 <>
                                                     <td className="p-3 text-right font-medium text-yellow-600">{(rowData.foodAllowance || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{(rowData.taxFreeOt || 0).toLocaleString()}</td>
+                                                    <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{(rowData.taxFreeOt ?? realTaxFreeOt || 0).toLocaleString()}</td>
                                                 </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{((rowData.foodAllowance||0) + (rowData.taxFreeOt||0)).toLocaleString()}</td>}
+                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{((rowData.foodAllowance||0) + (rowData.taxFreeOt ?? realTaxFreeOt||0)).toLocaleString()}</td>}
 
                                             {expandedGroups.withholdings ? (
                                                 <>
@@ -759,7 +817,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     {editingMonthlyEmp && (
                                         <>
                                     
-                                    {/* 區塊 1: 出勤時數變數 (兼職專屬) */}
+                                          {/* 區塊 1: 出勤時數變數 */}
                                     <div className="space-y-4">
                                         <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-gray-500 rounded-full"></div>出勤變數輸入</h4>
                                         <div className="grid grid-cols-4 gap-4">
@@ -770,15 +828,31 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             <div><label className="block text-xs font-bold text-red-500 mb-1">遲到 (分)</label><input type="number" value={monthlyFormData.lateHours || ''} onChange={e => handleMonthlyFormChange('lateHours', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
                                             <div><label className="block text-xs font-bold text-red-500 mb-1">病假 (時)</label><input type="number" value={monthlyFormData.sickLeave || ''} onChange={e => handleMonthlyFormChange('sickLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
                                             <div><label className="block text-xs font-bold text-red-500 mb-1">事假 (時)</label><input type="number" value={monthlyFormData.personalLeave || ''} onChange={e => handleMonthlyFormChange('personalLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
+                                            
+                                            {/* ✨ 新增加班時數 */}
+                                            <div>
+                                                <label className="block text-xs font-bold text-blue-500 mb-1">特休換薪 (時)</label>
+                                                <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={editingMonthlyEmp.employmentType === 'part_time' ? '' : (monthlyFormData.annualLeave || '')} onChange={e => handleMonthlyFormChange('annualLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'part_time' ? '兼職無' : '0'} />
+                                            </div>
+                                            <div><label className="block text-xs font-bold text-blue-500 mb-1">國定加班 (時)</label><input type="number" value={monthlyFormData.holidayOt || ''} onChange={e => handleMonthlyFormChange('holidayOt', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30" placeholder="0" /></div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-blue-500 mb-1">日常加班 (時)</label>
+                                                <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={editingMonthlyEmp.employmentType === 'part_time' ? '' : (monthlyFormData.normalOt || '')} onChange={e => handleMonthlyFormChange('normalOt', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'part_time' ? '兼職無' : '0'} />
+                                            </div>
                                         </div>
                                     </div>
 
-                                    {/* 區塊 2: 應加金額 */}
+                                          {/* 區塊 2: 應加金額 */}
                                     <div className="space-y-4">
-                                        <h4 className="font-bold text-blue-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>應加與免稅金額 (手動輸入)</h4>
-                                        <div className="grid grid-cols-3 gap-4">
+                                        <h4 className="font-bold text-blue-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>應加與免稅金額</h4>
+                                        <div className="grid grid-cols-4 gap-4">
+                                            {/* ✨ 唯讀自動計算區 */}
+                                            <div><label className="block text-xs font-bold text-gray-500 mb-1">免稅加班費 (自動算)</label><input type="text" disabled value={monthlyFormData.taxFreeOt || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
+                                            
+                                            {/* 手動輸入區 */}
                                             <div>
-                                                <label className="block text-xs font-bold text-blue-500 mb-1">本薪</label>
+                                                {/* ✨ 根據職稱切換標籤文字 */}
+                                                <label className="block text-xs font-bold text-blue-500 mb-1">{editingMonthlyEmp.employmentType === 'full_time' ? '本薪' : '時薪'}</label>
                                                 <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={monthlyFormData.baseSalary || ''} onChange={e => handleMonthlyFormChange('baseSalary', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-800 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder="0" />
                                                 {editingMonthlyEmp.employmentType === 'part_time' && <span className="text-[10px] text-gray-400 mt-1">兼職由時數自動計算</span>}
                                             </div>
