@@ -534,15 +534,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     const isFullTime = emp.employmentType === 'full_time';
                                     
                                     return (
-                                        <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50/50 transition-colors cursor-pointer group">
-                                            {/* 凍結區 */}
-                                            <td className="p-3 text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50/50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
-                                            <td className="p-3 text-center sticky left-[64px] z-20 bg-white group-hover:bg-blue-50/50 border-r border-gray-100">
+                                      {/* ✨ 將整列的懸停背景改為不透明的 bg-blue-50 */}
+                                        <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
+                                            {/* 凍結區 (✨ hover 時強制使用 100% 不透明的 bg-blue-50 遮擋下方文字) */}
+                                            <td className="p-3 text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
+                                            <td className="p-3 text-center sticky left-[64px] z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">
                                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isFullTime ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                     {isFullTime ? '正職' : '兼職'}
                                                 </span>
                                             </td>
-                                            <td className="p-3 font-black text-gray-800 sticky left-[128px] z-20 bg-white group-hover:bg-blue-50/50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:text-blue-600">
+                                            <td className="p-3 font-black text-gray-800 sticky left-[128px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:text-blue-600">
                                                 {emp.name}
                                             </td>
                                             
