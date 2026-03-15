@@ -341,6 +341,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
         defaultBaseSalary: Number(editingEmp.defaultBaseSalary) || 0,
         // 若為兼職，強制伙食費為 0
         defaultFoodAllowance: editingEmp.employmentType === 'full_time' ? (Number(editingEmp.defaultFoodAllowance) || 0) : 0,
+
+        // ✨ 新增這三行：將勞健保設定寫入資料庫
+        insuranceBracket: Number(editingEmp.insuranceBracket) || 0,
+        hasLaborIns: editingEmp.hasLaborIns ?? true, // 如果沒特別設定，預設為打勾
+        hasHealthIns: editingEmp.hasHealthIns ?? true, // 如果沒特別設定，預設為打勾
+      
         createdAt: editingEmp.createdAt || new Date().toISOString(),
     };
 
