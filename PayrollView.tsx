@@ -638,164 +638,225 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             
                           {/* ✨ 移除了 divide-y，底線由 table 共用的 className 負責 */}
                             <tbody>
-                                {/* ✨ 套用相同的離職過濾邏輯 */}
-                                {employees.filter(e => {
-                                    if (e.clientId !== String(selectedClient.id)) return false;
-                                    if (!e.endDate) return true;
-                                    return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
-                                }).map((emp, index) => {
-                                    const rowData = monthlyData[emp.id] || {};
-                                    
-                                    // ⚡ 替換為真實的薪資公式 (供表格即時渲染與懸停使用)
-                                    const baseSalaryForCalc = rowData.baseSalary || 0;
-                                    const hourlyWageForCalc = baseSalaryForCalc / 240;
-                                    
-                                    const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
-                                    const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2); 
-                                    const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0)); 
-                                    const realLeaveDeduction = realSickDeduction + realPersonalDeduction;
-                                    
-                                    const isFullTime = emp.employmentType === 'full_time';
-                                    
-                                    // ✨ 加班費即時試算 (供懸停特效使用)
-                                    const foodAllowanceForCalc = rowData.foodAllowance || 0;
-                                    let realAnnualPay = 0;
-                                    let realHolidayPay = 0;
-                                    let realNormalPay = 0;
+                                {/* ✨ 1. 利用 IIFE 將過濾後的本月員工存成變數，並準備加總 */}
+                                {(() => {
+                                    const currentMonthEmps = employees.filter(e => {
+                                        if (e.clientId !== String(selectedClient.id)) return false;
+                                        if (!e.endDate) return true;
+                                        return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
+                                    });
 
-                                    if (isFullTime) {
-                                        const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
-                                        realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
-                                        realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-                                        realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
-                                    } else {
-                                        const partTimeHourlyWage = emp.defaultBaseSalary || 0;
-                                        realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
-                                    }
-                                    const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
-
-                                    // ✨ 四大群組總計試算
-                                    const totalAdditions = (rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.performanceBonus||0) + (rowData.taxableOt||0);
-                                    const totalDeductions = (rowData.leaveDeduction ?? realLeaveDeduction) + (rowData.dailyShortage||0) + (rowData.lateDeduction ?? realLateDeduction) + (rowData.pensionSelf||0);
-                                    const totalTaxFree = (rowData.foodAllowance||0) + (rowData.taxFreeOt ?? realTaxFreeOt);
-                                    const totalWithholdings = (rowData.laborIns||0) + (rowData.healthIns||0) + (rowData.incomeTax||0) + (rowData.advancePay||0);
-
-                                    // ⚡ 終極公式結算
-                                    const taxableAmount = totalAdditions - totalDeductions;
-                                    const netPay = taxableAmount + totalTaxFree - totalWithholdings;
+                                    // ✨ 2. 準備用來累加總額的物件
+                                    const totals = {
+                                        base: 0, fullAtt: 0, pos: 0, perf: 0, taxOt: 0, addTotal: 0,
+                                        leave: 0, short: 0, late: 0, pension: 0, dedTotal: 0,
+                                        taxable: 0,
+                                        food: 0, freeOt: 0, freeTotal: 0,
+                                        labor: 0, health: 0, tax: 0, advance: 0, withTotal: 0,
+                                        net: 0
+                                    };
 
                                     return (
-                                        <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
-                                            {/* 凍結區 */}
-                                            <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
-                                            <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-[60px] z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">
-                                                <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isFullTime ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                                    {isFullTime ? '正職' : '兼職'}
-                                                </span>
-                                            </td>
-                                            <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
-                                                <div className="flex flex-col">
-                                                    <span className="font-black text-gray-800 group-hover:text-blue-600 transition-colors">{emp.name}</span>
-                                                    {/* ✨ 貼心的防呆提示：如果這名員工剛好在這個月離職，加上紅色小標籤提醒主管 */}
-                                                    {emp.endDate && emp.endDate.substring(0, 7) === `${selectedYear}-${selectedMonth}` && (
-                                                        <span className="text-[10px] text-red-500 font-bold -mt-0.5 tracking-tighter">
-                                                            {emp.endDate.substring(5).replace('-', '/')} 離職
-                                                        </span>
-                                                    )}
-                                                </div>
-                                            </td>
-                                            
-                                            {/* 出勤變數顯示區 */}
-                                            <td className="p-3 text-center font-bold text-gray-600">{isFullTime ? '-' : (rowData.workHours || 0)}</td>
-                                            
-                                            {/* ✨ 神奇懸停扣款區 */}
-                                            <td className="p-3 group/cell relative text-center">
-                                                <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.lateHours || 0}</span>
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">
-                                                    -${realLateDeduction}
-                                                </div>
-                                            </td>
-                                            <td className="p-3 group/cell relative text-center">
-                                                <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.sickLeave || 0}</span>
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">
-                                                    -${realSickDeduction}
-                                                </div>
-                                            </td>
-                                            <td className="p-3 border-r border-gray-200 group/cell relative text-center">
-                                                <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.personalLeave || 0}</span>
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">
-                                                    -${realPersonalDeduction}
-                                                </div>
-                                            </td>
+                                        <>
+                                            {/* ✨ 3. 渲染每一位員工的資料列 */}
+                                            {currentMonthEmps.map((emp, index) => {
+                                                const rowData = monthlyData[emp.id] || {};
+                                                
+                                                // ⚡ 即時公式試算
+                                                const baseSalaryForCalc = rowData.baseSalary || 0;
+                                                const hourlyWageForCalc = baseSalaryForCalc / 240;
+                                                
+                                                const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
+                                                const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2); 
+                                                const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0)); 
+                                                const realLeaveDeduction = realSickDeduction + realPersonalDeduction;
+                                                
+                                                const isFullTime = emp.employmentType === 'full_time';
+                                                
+                                                // 加班費試算
+                                                const foodAllowanceForCalc = rowData.foodAllowance || 0;
+                                                let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
 
-                                          {/* ✨ 神奇懸停加薪區 (特休/國定/日常加班) */}
-                                            <td className="p-3 border-l border-gray-100 group/cell relative text-center">
-                                                <span className={`font-bold transition-opacity ${isFullTime ? 'text-gray-600 group-hover/cell:opacity-0' : 'text-gray-300'}`}>{isFullTime ? (rowData.annualLeave || 0) : '-'}</span>
-                                                {isFullTime && (
-                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">
-                                                        +${realAnnualPay}
-                                                    </div>
-                                                )}
-                                            </td>
-                                            <td className="p-3 group/cell relative text-center">
-                                                <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.holidayOt || 0}</span>
-                                                <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">
-                                                    +${realHolidayPay}
-                                                </div>
-                                            </td>
-                                            <td className="p-3 border-r border-gray-200 group/cell relative text-center">
-                                                <span className={`font-bold transition-opacity ${isFullTime ? 'text-gray-600 group-hover/cell:opacity-0' : 'text-gray-300'}`}>{isFullTime ? (rowData.normalOt || 0) : '-'}</span>
-                                                {isFullTime && (
-                                                    <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">
-                                                        +${realNormalPay}
-                                                    </div>
-                                                )}
-                                            </td>
+                                                if (isFullTime) {
+                                                    const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
+                                                    realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
+                                                    realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
+                                                    realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+                                                } else {
+                                                    const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+                                                    realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+                                                }
+                                                const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
 
-                                          {/* 財務摺疊顯示區塊 */}
-                                            {expandedGroups.additions ? (
-                                                <>
-                                                    <td className="p-3 text-right font-medium text-gray-600">{(rowData.baseSalary || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-gray-600">{(rowData.fullAttendance || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-gray-600">{(rowData.positionAllowance || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-gray-600">{(rowData.performanceBonus || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-gray-600 border-r border-gray-200">{(rowData.taxableOt || 0).toLocaleString()}</td>
-                                                </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-blue-700">{totalAdditions.toLocaleString()}</td>}
+                                                // 四大群組與終極公式結算
+                                                const totalAdditions = (rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.performanceBonus||0) + (rowData.taxableOt||0);
+                                                const totalDeductions = (rowData.leaveDeduction ?? realLeaveDeduction) + (rowData.dailyShortage||0) + (rowData.lateDeduction ?? realLateDeduction) + (rowData.pensionSelf||0);
+                                                const totalTaxFree = (rowData.foodAllowance||0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
+                                                const totalWithholdings = (rowData.laborIns||0) + (rowData.healthIns||0) + (rowData.incomeTax||0) + (rowData.advancePay||0);
 
-                                            {expandedGroups.deductions ? (
-                                                <>
-                                                    <td className="p-3 text-right font-medium text-red-500">{(rowData.leaveDeduction ?? realLeaveDeduction).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-red-500">{(rowData.dailyShortage || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-red-500">{(rowData.lateDeduction ?? realLateDeduction).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-red-500 border-r border-gray-200">{(rowData.pensionSelf || 0).toLocaleString()}</td>
-                                                </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">{totalDeductions.toLocaleString()}</td>}
+                                                const taxableAmount = totalAdditions - totalDeductions;
+                                                const netPay = taxableAmount + totalTaxFree - totalWithholdings;
 
-                                            {/* ⚡ 應稅金額 (自動計算) */}
-                                            <td className="p-3 text-right border-r border-gray-200 font-black text-purple-700 bg-purple-50/20">{taxableAmount.toLocaleString()}</td>
+                                                // ✨ 4. 將這名員工的金額累加到總計物件中
+                                                totals.base += (rowData.baseSalary||0); totals.fullAtt += (rowData.fullAttendance||0); totals.pos += (rowData.positionAllowance||0); totals.perf += (rowData.performanceBonus||0); totals.taxOt += (rowData.taxableOt||0); totals.addTotal += totalAdditions;
+                                                totals.leave += (rowData.leaveDeduction ?? realLeaveDeduction); totals.short += (rowData.dailyShortage||0); totals.late += (rowData.lateDeduction ?? realLateDeduction); totals.pension += (rowData.pensionSelf||0); totals.dedTotal += totalDeductions;
+                                                totals.taxable += taxableAmount;
+                                                totals.food += (rowData.foodAllowance||0); totals.freeOt += ((rowData.taxFreeOt ?? realTaxFreeOt) || 0); totals.freeTotal += totalTaxFree;
+                                                totals.labor += (rowData.laborIns||0); totals.health += (rowData.healthIns||0); totals.tax += (rowData.incomeTax||0); totals.advance += (rowData.advancePay||0); totals.withTotal += totalWithholdings;
+                                                totals.net += netPay;
 
-                                            {expandedGroups.taxFree ? (
-                                                <>
-                                                    <td className="p-3 text-right font-medium text-yellow-600">{(rowData.foodAllowance || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{((rowData.taxFreeOt ?? realTaxFreeOt) || 0).toLocaleString()}</td>
-                                                </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{totalTaxFree.toLocaleString()}</td>}
+                                                return (
+                                                    <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
+                                                        {/* 凍結區 */}
+                                                        <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
+                                                        <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-[60px] z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">
+                                                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isFullTime ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                                {isFullTime ? '正職' : '兼職'}
+                                                            </span>
+                                                        </td>
+                                                        <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                            <div className="flex flex-col">
+                                                                <span className="font-black text-gray-800 group-hover:text-blue-600 transition-colors">{emp.name}</span>
+                                                                {emp.endDate && emp.endDate.substring(0, 7) === `${selectedYear}-${selectedMonth}` && (
+                                                                    <span className="text-[10px] text-red-500 font-bold -mt-0.5 tracking-tighter">
+                                                                        {emp.endDate.substring(5).replace('-', '/')} 離職
+                                                                    </span>
+                                                                )}
+                                                            </div>
+                                                        </td>
+                                                        
+                                                        {/* 出勤變數 */}
+                                                        <td className="p-3 text-center font-bold text-gray-600">{isFullTime ? '-' : (rowData.workHours || 0)}</td>
+                                                        <td className="p-3 group/cell relative text-center">
+                                                            <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.lateHours || 0}</span>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">-${realLateDeduction}</div>
+                                                        </td>
+                                                        <td className="p-3 group/cell relative text-center">
+                                                            <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.sickLeave || 0}</span>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">-${realSickDeduction}</div>
+                                                        </td>
+                                                        <td className="p-3 border-r border-gray-200 group/cell relative text-center">
+                                                            <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.personalLeave || 0}</span>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">-${realPersonalDeduction}</div>
+                                                        </td>
 
-                                            {expandedGroups.withholdings ? (
-                                                <>
-                                                    <td className="p-3 text-right font-medium text-orange-500">{(rowData.laborIns || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-orange-500">{(rowData.healthIns || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-orange-500">{(rowData.incomeTax || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-orange-500 border-r border-gray-200">{(rowData.advancePay || 0).toLocaleString()}</td>
-                                                </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-orange-600">{totalWithholdings.toLocaleString()}</td>}
+                                                        <td className="p-3 border-l border-gray-100 group/cell relative text-center">
+                                                            <span className={`font-bold transition-opacity ${isFullTime ? 'text-gray-600 group-hover/cell:opacity-0' : 'text-gray-300'}`}>{isFullTime ? (rowData.annualLeave || 0) : '-'}</span>
+                                                            {isFullTime && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realAnnualPay}</div>}
+                                                        </td>
+                                                        <td className="p-3 group/cell relative text-center">
+                                                            <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.holidayOt || 0}</span>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realHolidayPay}</div>
+                                                        </td>
+                                                        <td className="p-3 border-r border-gray-200 group/cell relative text-center">
+                                                            <span className={`font-bold transition-opacity ${isFullTime ? 'text-gray-600 group-hover/cell:opacity-0' : 'text-gray-300'}`}>{isFullTime ? (rowData.normalOt || 0) : '-'}</span>
+                                                            {isFullTime && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realNormalPay}</div>}
+                                                        </td>
 
-                                            {/* ⚡ 實發金額 (自動計算) */}
-                                            <td className="p-3 text-right font-black text-lg text-green-700 bg-green-50/50">{netPay.toLocaleString()}</td>
-                                        </tr>
+                                                        {/* 財務摺疊顯示 */}
+                                                        {expandedGroups.additions ? (
+                                                            <>
+                                                                <td className="p-3 text-right font-medium text-gray-600">{(rowData.baseSalary || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-gray-600">{(rowData.fullAttendance || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-gray-600">{(rowData.positionAllowance || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-gray-600">{(rowData.performanceBonus || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-gray-600 border-r border-gray-200">{(rowData.taxableOt || 0).toLocaleString()}</td>
+                                                            </>
+                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-blue-700">{totalAdditions.toLocaleString()}</td>}
+
+                                                        {expandedGroups.deductions ? (
+                                                            <>
+                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.leaveDeduction ?? realLeaveDeduction).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.dailyShortage || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.lateDeduction ?? realLateDeduction).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-red-500 border-r border-gray-200">{(rowData.pensionSelf || 0).toLocaleString()}</td>
+                                                            </>
+                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">{totalDeductions.toLocaleString()}</td>}
+
+                                                        <td className="p-3 text-right border-r border-gray-200 font-black text-purple-700 bg-purple-50/20">{taxableAmount.toLocaleString()}</td>
+
+                                                        {expandedGroups.taxFree ? (
+                                                            <>
+                                                                <td className="p-3 text-right font-medium text-yellow-600">{(rowData.foodAllowance || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{((rowData.taxFreeOt ?? realTaxFreeOt) || 0).toLocaleString()}</td>
+                                                            </>
+                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{totalTaxFree.toLocaleString()}</td>}
+
+                                                        {expandedGroups.withholdings ? (
+                                                            <>
+                                                                <td className="p-3 text-right font-medium text-orange-500">{(rowData.laborIns || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-orange-500">{(rowData.healthIns || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-orange-500">{(rowData.incomeTax || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-orange-500 border-r border-gray-200">{(rowData.advancePay || 0).toLocaleString()}</td>
+                                                            </>
+                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-orange-600">{totalWithholdings.toLocaleString()}</td>}
+
+                                                        <td className="p-3 text-right font-black text-lg text-green-700 bg-green-50/50">{netPay.toLocaleString()}</td>
+                                                    </tr>
+                                                );
+                                            })}
+
+                                            {/* ✨ 5. 新增：超顯眼的「本月總計」列 */}
+                                            {currentMonthEmps.length > 0 && (
+                                                <tr className="bg-gray-100 hover:bg-gray-200 transition-colors cursor-default border-t-2 border-gray-300">
+                                                    {/* 凍結區：序號與職稱留白，顯示本月總計 */}
+                                                    <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] sticky left-0 z-20 bg-gray-100 border-r border-gray-200"></td>
+                                                    <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] sticky left-[60px] z-20 bg-gray-100 border-r border-gray-200"></td>
+                                                    <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] font-black text-gray-800 text-center sticky left-[120px] z-20 bg-gray-100 border-r-2 border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">本月總計</td>
+                                                    
+                                                    {/* 時數區塊全部留白 (顯示 -) */}
+                                                    <td className="p-3 text-center text-gray-400">-</td>
+                                                    <td className="p-3 text-center text-gray-400">-</td>
+                                                    <td className="p-3 text-center text-gray-400">-</td>
+                                                    <td className="p-3 text-center text-gray-400 border-r border-gray-200">-</td>
+                                                    <td className="p-3 text-center text-gray-400">-</td>
+                                                    <td className="p-3 text-center text-gray-400">-</td>
+                                                    <td className="p-3 text-center text-gray-400 border-r border-gray-200">-</td>
+
+                                                    {/* 財務摺疊顯示區塊 (總和) */}
+                                                    {expandedGroups.additions ? (
+                                                        <>
+                                                            <td className="p-3 text-right font-black text-gray-700">{totals.base.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-gray-700">{totals.fullAtt.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-gray-700">{totals.pos.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-gray-700">{totals.perf.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-gray-700 border-r border-gray-200">{totals.taxOt.toLocaleString()}</td>
+                                                        </>
+                                                    ) : <td className="p-3 text-right border-r border-gray-200 font-black text-blue-800">{totals.addTotal.toLocaleString()}</td>}
+
+                                                    {expandedGroups.deductions ? (
+                                                        <>
+                                                            <td className="p-3 text-right font-black text-red-600">{totals.leave.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-red-600">{totals.short.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-red-600">{totals.late.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-red-600 border-r border-gray-200">{totals.pension.toLocaleString()}</td>
+                                                        </>
+                                                    ) : <td className="p-3 text-right border-r border-gray-200 font-black text-red-700">{totals.dedTotal.toLocaleString()}</td>}
+
+                                                    <td className="p-3 text-right border-r border-gray-200 font-black text-purple-800 bg-purple-100/50">{totals.taxable.toLocaleString()}</td>
+
+                                                    {expandedGroups.taxFree ? (
+                                                        <>
+                                                            <td className="p-3 text-right font-black text-yellow-700">{totals.food.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-yellow-700 border-r border-gray-200">{totals.freeOt.toLocaleString()}</td>
+                                                        </>
+                                                    ) : <td className="p-3 text-right border-r border-gray-200 font-black text-yellow-700">{totals.freeTotal.toLocaleString()}</td>}
+
+                                                    {expandedGroups.withholdings ? (
+                                                        <>
+                                                            <td className="p-3 text-right font-black text-orange-600">{totals.labor.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-orange-600">{totals.health.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-orange-600">{totals.tax.toLocaleString()}</td>
+                                                            <td className="p-3 text-right font-black text-orange-600 border-r border-gray-200">{totals.advance.toLocaleString()}</td>
+                                                        </>
+                                                    ) : <td className="p-3 text-right border-r border-gray-200 font-black text-orange-700">{totals.withTotal.toLocaleString()}</td>}
+
+                                                    <td className="p-3 text-right font-black text-xl text-green-800 bg-green-100/80">{totals.net.toLocaleString()}</td>
+                                                </tr>
+                                            )}
+                                        </>
                                     );
-                                })}
+                                })()}
                             </tbody>
                         </table>
                     </div>
