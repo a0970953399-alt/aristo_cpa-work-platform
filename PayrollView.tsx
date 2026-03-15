@@ -118,11 +118,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setIsMonthlyEditModalOpen(false);
   };
 
-  // ✨ 新增：每月薪資編輯視窗狀態
-  const [isMonthlyEditModalOpen, setIsMonthlyEditModalOpen] = useState(false);
-  const [editingMonthlyEmp, setEditingMonthlyEmp] = useState<Employee | null>(null);
-  const [monthlyFormData, setMonthlyFormData] = useState<any>({});
-
   // ✨ 點擊整列時，開啟編輯視窗並載入該員工資料
   const handleRowClickMonthly = (emp: Employee) => {
       setEditingMonthlyEmp(emp);
@@ -142,49 +137,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       
       setMonthlyFormData(updatedData);
   };
-
-  const handleSaveMonthlyData = (e: React.FormEvent) => {
-      e.preventDefault();
-      if (editingMonthlyEmp) {
-          setMonthlyData(prev => ({ ...prev, [editingMonthlyEmp.id]: monthlyFormData }));
-      }
-      setIsMonthlyEditModalOpen(false);
-  };
-
-  // ✨ 當切換到「每月薪資明細」時，自動載入在職員工，並連動預設薪資與伙食費
-  useEffect(() => {
-      if (activeInnerTab === 'monthly' && selectedClient) {
-          const initialData: Record<string, any> = {};
-          const activeEmps = employees.filter(e => e.clientId === String(selectedClient.id) && !e.endDate);
-          
-          activeEmps.forEach(emp => {
-              initialData[emp.id] = {
-                  // 出勤變數
-                  workHours: 160, lateHours: 0, sickLeave: 0, personalLeave: 0,
-                  annualLeave: 0, holidayOt: 0, normalOt: 0,
-                  // 應加
-                  baseSalary: emp.defaultBaseSalary || 0,
-                  fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
-                  // 應扣 (請假與遲到扣款先用 0 佔位，之後套用公式)
-                  dailyShortage: 0, pensionSelf: 0,
-                  // 應加免稅
-                  foodAllowance: emp.defaultFoodAllowance || 0, taxFreeOt: 0,
-                  // 代扣
-                  laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
-              };
-          });
-          setMonthlyData(initialData);
-      }
-  }, [activeInnerTab, selectedClient, employees]);
-
-  // 更新單一欄位的通用函式
-  const updateMonthlyData = (empId: string, field: string, value: string) => {
-      setMonthlyData(prev => ({
-          ...prev,
-          [empId]: { ...prev[empId], [field]: Number(value) || 0 }
-      }));
-  };
-
+  
   // --- 彈跳視窗狀態 ---
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false);
@@ -792,6 +745,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             <div><label className="block text-xs font-bold text-orange-500 mb-1">所得稅扣繳</label><input type="number" value={monthlyFormData.incomeTax || ''} onChange={e => handleMonthlyFormChange('incomeTax', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold" placeholder="0" /></div>
                                         </div>
                                     </div>
+                                        </>
+                        )}
 
                                     {/* 隱藏的按鈕用來觸發 form submit */}
                                     <button type="submit" id="submitMonthlyForm" className="hidden"></button>
