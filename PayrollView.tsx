@@ -143,18 +143,29 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setIsMonthlyEditModalOpen(false);
   };
 
-  // ✨ 一鍵生成合併員工薪資單 (給老闆的 Excel)
+  // ✨ 一鍵生成合併員工薪資單 (讀取 Base64 模板版)
   const handleExportEmployerExcel = () => {
       if (!selectedClient) return;
+      if (!PAYROLL_TEMPLATE_BASE64 || PAYROLL_TEMPLATE_BASE64.startsWith("這裡放")) {
+          alert("請先在程式碼最上方放入 Base64 模板代碼！");
+          return;
+      }
 
-      // 1. 準備標題列
-      const headers = [
-          "月份", "員工代號", "姓名", "投保狀況", "身分證字號", "E-mail",
-          "本薪", "伙食費", "加班費", "其他加項", "病事假扣薪", "遲到扣薪",
-          "勞保自負額", "健保自負額", "其他減項", "實領金額", "中信匯款帳號", "備註"
-      ];
+      // 1. 讀取 Base64 模板
+      const wb = XLSX.read(PAYROLL_TEMPLATE_BASE64, { type: 'base64' });
+      const ws = wb.Sheets[wb.SheetNames[0]];
 
-      // 過濾出當月在職員工
+      // 2. 備份模板的樣式 (Row 2 是員工變數 index 1，Row 3 是總計 index 2)
+      const dataRowTemplate: any[] = [];
+      for (let C = 0; C <= 17; C++) {
+          dataRowTemplate[C] = ws[XLSX.utils.encode_cell({c: C, r: 1})] || {};
+      }
+      const totalRowTemplate: any[] = [];
+      for (let C = 6; C <= 15; C++) {
+          totalRowTemplate[C] = ws[XLSX.utils.encode_cell({c: C, r: 2})] || {};
+      }
+
+      // 3. 過濾當月在職員工
       const currentMonthEmps = employees.filter(e => {
           if (e.clientId !== String(selectedClient.id)) return false;
           if (!e.endDate) return true;
@@ -167,18 +178,17 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           leave: 0, late: 0, labor: 0, health: 0, otherDed: 0, net: 0
       };
 
-      const rows: any[][] = [];
-      rows.push(headers); // 將標題塞入第一列
-
       // 轉換民國年格式 (例如: 115-03)
       const twYear = Number(selectedYear) - 1911;
       const monthStr = `${twYear}-${selectedMonth}`;
 
-      currentMonthEmps.forEach(emp => {
+      // 4. 迴圈填入員工資料
+      currentMonthEmps.forEach((emp, index) => {
+          const R = 1 + index; // 目標列 (從 index 1 開始往下推)
           const rowData = monthlyData[emp.id] || {};
           const isFullTime = emp.employmentType === 'full_time';
 
-          // ⚡ 即時公式試算 (與畫面完全同步)
+          // ⚡ 即時公式試算
           const baseSalaryForCalc = rowData.baseSalary || 0;
           const hourlyWageForCalc = baseSalaryForCalc / 240;
           const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
@@ -219,15 +229,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               const types = [];
               if (emp.hasLaborIns ?? true) types.push("勞");
               if (emp.hasHealthIns ?? true) types.push("健");
-              if (types.length > 0) {
-                  insStr = `${emp.insuranceBracket.toLocaleString()} (${types.join("")})`;
-              }
+              if (types.length > 0) insStr = `${emp.insuranceBracket.toLocaleString()} (${types.join("")})`;
           }
 
           // 📝 備註自動造句
           const remarks = [];
           if (emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}`) {
-              // ✨ 將 YYYY-MM-DD 轉成 M/D 格式 (例如: 03-05 變成 3/5)
               const m = parseInt(emp.startDate.substring(5, 7), 10);
               const d = parseInt(emp.startDate.substring(8, 10), 10);
               remarks.push(`${m}/${d}到職`);
@@ -237,53 +244,56 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           if (rowData.personalLeave > 0) remarks.push(`事假${rowData.personalLeave}小時`);
           if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
           if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
-          
           const remarkStr = remarks.length > 0 ? remarks.join("，") + "。" : "";
 
           // ➕ 累加至總計
-          totals.base += baseSalary;
-          totals.food += foodAllowance;
-          totals.ot += otPay;
-          totals.otherAdd += otherAdd;
-          totals.leave += leaveDed;
-          totals.late += lateDed;
-          totals.labor += laborIns;
-          totals.health += healthIns;
-          totals.otherDed += otherDed;
-          totals.net += netPay;
+          totals.base += baseSalary; totals.food += foodAllowance; totals.ot += otPay; totals.otherAdd += otherAdd;
+          totals.leave += leaveDed; totals.late += lateDed; totals.labor += laborIns; totals.health += healthIns;
+          totals.otherDed += otherDed; totals.net += netPay;
 
-          // 將該名員工的資料推進陣列
-          rows.push([
-              monthStr, emp.empNo || "", emp.name, insStr, emp.idNumber || "", emp.email || "",
+          // 定義 A(0) 到 R(17) 欄的值 (值為 0 則以空字串處理，保持畫面乾淨)
+          const rowValues = [
+              monthStr, emp.empNo || "", emp.name || "", insStr, emp.idNumber || "", emp.email || "",
               baseSalary || "", foodAllowance || "", otPay || "", otherAdd || "",
               leaveDed || "", lateDed || "", laborIns || "", healthIns || "", otherDed || "",
-              netPay || "", emp.bankAccount || "", remarkStr
-          ]);
+              netPay || 0, emp.bankAccount || "", remarkStr
+          ];
+
+          // 將陣列寫入試算表，並覆蓋上備份的模板樣式
+          rowValues.forEach((val, C) => {
+              const cellAddr = XLSX.utils.encode_cell({c: C, r: R});
+              ws[cellAddr] = { ...dataRowTemplate[C], v: val, t: typeof val === 'number' ? 'n' : 's' };
+          });
       });
 
-      // 🏁 插入底部總計列 (不寫"總計"，直接填入數字)
-      if (currentMonthEmps.length > 0) {
-          rows.push([
-              "", "", "", "", "", "", // 前 6 格文字欄位全部留白
-              totals.base || "",
-              totals.food || "",
-              totals.ot || "",
-              totals.otherAdd || "",
-              totals.leave || "",
-              totals.late || "",
-              totals.labor || "",
-              totals.health || "",
-              totals.otherDed || "",
-              totals.net || "",
-              "", "" // 最後的帳號與備註欄留白
-          ]);
+      // 5. 插入底部總計列 (不寫"總計"文字，直接填入數字對齊)
+      const totalR = 1 + currentMonthEmps.length;
+      const totalValues = [
+          totals.base || "", totals.food || "", totals.ot || "", totals.otherAdd || "",
+          totals.leave || "", totals.late || "", totals.labor || "", totals.health || "",
+          totals.otherDed || "", totals.net || 0
+      ];
+
+      // 逐格處理最後一列 (避免模板殘留文字)
+      for (let C = 0; C <= 17; C++) {
+          const cellAddr = XLSX.utils.encode_cell({c: C, r: totalR});
+          if (C >= 6 && C <= 15) {
+              // 填入總計數字並套用 G3~P3 的樣式
+              const val = totalValues[C - 6];
+              ws[cellAddr] = { ...totalRowTemplate[C], v: val, t: typeof val === 'number' ? 'n' : 's' };
+          } else {
+              // 其餘格子留白
+              ws[cellAddr] = { v: "", t: "s" };
+          }
       }
 
-      // 🚀 執行匯出
-      const ws = XLSX.utils.aoa_to_sheet(rows);
-      const wb = XLSX.utils.book_new();
-      XLSX.utils.book_append_sheet(wb, ws, "薪資總表");
-      XLSX.writeFile(wb, `${selectedClient.name}_薪資總表_${selectedYear}${selectedMonth}.xlsx`);
+      // 6. 更新工作表的範圍標籤 (!ref)，讓 Excel 知道表格真正有多大
+      ws['!ref'] = XLSX.utils.encode_range({ s: {c:0, r:0}, e: {c:17, r:totalR} });
+
+      // 7. 打包下載
+      const wbOutput = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wbOutput, ws, "合併薪資單");
+      XLSX.writeFile(wbOutput, `${selectedClient.name}_合併薪資單_${selectedYear}${selectedMonth}.xlsx`);
   };
   
   // ✨ 點擊整列時，開啟編輯視窗並載入該員工資料
