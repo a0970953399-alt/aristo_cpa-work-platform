@@ -21,6 +21,12 @@ const ExcelFileIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const CloudDownloadIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
+  </svg>
+);
+
 export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   // --- 全域狀態 ---
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
@@ -1071,6 +1077,27 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         <input type="number" value={editingEmp.defaultFoodAllowance || ''} onChange={e => setEditingEmp({...editingEmp, defaultFoodAllowance: Number(e.target.value)})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 text-base font-black text-gray-800" placeholder="0" />
                                     </div>
                                 )}
+                            </div>
+                        </div>
+
+                      {/* 區塊 4: 勞健保設定 */}
+                        <div className="space-y-4 bg-blue-50 p-4 rounded-2xl border border-blue-100 mt-4">
+                            <h4 className="font-bold text-blue-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>勞健保設定</h4>
+                            <div className="flex items-center gap-6">
+                                <div className="flex-1">
+                                    <label className="block text-xs font-bold text-blue-700 mb-1">勞健保級距</label>
+                                    <input type="number" value={editingEmp.insuranceBracket || ''} onChange={e => setEditingEmp({...editingEmp, insuranceBracket: Number(e.target.value)})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base font-black text-blue-900" placeholder="0" />
+                                </div>
+                                <div className="flex items-center gap-4 mt-5">
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={editingEmp.hasLaborIns ?? true} onChange={e => setEditingEmp({...editingEmp, hasLaborIns: e.target.checked})} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
+                                        <span className="font-bold text-blue-800">勞保</span>
+                                    </label>
+                                    <label className="flex items-center gap-2 cursor-pointer">
+                                        <input type="checkbox" checked={editingEmp.hasHealthIns ?? true} onChange={e => setEditingEmp({...editingEmp, hasHealthIns: e.target.checked})} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
+                                        <span className="font-bold text-blue-800">健保</span>
+                                    </label>
+                                </div>
                             </div>
                         </div>
 
