@@ -141,6 +141,149 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setIsMonthlyEditModalOpen(false);
   };
 
+  // ✨ 一鍵生成合併員工薪資單 (給老闆的 Excel)
+  const handleExportEmployerExcel = () => {
+      if (!selectedClient) return;
+
+      // 1. 準備標題列
+      const headers = [
+          "月份", "員工代號", "姓名", "投保狀況", "身分證字號", "E-mail",
+          "本薪", "伙食費", "加班費", "其他加項", "病事假扣薪", "遲到扣薪",
+          "勞保自負額", "健保自負額", "其他減項", "實領金額", "中信匯款帳號", "備註"
+      ];
+
+      // 過濾出當月在職員工
+      const currentMonthEmps = employees.filter(e => {
+          if (e.clientId !== String(selectedClient.id)) return false;
+          if (!e.endDate) return true;
+          return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
+      });
+
+      // 準備用來累加總額的物件
+      const totals = {
+          base: 0, food: 0, ot: 0, otherAdd: 0,
+          leave: 0, late: 0, labor: 0, health: 0, otherDed: 0, net: 0
+      };
+
+      const rows: any[][] = [];
+      rows.push(headers); // 將標題塞入第一列
+
+      // 轉換民國年格式 (例如: 115-03)
+      const twYear = Number(selectedYear) - 1911;
+      const monthStr = `${twYear}-${selectedMonth}`;
+
+      currentMonthEmps.forEach(emp => {
+          const rowData = monthlyData[emp.id] || {};
+          const isFullTime = emp.employmentType === 'full_time';
+
+          // ⚡ 即時公式試算 (與畫面完全同步)
+          const baseSalaryForCalc = rowData.baseSalary || 0;
+          const hourlyWageForCalc = baseSalaryForCalc / 240;
+          const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
+          const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2); 
+          const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0)); 
+          const realLeaveDeduction = realSickDeduction + realPersonalDeduction;
+
+          const foodAllowanceForCalc = rowData.foodAllowance || 0;
+          let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
+          if (isFullTime) {
+              const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
+              realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
+              realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
+              realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+          } else {
+              const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+              realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+          }
+          const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
+
+          // 🧮 欄位歸納與合併
+          const baseSalary = rowData.baseSalary || 0;
+          const foodAllowance = rowData.foodAllowance || 0;
+          const otPay = (rowData.taxableOt || 0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
+          const otherAdd = (rowData.fullAttendance || 0) + (rowData.positionAllowance || 0) + (rowData.performanceBonus || 0);
+
+          const leaveDed = -(rowData.leaveDeduction ?? realLeaveDeduction);
+          const lateDed = -(rowData.lateDeduction ?? realLateDeduction);
+          const laborIns = -(rowData.laborIns || 0);
+          const healthIns = -(rowData.healthIns || 0);
+          const otherDed = -((rowData.dailyShortage || 0) + (rowData.pensionSelf || 0) + (rowData.advancePay || 0) + (rowData.incomeTax || 0));
+
+          const netPay = baseSalary + foodAllowance + otPay + otherAdd + leaveDed + lateDed + laborIns + healthIns + otherDed;
+
+          // 🛡️ 投保狀況字串組合
+          let insStr = "";
+          if (emp.insuranceBracket) {
+              const types = [];
+              if (emp.hasLaborIns ?? true) types.push("勞");
+              if (emp.hasHealthIns ?? true) types.push("健");
+              if (types.length > 0) {
+                  insStr = `${emp.insuranceBracket.toLocaleString()} (${types.join("")})`;
+              }
+          }
+
+          // 📝 備註自動造句
+          const remarks = [];
+          if (emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}`) {
+              // ✨ 將 YYYY-MM-DD 轉成 M/D 格式 (例如: 03-05 變成 3/5)
+              const m = parseInt(emp.startDate.substring(5, 7), 10);
+              const d = parseInt(emp.startDate.substring(8, 10), 10);
+              remarks.push(`${m}/${d}到職`);
+          }
+          if (rowData.lateHours > 0) remarks.push(`遲到${rowData.lateHours}分鐘`);
+          if (rowData.sickLeave > 0) remarks.push(`病假${rowData.sickLeave}小時`);
+          if (rowData.personalLeave > 0) remarks.push(`事假${rowData.personalLeave}小時`);
+          if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
+          if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
+          
+          const remarkStr = remarks.length > 0 ? remarks.join("，") + "。" : "";
+
+          // ➕ 累加至總計
+          totals.base += baseSalary;
+          totals.food += foodAllowance;
+          totals.ot += otPay;
+          totals.otherAdd += otherAdd;
+          totals.leave += leaveDed;
+          totals.late += lateDed;
+          totals.labor += laborIns;
+          totals.health += healthIns;
+          totals.otherDed += otherDed;
+          totals.net += netPay;
+
+          // 將該名員工的資料推進陣列
+          rows.push([
+              monthStr, emp.empNo || "", emp.name, insStr, emp.idNumber || "", emp.email || "",
+              baseSalary || "", foodAllowance || "", otPay || "", otherAdd || "",
+              leaveDed || "", lateDed || "", laborIns || "", healthIns || "", otherDed || "",
+              netPay || "", emp.bankAccount || "", remarkStr
+          ]);
+      });
+
+      // 🏁 插入底部總計列 (不寫"總計"，直接填入數字)
+      if (currentMonthEmps.length > 0) {
+          rows.push([
+              "", "", "", "", "", "", // 前 6 格文字欄位全部留白
+              totals.base || "",
+              totals.food || "",
+              totals.ot || "",
+              totals.otherAdd || "",
+              totals.leave || "",
+              totals.late || "",
+              totals.labor || "",
+              totals.health || "",
+              totals.otherDed || "",
+              totals.net || "",
+              "", "" // 最後的帳號與備註欄留白
+          ]);
+      }
+
+      // 🚀 執行匯出
+      const ws = XLSX.utils.aoa_to_sheet(rows);
+      const wb = XLSX.utils.book_new();
+      XLSX.utils.book_append_sheet(wb, ws, "薪資總表");
+      XLSX.writeFile(wb, `${selectedClient.name}_薪資總表_${selectedYear}${selectedMonth}.xlsx`);
+  };
+  
   // ✨ 點擊整列時，開啟編輯視窗並載入該員工資料
   const handleRowClickMonthly = (emp: Employee) => {
       setEditingMonthlyEmp(emp);
@@ -464,8 +607,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                       <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
                           <ExcelFileIcon className="w-5 h-5" />
                       </button>
-                      {/* ✨ 一鍵生成合併員工薪資單 (老闆用，綠色無文字) */}
-                      <button className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
+                    {/* ✨ 一鍵生成合併員工薪資單 (老闆用，綠色無文字) */}
+                      <button onClick={handleExportEmployerExcel} className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
                           <CloudDownloadIcon className="w-5 h-5" />
                       </button>
                   </div>
