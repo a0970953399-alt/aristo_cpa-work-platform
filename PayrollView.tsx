@@ -69,8 +69,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               const targetMonth = `${selectedYear}-${selectedMonth}`; // ✨ 組合年月
               const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month === targetMonth);
               
-              const initialData: Record<string, any> = {};
-              const activeEmps = employees.filter(e => e.clientId === String(selectedClient.id) && !e.endDate);
+            const initialData: Record<string, any> = {};
+              // ✨ 修正離職邏輯：如果沒離職，或是「目標月份 <= 離職月份」，就將其納入當月名單
+              const activeEmps = employees.filter(e => {
+                  if (e.clientId !== String(selectedClient.id)) return false;
+                  if (!e.endDate) return true; // 沒離職，永遠納入
+                  const targetMonthStr = `${selectedYear}-${selectedMonth}`;
+                  const endMonthStr = e.endDate.substring(0, 7); // 取出 "YYYY-MM"
+                  return targetMonthStr <= endMonthStr;
+              });
               
               activeEmps.forEach(emp => {
                   const saved = savedRecords.find(r => r.employeeId === emp.id);
@@ -629,10 +636,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 </tr>
                             </thead>
                             
-                            {/* ✨ 移除了 divide-y，底線由 table 共用的 className 負責 */}
+                          {/* ✨ 移除了 divide-y，底線由 table 共用的 className 負責 */}
                             <tbody>
-                                {employees.filter(e => e.clientId === String(selectedClient.id) && !e.endDate).map((emp, index) => {
-                  const rowData = monthlyData[emp.id] || {};
+                                {/* ✨ 套用相同的離職過濾邏輯 */}
+                                {employees.filter(e => {
+                                    if (e.clientId !== String(selectedClient.id)) return false;
+                                    if (!e.endDate) return true;
+                                    return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
+                                }).map((emp, index) => {
+                                    const rowData = monthlyData[emp.id] || {};
                                     
                                     // ⚡ 替換為真實的薪資公式 (供表格即時渲染與懸停使用)
                                     const baseSalaryForCalc = rowData.baseSalary || 0;
@@ -671,18 +683,26 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     // ⚡ 終極公式結算
                                     const taxableAmount = totalAdditions - totalDeductions;
                                     const netPay = taxableAmount + totalTaxFree - totalWithholdings;
-                                    
+
                                     return (
                                         <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
-                                            {/* 凍結區 (✨ 同步套用絕對寬度，並確保 100% 不透明的 bg-white / bg-blue-50) */}
+                                            {/* 凍結區 */}
                                             <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
                                             <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-[60px] z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">
                                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isFullTime ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                     {isFullTime ? '正職' : '兼職'}
                                                 </span>
                                             </td>
-                                            <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] font-black text-gray-800 sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:text-blue-600">
-                                                {emp.name}
+                                            <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                <div className="flex flex-col">
+                                                    <span className="font-black text-gray-800 group-hover:text-blue-600 transition-colors">{emp.name}</span>
+                                                    {/* ✨ 貼心的防呆提示：如果這名員工剛好在這個月離職，加上紅色小標籤提醒主管 */}
+                                                    {emp.endDate && emp.endDate.substring(0, 7) === `${selectedYear}-${selectedMonth}` && (
+                                                        <span className="text-[10px] text-red-500 font-bold -mt-0.5 tracking-tighter">
+                                                            {emp.endDate.substring(5).replace('-', '/')} 離職
+                                                        </span>
+                                                    )}
+                                                </div>
                                             </td>
                                             
                                             {/* 出勤變數顯示區 */}
@@ -817,8 +837,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 }} 
                                                 className="w-full border border-blue-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white"
                                             >
-                                                <option value="">-- 請選擇員工 --</option>
-                                                {employees.filter(e => e.clientId === String(selectedClient?.id) && !e.endDate).map(emp => (
+                                              <option value="">-- 請選擇員工 --</option>
+                                                {/* ✨ 下拉選單也套用相同的離職過濾邏輯 */}
+                                                {employees.filter(e => {
+                                                    if (e.clientId !== String(selectedClient?.id)) return false;
+                                                    if (!e.endDate) return true;
+                                                    return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
+                                                }).map(emp => (
                                                     <option key={emp.id} value={emp.id}>{emp.name} ({emp.empNo})</option>
                                                 ))}
                                             </select>
