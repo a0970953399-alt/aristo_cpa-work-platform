@@ -39,8 +39,84 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       withholdings: false  // 代扣款項
   });
 
-  // ✨ 新增：存放當月試算表單的暫存資料 (Record<員工ID, 欄位數值>)
+  // ✨ 新增：選擇的月份 (用來過濾資料)
+  const [currentMonth, setCurrentMonth] = useState('2026-03');
   const [monthlyData, setMonthlyData] = useState<Record<string, any>>({});
+  
+  // 編輯視窗狀態
+  const [isMonthlyEditModalOpen, setIsMonthlyEditModalOpen] = useState(false);
+  const [editingMonthlyEmp, setEditingMonthlyEmp] = useState<Employee | null>(null);
+  const [monthlyFormData, setMonthlyFormData] = useState<any>({});
+  const [isAddingNewMonthly, setIsAddingNewMonthly] = useState(false); // ✨ 判斷是否由「新增按鈕」開啟
+
+  // ✨ 當月份或客戶改變時，從資料庫載入真實資料
+  useEffect(() => {
+      const loadMonthlyData = async () => {
+          if (activeInnerTab === 'monthly' && selectedClient) {
+              const allSalaries = await TaskService.fetchMonthlySalaries();
+              const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month === currentMonth);
+              
+              const initialData: Record<string, any> = {};
+              const activeEmps = employees.filter(e => e.clientId === String(selectedClient.id) && !e.endDate);
+              
+              activeEmps.forEach(emp => {
+                  const saved = savedRecords.find(r => r.employeeId === emp.id);
+                  if (saved) {
+                      initialData[emp.id] = saved; // 若有存檔，使用存檔
+                  } else {
+                      // 若無存檔，帶入預設值
+                      initialData[emp.id] = {
+                          workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
+                          baseSalary: emp.defaultBaseSalary || 0, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
+                          leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
+                          foodAllowance: emp.defaultFoodAllowance || 0, taxFreeOt: 0,
+                          laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
+                      };
+                  }
+              });
+              setMonthlyData(initialData);
+          }
+      };
+      loadMonthlyData();
+  }, [activeInnerTab, selectedClient, employees, currentMonth]);
+
+  // ✨ 處理點擊「+」新增按鈕
+  const handleOpenAddMonthly = () => {
+      setIsAddingNewMonthly(true);
+      setEditingMonthlyEmp(null); // 還沒選人
+      setMonthlyFormData({}); // 清空表單
+      setIsMonthlyEditModalOpen(true);
+  };
+
+  // ✨ 真實儲存到資料庫
+  const handleSaveMonthlyData = async (e: React.FormEvent) => {
+      e.preventDefault();
+      if (!editingMonthlyEmp || !selectedClient) return;
+
+      const record: any = {
+          id: monthlyData[editingMonthlyEmp.id]?.id || Date.now().toString(),
+          clientId: String(selectedClient.id),
+          employeeId: editingMonthlyEmp.id,
+          month: currentMonth,
+          updatedAt: new Date().toISOString(),
+          ...monthlyFormData
+      };
+
+      // 更新畫面
+      setMonthlyData(prev => ({ ...prev, [editingMonthlyEmp.id]: record }));
+
+      // 更新資料庫
+      const allSalaries = await TaskService.fetchMonthlySalaries();
+      const existingIdx = allSalaries.findIndex(r => r.id === record.id);
+      if (existingIdx !== -1) {
+          allSalaries[existingIdx] = record;
+      } else {
+          allSalaries.push(record);
+      }
+      await TaskService.saveMonthlySalaries(allSalaries);
+      
+      setIsMonthlyEditModalOpen(false);
+  };
 
   // ✨ 新增：每月薪資編輯視窗狀態
   const [isMonthlyEditModalOpen, setIsMonthlyEditModalOpen] = useState(false);
@@ -345,7 +421,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                       <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
                           <ExcelFileIcon className="w-5 h-5" />
                       </button>
-                      <button title="新增結算紀錄" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
+                    <button onClick={handleOpenAddMonthly} title="新增結算紀錄" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
                           <PlusIcon className="w-5 h-5" />
                       </button>
                   </div>
