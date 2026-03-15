@@ -798,7 +798,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <button onClick={() => setIsMonthlyEditModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl font-black">✕</button>
                                 </div>
                                 
-                                <form onSubmit={handleSaveMonthlyData} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
+                              <form onSubmit={handleSaveMonthlyData} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
                                     
                                     {/* ✨ 如果是由「新增按鈕」開啟，強制要求先選擇員工 */}
                                     {isAddingNewMonthly && (
@@ -828,88 +828,80 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     {/* 只有選擇了員工，才會顯示下方的填寫欄位 */}
                                     {editingMonthlyEmp && (
                                         <>
-                                    
-                                          {/* 區塊 1: 出勤時數變數 */}
-                                    <div className="space-y-4">
-                                        <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-gray-500 rounded-full"></div>出勤變數輸入</h4>
-                                        <div className="grid grid-cols-4 gap-4">
-                                            <div>
-                                                <label className="block text-xs font-bold text-gray-500 mb-1">出勤時數</label>
-                                                <input type="number" disabled={editingMonthlyEmp.employmentType === 'full_time'} value={editingMonthlyEmp.employmentType === 'full_time' ? '' : (monthlyFormData.workHours || '')} onChange={e => handleMonthlyFormChange('workHours', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'full_time' ? '正職免填' : '0'} />
+                                            {/* 區塊 1: 出勤時數變數 */}
+                                            <div className="space-y-4">
+                                                <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-gray-500 rounded-full"></div>出勤變數輸入</h4>
+                                                <div className="grid grid-cols-4 gap-4">
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-gray-500 mb-1">出勤時數</label>
+                                                        <input type="number" disabled={editingMonthlyEmp.employmentType === 'full_time'} value={editingMonthlyEmp.employmentType === 'full_time' ? '' : (monthlyFormData.workHours || '')} onChange={e => handleMonthlyFormChange('workHours', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'full_time' ? '正職免填' : '0'} />
+                                                    </div>
+                                                    <div><label className="block text-xs font-bold text-red-500 mb-1">遲到 (分)</label><input type="number" value={monthlyFormData.lateHours || ''} onChange={e => handleMonthlyFormChange('lateHours', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-red-500 mb-1">病假 (時)</label><input type="number" value={monthlyFormData.sickLeave || ''} onChange={e => handleMonthlyFormChange('sickLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-red-500 mb-1">事假 (時)</label><input type="number" value={monthlyFormData.personalLeave || ''} onChange={e => handleMonthlyFormChange('personalLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
+                                                    
+                                                    {/* ✨ 新增加班時數 */}
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-blue-500 mb-1">特休換薪 (時)</label>
+                                                        <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={editingMonthlyEmp.employmentType === 'part_time' ? '' : (monthlyFormData.annualLeave || '')} onChange={e => handleMonthlyFormChange('annualLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'part_time' ? '兼職無' : '0'} />
+                                                    </div>
+                                                    <div><label className="block text-xs font-bold text-blue-500 mb-1">國定加班 (時)</label><input type="number" value={monthlyFormData.holidayOt || ''} onChange={e => handleMonthlyFormChange('holidayOt', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30" placeholder="0" /></div>
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-blue-500 mb-1">日常加班 (時)</label>
+                                                        <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={editingMonthlyEmp.employmentType === 'part_time' ? '' : (monthlyFormData.normalOt || '')} onChange={e => handleMonthlyFormChange('normalOt', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'part_time' ? '兼職無' : '0'} />
+                                                    </div>
+                                                </div>
                                             </div>
-                                            <div><label className="block text-xs font-bold text-red-500 mb-1">遲到 (分)</label><input type="number" value={monthlyFormData.lateHours || ''} onChange={e => handleMonthlyFormChange('lateHours', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-red-500 mb-1">病假 (時)</label><input type="number" value={monthlyFormData.sickLeave || ''} onChange={e => handleMonthlyFormChange('sickLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-red-500 mb-1">事假 (時)</label><input type="number" value={monthlyFormData.personalLeave || ''} onChange={e => handleMonthlyFormChange('personalLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
-                                            
-                                            {/* ✨ 新增加班時數 */}
-                                            <div>
-                                                <label className="block text-xs font-bold text-blue-500 mb-1">特休換薪 (時)</label>
-                                                <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={editingMonthlyEmp.employmentType === 'part_time' ? '' : (monthlyFormData.annualLeave || '')} onChange={e => handleMonthlyFormChange('annualLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'part_time' ? '兼職無' : '0'} />
-                                            </div>
-                                            <div><label className="block text-xs font-bold text-blue-500 mb-1">國定加班 (時)</label><input type="number" value={monthlyFormData.holidayOt || ''} onChange={e => handleMonthlyFormChange('holidayOt', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30" placeholder="0" /></div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-blue-500 mb-1">日常加班 (時)</label>
-                                                <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={editingMonthlyEmp.employmentType === 'part_time' ? '' : (monthlyFormData.normalOt || '')} onChange={e => handleMonthlyFormChange('normalOt', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'part_time' ? '兼職無' : '0'} />
-                                            </div>
-                                        </div>
-                                    </div>
 
-                                          {/* 區塊 2: 應加金額 */}
-                                    <div className="space-y-4">
-                                        <h4 className="font-bold text-blue-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>應加與免稅金額</h4>
-                                        <div className="grid grid-cols-4 gap-4">
-                                            {/* ✨ 唯讀自動計算區 */}
-                                            <div><label className="block text-xs font-bold text-gray-500 mb-1">免稅加班費 (自動算)</label><input type="text" disabled value={monthlyFormData.taxFreeOt || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
-                                            
-                                            {/* 手動輸入區 */}
-                                            <div>
-                                                {/* ✨ 根據職稱切換標籤文字 */}
-                                                <label className="block text-xs font-bold text-blue-500 mb-1">{editingMonthlyEmp.employmentType === 'full_time' ? '本薪' : '時薪'}</label>
-                                                <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={monthlyFormData.baseSalary || ''} onChange={e => handleMonthlyFormChange('baseSalary', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-800 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder="0" />
-                                                {editingMonthlyEmp.employmentType === 'part_time' && <span className="text-[10px] text-gray-400 mt-1">兼職由時數自動計算</span>}
+                                            {/* 區塊 2: 應加金額 */}
+                                            <div className="space-y-4">
+                                                <h4 className="font-bold text-blue-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>應加與免稅金額</h4>
+                                                <div className="grid grid-cols-4 gap-4">
+                                                    {/* ✨ 唯讀自動計算區 */}
+                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">免稅加班費 (自動算)</label><input type="text" disabled value={monthlyFormData.taxFreeOt || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
+                                                    
+                                                    {/* 手動輸入區 */}
+                                                    <div>
+                                                        <label className="block text-xs font-bold text-blue-500 mb-1">{editingMonthlyEmp.employmentType === 'full_time' ? '本薪' : '時薪'}</label>
+                                                        <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={monthlyFormData.baseSalary || ''} onChange={e => handleMonthlyFormChange('baseSalary', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-800 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder="0" />
+                                                        {editingMonthlyEmp.employmentType === 'part_time' && <span className="text-[10px] text-gray-400 mt-1">兼職由時數自動計算</span>}
+                                                    </div>
+                                                    <div><label className="block text-xs font-bold text-blue-500 mb-1">全勤獎金</label><input type="number" value={monthlyFormData.fullAttendance || ''} onChange={e => handleMonthlyFormChange('fullAttendance', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-blue-500 mb-1">職務津貼</label><input type="number" value={monthlyFormData.positionAllowance || ''} onChange={e => handleMonthlyFormChange('positionAllowance', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-blue-500 mb-1">業績獎金</label><input type="number" value={monthlyFormData.performanceBonus || ''} onChange={e => handleMonthlyFormChange('performanceBonus', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-yellow-600 mb-1">伙食費 (免稅)</label><input type="number" value={monthlyFormData.foodAllowance || ''} onChange={e => handleMonthlyFormChange('foodAllowance', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 font-bold" placeholder="0" /></div>
+                                                </div>
                                             </div>
-                                            <div><label className="block text-xs font-bold text-blue-500 mb-1">全勤獎金</label><input type="number" value={monthlyFormData.fullAttendance || ''} onChange={e => handleMonthlyFormChange('fullAttendance', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-blue-500 mb-1">職務津貼</label><input type="number" value={monthlyFormData.positionAllowance || ''} onChange={e => handleMonthlyFormChange('positionAllowance', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-blue-500 mb-1">業績獎金</label><input type="number" value={monthlyFormData.performanceBonus || ''} onChange={e => handleMonthlyFormChange('performanceBonus', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-yellow-600 mb-1">伙食費 (免稅)</label><input type="number" value={monthlyFormData.foodAllowance || ''} onChange={e => handleMonthlyFormChange('foodAllowance', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 font-bold" placeholder="0" /></div>
-                                        </div>
-                                    </div>
 
-                                          {/* 區塊 3: 應扣金額 */}
-                                    <div className="space-y-4">
-                                        <h4 className="font-bold text-orange-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>應扣與代扣款項</h4>
-                                        <div className="grid grid-cols-4 gap-4">
-                                            {/* ✨ 唯讀自動計算區：讓主管能直接看到計算結果，增加信任感 */}
-                                            <div><label className="block text-xs font-bold text-gray-500 mb-1">請假扣款 (自動算)</label><input type="text" disabled value={monthlyFormData.leaveDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
-                                            <div><label className="block text-xs font-bold text-gray-500 mb-1">遲到扣款 (自動算)</label><input type="text" disabled value={monthlyFormData.lateDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
-                                            
-                                            {/* 手動輸入區 */}
-                                            <div><label className="block text-xs font-bold text-red-500 mb-1">結帳差額扣款</label><input type="number" value={monthlyFormData.dailyShortage || ''} onChange={e => handleMonthlyFormChange('dailyShortage', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-red-500 mb-1">勞退自提 (6%)</label><input type="number" value={monthlyFormData.pensionSelf || ''} onChange={e => handleMonthlyFormChange('pensionSelf', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-orange-500 mb-1">預支款扣回</label><input type="number" value={monthlyFormData.advancePay || ''} onChange={e => handleMonthlyFormChange('advancePay', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold text-orange-600" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-orange-500 mb-1">勞保費</label><input type="number" value={monthlyFormData.laborIns || ''} onChange={e => handleMonthlyFormChange('laborIns', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-orange-500 mb-1">健保費</label><input type="number" value={monthlyFormData.healthIns || ''} onChange={e => handleMonthlyFormChange('healthIns', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold" placeholder="0" /></div>
-                                            <div><label className="block text-xs font-bold text-orange-500 mb-1">所得稅扣繳</label><input type="number" value={monthlyFormData.incomeTax || ''} onChange={e => handleMonthlyFormChange('incomeTax', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold" placeholder="0" /></div>
-                                        </div>
-                                    </div>
+                                            {/* 區塊 3: 應扣金額 */}
+                                            <div className="space-y-4">
+                                                <h4 className="font-bold text-orange-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>應扣與代扣款項</h4>
+                                                <div className="grid grid-cols-4 gap-4">
+                                                    {/* ✨ 唯讀自動計算區 */}
+                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">請假扣款 (自動算)</label><input type="text" disabled value={monthlyFormData.leaveDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
+                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">遲到扣款 (自動算)</label><input type="text" disabled value={monthlyFormData.lateDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
+                                                    
+                                                    {/* 手動輸入區 */}
+                                                    <div><label className="block text-xs font-bold text-red-500 mb-1">結帳差額扣款</label><input type="number" value={monthlyFormData.dailyShortage || ''} onChange={e => handleMonthlyFormChange('dailyShortage', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-red-500 mb-1">勞退自提 (6%)</label><input type="number" value={monthlyFormData.pensionSelf || ''} onChange={e => handleMonthlyFormChange('pensionSelf', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-orange-500 mb-1">預支款扣回</label><input type="number" value={monthlyFormData.advancePay || ''} onChange={e => handleMonthlyFormChange('advancePay', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold text-orange-600" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-orange-500 mb-1">勞保費</label><input type="number" value={monthlyFormData.laborIns || ''} onChange={e => handleMonthlyFormChange('laborIns', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-orange-500 mb-1">健保費</label><input type="number" value={monthlyFormData.healthIns || ''} onChange={e => handleMonthlyFormChange('healthIns', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-orange-500 mb-1">所得稅扣繳</label><input type="number" value={monthlyFormData.incomeTax || ''} onChange={e => handleMonthlyFormChange('incomeTax', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold" placeholder="0" /></div>
+                                                </div>
+                                            </div>
                                         </>
-                        )}
+                                    )} {/* ✨ 這個完美的閉合括號回來了！ */}
 
                                     {/* 隱藏的按鈕用來觸發 form submit */}
                                     <button type="submit" id="submitMonthlyForm" className="hidden"></button>
                                 </form>
                                 
-                                <div className="p-4 border-t bg-gray-50 flex gap-3">
-                                    <button onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
-                                    <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
-                                </div>
-
-                              {/* ✨ 即時預估實發金額與操作按鈕 */}
+                                {/* ✨ 即時預估實發金額與操作按鈕 */}
                                 <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
                                     <div className="flex flex-col">
                                         <span className="text-xs font-bold text-gray-500 mb-0.5">預估實發金額</span>
                                         <span className="text-2xl font-black text-green-600">${
-                                            // 即時套用你的終極公式
                                             (((monthlyFormData.baseSalary||0) + (monthlyFormData.fullAttendance||0) + (monthlyFormData.positionAllowance||0) + (monthlyFormData.performanceBonus||0) + (monthlyFormData.taxableOt||0)) - 
                                             ((monthlyFormData.leaveDeduction||0) + (monthlyFormData.dailyShortage||0) + (monthlyFormData.lateDeduction||0) + (monthlyFormData.pensionSelf||0)) + 
                                             ((monthlyFormData.foodAllowance||0) + (monthlyFormData.taxFreeOt||0)) - 
@@ -921,6 +913,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
                                     </div>
                                 </div>
+                            </div>
+                        </div>
                     )}
           
             {/* 📍 標籤三：年度薪資帳冊 (施工中) */}
