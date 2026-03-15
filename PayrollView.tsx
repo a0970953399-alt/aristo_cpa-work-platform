@@ -479,8 +479,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             <thead className="sticky top-0 z-30 shadow-sm">
                                 {/* 第一層表頭：大群組 */}
                                 <tr className="text-[11px] uppercase tracking-widest text-center bg-gray-50">
-                                    <th colSpan={3} className="p-2 border-r border-gray-200 text-gray-500 bg-gray-100 sticky left-0 z-40">員工識別</th>
-                                    <th colSpan={7} className="p-2 border-r border-gray-200 text-gray-500">出勤變數紀錄</th>
+                                    <th colSpan={3} className="p-2 border-r border-gray-200 text-gray-500 bg-gray-100 sticky left-0 z-40">員工</th>
+                                    <th colSpan={7} className="p-2 border-r border-gray-200 text-gray-500">出勤紀錄</th>
                                     
                                     <th colSpan={expandedGroups.additions ? 5 : 1} onClick={() => setExpandedGroups(p => ({...p, additions: !p.additions}))} className="p-2 border-r border-gray-200 text-blue-600 bg-blue-50/50 hover:bg-blue-100 cursor-pointer transition-colors">
                                         應加金額 {expandedGroups.additions ? '[-]' : '[+]'}
