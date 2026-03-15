@@ -352,7 +352,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               )}
           </div>
         </div>
-      </div>
 
         {/* 內容區 */}
         <div className="flex-1 overflow-hidden flex flex-col p-6">
