@@ -39,22 +39,24 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       withholdings: false  // 代扣款項
   });
 
-  // ✨ 新增：選擇的月份 (用來過濾資料)
-  const [currentMonth, setCurrentMonth] = useState('2026-03');
+  // ✨ 新增：年份與月份獨立狀態
+  const [selectedYear, setSelectedYear] = useState('2026');
+  const [selectedMonth, setSelectedMonth] = useState('03');
   const [monthlyData, setMonthlyData] = useState<Record<string, any>>({});
   
   // 編輯視窗狀態
   const [isMonthlyEditModalOpen, setIsMonthlyEditModalOpen] = useState(false);
   const [editingMonthlyEmp, setEditingMonthlyEmp] = useState<Employee | null>(null);
   const [monthlyFormData, setMonthlyFormData] = useState<any>({});
-  const [isAddingNewMonthly, setIsAddingNewMonthly] = useState(false); // ✨ 判斷是否由「新增按鈕」開啟
+  const [isAddingNewMonthly, setIsAddingNewMonthly] = useState(false);
 
-  // ✨ 當月份或客戶改變時，從資料庫載入真實資料
+  // ✨ 當年份、月份或客戶改變時，從資料庫載入真實資料
   useEffect(() => {
       const loadMonthlyData = async () => {
           if (activeInnerTab === 'monthly' && selectedClient) {
               const allSalaries = await TaskService.fetchMonthlySalaries();
-              const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month === currentMonth);
+              const targetMonth = `${selectedYear}-${selectedMonth}`; // ✨ 組合年月
+              const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month === targetMonth);
               
               const initialData: Record<string, any> = {};
               const activeEmps = employees.filter(e => e.clientId === String(selectedClient.id) && !e.endDate);
@@ -62,9 +64,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               activeEmps.forEach(emp => {
                   const saved = savedRecords.find(r => r.employeeId === emp.id);
                   if (saved) {
-                      initialData[emp.id] = saved; // 若有存檔，使用存檔
+                      initialData[emp.id] = saved;
                   } else {
-                      // 若無存檔，帶入預設值
                       initialData[emp.id] = {
                           workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
                           baseSalary: emp.defaultBaseSalary || 0, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
@@ -78,17 +79,17 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           }
       };
       loadMonthlyData();
-  }, [activeInnerTab, selectedClient, employees, currentMonth]);
+  }, [activeInnerTab, selectedClient, employees, selectedYear, selectedMonth]); // ✨ 加入新相依性
 
-  // ✨ 處理點擊「+」新增按鈕
+  // 處理點擊「+」新增按鈕
   const handleOpenAddMonthly = () => {
       setIsAddingNewMonthly(true);
-      setEditingMonthlyEmp(null); // 還沒選人
-      setMonthlyFormData({}); // 清空表單
+      setEditingMonthlyEmp(null);
+      setMonthlyFormData({});
       setIsMonthlyEditModalOpen(true);
   };
 
-  // ✨ 真實儲存到資料庫
+  // 真實儲存到資料庫
   const handleSaveMonthlyData = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingMonthlyEmp || !selectedClient) return;
@@ -97,15 +98,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           id: monthlyData[editingMonthlyEmp.id]?.id || Date.now().toString(),
           clientId: String(selectedClient.id),
           employeeId: editingMonthlyEmp.id,
-          month: currentMonth,
+          month: `${selectedYear}-${selectedMonth}`, // ✨ 儲存時組合年月
           updatedAt: new Date().toISOString(),
           ...monthlyFormData
       };
 
-      // 更新畫面
       setMonthlyData(prev => ({ ...prev, [editingMonthlyEmp.id]: record }));
 
-      // 更新資料庫
       const allSalaries = await TaskService.fetchMonthlySalaries();
       const existingIdx = allSalaries.findIndex(r => r.id === record.id);
       if (existingIdx !== -1) {
@@ -334,12 +333,30 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       <div className="h-full flex flex-col animate-fade-in bg-gray-50">
         
         {/* 頂部導航 */}
-        <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between">
+        <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => setSelectedClient(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors" title="返回客戶列表">
               <ReturnIcon className="w-6 h-6" />
             </button>
             <h2 className="text-xl sm:text-2xl font-black text-gray-800 leading-tight">{selectedClient.name} - 薪資明細</h2>
+            
+            {/* ✨ 標題旁的動態篩選器 */}
+            {(activeInnerTab === 'monthly' || activeInnerTab === 'yearly') && (
+                <div className="flex items-center gap-2 ml-4 animate-fade-in">
+                    <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors focus:ring-2 focus:ring-blue-500">
+                        <option value="2026">2026 年</option>
+                        <option value="2025">2025 年</option>
+                    </select>
+                    {/* 只有「每月薪資」才需要選擇月份 */}
+                    {activeInnerTab === 'monthly' && (
+                        <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors focus:ring-2 focus:ring-blue-500">
+                            {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => (
+                                <option key={m} value={m}>{m} 月</option>
+                            ))}
+                        </select>
+                    )}
+                </div>
+            )}
           </div>
           
           {/* ✨ 右側操作區：膠囊標籤頁 + 操作按鈕 */}
@@ -351,30 +368,40 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                   <button onClick={() => setActiveInnerTab('yearly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'yearly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📖 年度薪資帳冊</button>
               </div>
 
-              {/* ✨ 隱藏的實體檔案上傳輸入框 */}
+              {/* 隱藏的實體檔案上傳輸入框 */}
               <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={empFileInputRef} onChange={handleImportEmpExcel} />
 
-              {/* ✨ 新增按鈕區：當處於員工名單時才顯示 */}
+              {/* 按鈕區：員工名單 */}
               {activeInnerTab === 'employees' && (
                   <div className="flex items-center gap-2">
-                      {/* 匯入 Excel 按鈕 (綠色風格) */}
                       <button onClick={() => empFileInputRef.current?.click()} title="匯入 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
                           <ExcelFileIcon className="w-5 h-5" />
                       </button>
-                      
-                      {/* 新增單筆員工按鈕 (藍色風格) */}
                       <button onClick={handleOpenAddEmp} title="新增員工" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
                           <PlusIcon className="w-5 h-5" />
                       </button>
                   </div>
               )}
-            {/* ✨ NEW: 新增按鈕區：當處於每月薪資明細時才顯示 */}
+
+              {/* 按鈕區：每月薪資明細 */}
               {activeInnerTab === 'monthly' && (
                   <div className="flex items-center gap-2">
                       <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
                           <ExcelFileIcon className="w-5 h-5" />
                       </button>
                     <button onClick={handleOpenAddMonthly} title="新增結算紀錄" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
+                          <PlusIcon className="w-5 h-5" />
+                      </button>
+                  </div>
+              )}
+
+              {/* ✨ NEW: 按鈕區：年度薪資帳冊 (預先套用) */}
+              {activeInnerTab === 'yearly' && (
+                  <div className="flex items-center gap-2">
+                      <button title="匯入年度資料 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
+                          <ExcelFileIcon className="w-5 h-5" />
+                      </button>
+                      <button title="新增年度紀錄" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
                           <PlusIcon className="w-5 h-5" />
                       </button>
                   </div>
@@ -460,18 +487,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           {/* 📍 標籤二：每月薪資明細 */}
             {activeInnerTab === 'monthly' && (
                 <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-                  {/* 表單操作列 */}
-                    <div className="p-4 border-b border-gray-100 flex justify-between items-center bg-gray-50/50 shrink-0">
-                        <div className="flex items-center gap-4">
-                            <h3 className="font-bold text-gray-700">薪資結算表</h3>
-                            <select className="border border-gray-200 rounded-lg px-3 py-1.5 text-sm font-bold text-gray-600 outline-none bg-white">
-                                <option>2026 年 03 月</option>
-                                <option>2026 年 02 月</option>
-                            </select>
-                        </div>
-                        {/* 按鈕已移至右上角全域導航列 */}
-                    </div>
-
                     {/* 📊 核心試算表格區塊 */}
                     <div className="flex-1 overflow-auto custom-scrollbar relative">
                       {/* ✨ 修正：改用 border-separate 並以任意值套用所有底線，徹底解決滑動透字與邊框消失問題 */}
