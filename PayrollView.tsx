@@ -135,15 +135,37 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setIsMonthlyEditModalOpen(true);
   };
 
-  // ✨ 小視窗內的輸入變更處理 (包含兼職自動計算本薪的防呆邏輯)
+  // ✨ 小視窗內的輸入變更處理 (包含所有自動計算公式)
   const handleMonthlyFormChange = (field: string, value: string) => {
       const numValue = Number(value) || 0;
       let updatedData = { ...monthlyFormData, [field]: numValue };
       
-      // 如果是兼職且修改了出勤時數，自動以「時數 * 預設時薪」重算本薪
+      // 1. 如果是兼職且修改了出勤時數，自動以「時數 * 預設時薪」重算本薪
       if (field === 'workHours' && editingMonthlyEmp?.employmentType === 'part_time') {
           updatedData.baseSalary = numValue * (editingMonthlyEmp.defaultBaseSalary || 0);
       }
+      
+      // 2. ⚡ 核心薪資計算引擎 ⚡
+      // 隨時抓取最新的本薪與時數來試算
+      const currentBaseSalary = field === 'baseSalary' ? numValue : (updatedData.baseSalary || 0);
+      const hourlyWage = currentBaseSalary / 240;
+      const minuteWage = hourlyWage / 60;
+
+      const currentLate = field === 'lateHours' ? numValue : (updatedData.lateHours || 0);
+      const currentSick = field === 'sickLeave' ? numValue : (updatedData.sickLeave || 0);
+      const currentPersonal = field === 'personalLeave' ? numValue : (updatedData.personalLeave || 0);
+
+      // 遲到扣款：本薪/240/60*遲到分鐘數 (四捨五入)
+      updatedData.lateDeduction = Math.round(minuteWage * currentLate);
+      
+      // 病假扣款：本薪/240*病假時數/2 (四捨五入)
+      const sickDed = Math.round(hourlyWage * currentSick / 2);
+      
+      // 事假扣款：本薪/240*事假時數 (四捨五入)
+      const personalDed = Math.round(hourlyWage * currentPersonal);
+      
+      // 總請假扣款
+      updatedData.leaveDeduction = sickDed + personalDed;
       
       setMonthlyFormData(updatedData);
   };
@@ -538,7 +560,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <th className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-40 bg-white border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">姓名</th>
                                     
                                     <th className="p-3 text-center w-20">出勤(時)</th>
-                                    <th className="p-3 text-center w-20 text-red-400">遲到</th>
+                                    <th className="p-3 text-center w-20 text-red-400">遲到(分)</th>
                                     <th className="p-3 text-center w-20 text-red-400">病假</th>
                                     <th className="p-3 text-center w-20 text-red-400 border-r border-gray-200">事假</th>
                                     <th className="p-3 text-center w-20 text-blue-400">特休換薪</th>
@@ -589,11 +611,17 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             {/* ✨ 移除了 divide-y，底線由 table 共用的 className 負責 */}
                             <tbody>
                                 {employees.filter(e => e.clientId === String(selectedClient.id) && !e.endDate).map((emp, index) => {
-                                    const rowData = monthlyData[emp.id] || {};
-                                    // 🚧 暫時代入的模擬試算
-                                    const dummyLateDeduction = (rowData.lateHours || 0) * 150; 
-                                    const dummySickDeduction = (rowData.sickLeave || 0) * 800; 
-                                    const dummyPersonalDeduction = (rowData.personalLeave || 0) * 1600; 
+                  const rowData = monthlyData[emp.id] || {};
+                                    
+                                    // ⚡ 替換為真實的薪資公式 (供表格即時渲染與懸停使用)
+                                    const baseSalaryForCalc = rowData.baseSalary || 0;
+                                    const hourlyWageForCalc = baseSalaryForCalc / 240;
+                                    
+                                    const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
+                                    const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2); 
+                                    const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0)); 
+                                    const realLeaveDeduction = realSickDeduction + realPersonalDeduction;
+                                    
                                     const isFullTime = emp.employmentType === 'full_time';
                                     
                                     return (
@@ -616,19 +644,19 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             <td className="p-3 group/cell relative text-center">
                                                 <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.lateHours || 0}</span>
                                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">
-                                                    -${dummyLateDeduction}
+                                                    -${realLateDeduction}
                                                 </div>
                                             </td>
                                             <td className="p-3 group/cell relative text-center">
                                                 <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.sickLeave || 0}</span>
                                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">
-                                                    -${dummySickDeduction}
+                                                    -${realSickDeduction}
                                                 </div>
                                             </td>
                                             <td className="p-3 border-r border-gray-200 group/cell relative text-center">
                                                 <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.personalLeave || 0}</span>
                                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">
-                                                    -${dummyPersonalDeduction}
+                                                    -${realPersonalDeduction}
                                                 </div>
                                             </td>
 
@@ -647,14 +675,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 </>
                                             ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-blue-700">{((rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.performanceBonus||0) + (rowData.taxableOt||0)).toLocaleString()}</td>}
 
-                                            {expandedGroups.deductions ? (
+                                          {expandedGroups.deductions ? (
                                                 <>
-                                                    <td className="p-3 text-right font-medium text-red-500">{(rowData.leaveDeduction || 0).toLocaleString()}</td>
+                                                    <td className="p-3 text-right font-medium text-red-500">{(rowData.leaveDeduction ?? realLeaveDeduction).toLocaleString()}</td>
                                                     <td className="p-3 text-right font-medium text-red-500">{(rowData.dailyShortage || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-red-500">{(rowData.lateDeduction || 0).toLocaleString()}</td>
+                                                    <td className="p-3 text-right font-medium text-red-500">{(rowData.lateDeduction ?? realLateDeduction).toLocaleString()}</td>
                                                     <td className="p-3 text-right font-medium text-red-500 border-r border-gray-200">{(rowData.pensionSelf || 0).toLocaleString()}</td>
                                                 </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">0</td>}
+                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">{((rowData.leaveDeduction ?? realLeaveDeduction) + (rowData.dailyShortage || 0) + (rowData.lateDeduction ?? realLateDeduction) + (rowData.pensionSelf || 0)).toLocaleString()}</td>}
 
                                             <td className="p-3 text-right border-r border-gray-200 font-black text-purple-700 bg-purple-50/20">0</td>
 
@@ -739,7 +767,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 <label className="block text-xs font-bold text-gray-500 mb-1">出勤時數</label>
                                                 <input type="number" disabled={editingMonthlyEmp.employmentType === 'full_time'} value={editingMonthlyEmp.employmentType === 'full_time' ? '' : (monthlyFormData.workHours || '')} onChange={e => handleMonthlyFormChange('workHours', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'full_time' ? '正職免填' : '0'} />
                                             </div>
-                                            <div><label className="block text-xs font-bold text-red-500 mb-1">遲到 (時)</label><input type="number" value={monthlyFormData.lateHours || ''} onChange={e => handleMonthlyFormChange('lateHours', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
+                                            <div><label className="block text-xs font-bold text-red-500 mb-1">遲到 (分)</label><input type="number" value={monthlyFormData.lateHours || ''} onChange={e => handleMonthlyFormChange('lateHours', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
                                             <div><label className="block text-xs font-bold text-red-500 mb-1">病假 (時)</label><input type="number" value={monthlyFormData.sickLeave || ''} onChange={e => handleMonthlyFormChange('sickLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
                                             <div><label className="block text-xs font-bold text-red-500 mb-1">事假 (時)</label><input type="number" value={monthlyFormData.personalLeave || ''} onChange={e => handleMonthlyFormChange('personalLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
                                         </div>
@@ -761,10 +789,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         </div>
                                     </div>
 
-                                    {/* 區塊 3: 應扣金額 */}
+                                          {/* 區塊 3: 應扣金額 */}
                                     <div className="space-y-4">
-                                        <h4 className="font-bold text-orange-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>應扣與代扣款項 (手動輸入)</h4>
-                                        <div className="grid grid-cols-3 gap-4">
+                                        <h4 className="font-bold text-orange-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>應扣與代扣款項</h4>
+                                        <div className="grid grid-cols-4 gap-4">
+                                            {/* ✨ 唯讀自動計算區：讓主管能直接看到計算結果，增加信任感 */}
+                                            <div><label className="block text-xs font-bold text-gray-500 mb-1">請假扣款 (自動算)</label><input type="text" disabled value={monthlyFormData.leaveDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
+                                            <div><label className="block text-xs font-bold text-gray-500 mb-1">遲到扣款 (自動算)</label><input type="text" disabled value={monthlyFormData.lateDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
+                                            
+                                            {/* 手動輸入區 */}
                                             <div><label className="block text-xs font-bold text-red-500 mb-1">結帳差額扣款</label><input type="number" value={monthlyFormData.dailyShortage || ''} onChange={e => handleMonthlyFormChange('dailyShortage', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
                                             <div><label className="block text-xs font-bold text-red-500 mb-1">勞退自提 (6%)</label><input type="number" value={monthlyFormData.pensionSelf || ''} onChange={e => handleMonthlyFormChange('pensionSelf', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
                                             <div><label className="block text-xs font-bold text-orange-500 mb-1">預支款扣回</label><input type="number" value={monthlyFormData.advancePay || ''} onChange={e => handleMonthlyFormChange('advancePay', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold text-orange-600" placeholder="0" /></div>
