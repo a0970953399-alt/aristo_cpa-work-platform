@@ -629,9 +629,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                           <ExcelFileIcon className="w-5 h-5" />
                       </button>
                     {/* ✨ 一鍵生成合併員工薪資單 (老闆用，綠色無文字) */}
-                      <button onClick={handleExportEmployerExcel} className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
-                          <CloudDownloadIcon className="w-5 h-5" />
-                      </button>
+                    <button onClick={handleExportEmployerExcel} className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
+                      <CloudDownloadIcon className="w-5 h-5" />
+                    </button>
                   </div>
               )}
 
