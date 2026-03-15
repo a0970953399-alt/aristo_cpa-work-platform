@@ -442,12 +442,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
                     {/* 📊 核心試算表格區塊 */}
                     <div className="flex-1 overflow-auto custom-scrollbar relative">
-                        <table className="w-full text-left text-sm border-collapse whitespace-nowrap">
-                            <thead className="sticky top-0 z-30 bg-gray-100 shadow-sm">
+                      {/* ✨ 修正：改用 border-separate 並以任意值套用所有底線，徹底解決滑動透字與邊框消失問題 */}
+                        <table className="w-full text-left text-sm border-separate border-spacing-0 whitespace-nowrap [&_td]:border-b [&_td]:border-gray-100 [&_th]:border-b [&_th]:border-gray-200">
+                            <thead className="sticky top-0 z-30 shadow-sm">
                                 {/* 第一層表頭：大群組 */}
-                                <tr className="text-[11px] uppercase tracking-widest text-center">
-                                    <th colSpan={3} className="p-2 border-r border-gray-200 text-gray-500 bg-gray-100 sticky left-0 z-40 shadow-[1px_0_0_#e5e7eb]">員工識別</th>
-                                    <th colSpan={7} className="p-2 border-r border-gray-200 text-gray-500 bg-gray-50">出勤變數紀錄</th>
+                                <tr className="text-[11px] uppercase tracking-widest text-center bg-gray-50">
+                                    <th colSpan={3} className="p-2 border-r border-gray-200 text-gray-500 bg-gray-100 sticky left-0 z-40">員工識別</th>
+                                    <th colSpan={7} className="p-2 border-r border-gray-200 text-gray-500">出勤變數紀錄</th>
                                     
                                     <th colSpan={expandedGroups.additions ? 5 : 1} onClick={() => setExpandedGroups(p => ({...p, additions: !p.additions}))} className="p-2 border-r border-gray-200 text-blue-600 bg-blue-50/50 hover:bg-blue-100 cursor-pointer transition-colors">
                                         應加金額 {expandedGroups.additions ? '[-]' : '[+]'}
@@ -470,10 +471,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <th className="p-2 text-green-700 bg-green-100">最終結算</th>
                                 </tr>
                                 {/* 第二層表頭：詳細欄位 */}
-                                <tr className="text-xs font-bold text-gray-500 border-b border-gray-200 bg-white">
-                                    <th className="p-3 w-16 text-center sticky left-0 z-40 bg-white border-r border-gray-100 shadow-[1px_0_0_#f3f4f6]">序號</th>
-                                    <th className="p-3 w-16 text-center sticky left-[64px] z-40 bg-white border-r border-gray-100 shadow-[1px_0_0_#f3f4f6]">職稱</th>
-                                    <th className="p-3 w-28 sticky left-[128px] z-40 bg-white border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">姓名</th>
+                                <tr className="text-xs font-bold text-gray-500 bg-white">
+                                    {/* ✨ 絕對鎖死寬度與座標：60 + 60 + 100 = 220px，保證永不產生裂縫 */}
+                                    <th className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-0 z-40 bg-white border-r border-gray-100">序號</th>
+                                    <th className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-[60px] z-40 bg-white border-r border-gray-100">職稱</th>
+                                    <th className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-40 bg-white border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">姓名</th>
                                     
                                     <th className="p-3 text-center w-20">出勤(時)</th>
                                     <th className="p-3 text-center w-20 text-red-400">遲到</th>
@@ -524,7 +526,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 </tr>
                             </thead>
                             
-                          <tbody className="divide-y divide-gray-100">
+                            {/* ✨ 移除了 divide-y，底線由 table 共用的 className 負責 */}
+                            <tbody>
                                 {employees.filter(e => e.clientId === String(selectedClient.id) && !e.endDate).map((emp, index) => {
                                     const rowData = monthlyData[emp.id] || {};
                                     // 🚧 暫時代入的模擬試算
@@ -533,25 +536,24 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     const dummyPersonalDeduction = (rowData.personalLeave || 0) * 1600; 
                                     const isFullTime = emp.employmentType === 'full_time';
                                     
-                  // ✨ 將整列的懸停背景改為不透明的 bg-blue-50
                                     return (
                                         <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
-                                            {/* 凍結區 (✨ hover 時強制使用 100% 不透明的 bg-blue-50 遮擋下方文字) */}
-                                            <td className="p-3 text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
-                                            <td className="p-3 text-center sticky left-[64px] z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">
+                                            {/* 凍結區 (✨ 同步套用絕對寬度，並確保 100% 不透明的 bg-white / bg-blue-50) */}
+                                            <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
+                                            <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-[60px] z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">
                                                 <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isFullTime ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                     {isFullTime ? '正職' : '兼職'}
                                                 </span>
                                             </td>
-                                            <td className="p-3 font-black text-gray-800 sticky left-[128px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:text-blue-600">
+                                            <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] font-black text-gray-800 sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] group-hover:text-blue-600">
                                                 {emp.name}
                                             </td>
                                             
-                                            {/* 出勤變數顯示區 (正職隱藏出勤時數) */}
+                                            {/* 出勤變數顯示區 */}
                                             <td className="p-3 text-center font-bold text-gray-600">{isFullTime ? '-' : (rowData.workHours || 0)}</td>
                                             
-                                            {/* ✨ 神奇懸停扣款區 (純顯示版) */}
-                                            <td className="p-3 border-l border-gray-100 group/cell relative text-center">
+                                            {/* ✨ 神奇懸停扣款區 */}
+                                            <td className="p-3 group/cell relative text-center">
                                                 <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.lateHours || 0}</span>
                                                 <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">
                                                     -${dummyLateDeduction}
@@ -575,7 +577,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             <td className="p-3 text-center font-bold text-gray-600 border-r border-gray-200">{rowData.normalOt || 0}</td>
 
                                             {/* 財務摺疊顯示區塊 */}
-                                            {/* 應加 */}
                                             {expandedGroups.additions ? (
                                                 <>
                                                     <td className="p-3 text-right font-medium text-gray-600">{(rowData.baseSalary || 0).toLocaleString()}</td>
@@ -586,7 +587,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 </>
                                             ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-blue-700">{((rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.performanceBonus||0) + (rowData.taxableOt||0)).toLocaleString()}</td>}
 
-                                            {/* 應扣 */}
                                             {expandedGroups.deductions ? (
                                                 <>
                                                     <td className="p-3 text-right font-medium text-red-500">{(rowData.leaveDeduction || 0).toLocaleString()}</td>
@@ -596,10 +596,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 </>
                                             ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">0</td>}
 
-                                            {/* 應稅 (唯讀總和) */}
                                             <td className="p-3 text-right border-r border-gray-200 font-black text-purple-700 bg-purple-50/20">0</td>
 
-                                            {/* 免稅 */}
                                             {expandedGroups.taxFree ? (
                                                 <>
                                                     <td className="p-3 text-right font-medium text-yellow-600">{(rowData.foodAllowance || 0).toLocaleString()}</td>
@@ -607,7 +605,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 </>
                                             ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{((rowData.foodAllowance||0) + (rowData.taxFreeOt||0)).toLocaleString()}</td>}
 
-                                            {/* 代扣 */}
                                             {expandedGroups.withholdings ? (
                                                 <>
                                                     <td className="p-3 text-right font-medium text-orange-500">{(rowData.laborIns || 0).toLocaleString()}</td>
@@ -617,7 +614,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 </>
                                             ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-orange-600">0</td>}
 
-                                            {/* 實發 */}
                                             <td className="p-3 text-right font-black text-lg text-green-700 bg-green-50/50">0</td>
                                         </tr>
                                     );
