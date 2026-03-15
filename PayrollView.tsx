@@ -452,14 +452,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                   </div>
               )}
 
-              {/* 按鈕區：每月薪資明細 */}
+            {/* ✨ NEW: 按鈕區：每月薪資明細 */}
               {activeInnerTab === 'monthly' && (
                   <div className="flex items-center gap-2">
                       <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
                           <ExcelFileIcon className="w-5 h-5" />
                       </button>
-                    <button onClick={handleOpenAddMonthly} title="新增結算紀錄" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
-                          <PlusIcon className="w-5 h-5" />
+                      {/* ✨ 一鍵生成合併員工薪資單 (老闆用，綠色無文字) */}
+                      <button className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
+                          <CloudDownloadIcon className="w-5 h-5" />
                       </button>
                   </div>
               )}
@@ -1000,7 +1001,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             ((monthlyFormData.laborIns||0) + (monthlyFormData.healthIns||0) + (monthlyFormData.incomeTax||0) + (monthlyFormData.advancePay||0))).toLocaleString()
                                         }</span>
                                     </div>
-                                    <div className="flex gap-3 w-1/2">
+                                  <div className="flex gap-3 w-1/2">
+                                        {/* ✨ 一鍵生成薪資單 (員工用，藍色無文字) */}
+                                        <button type="button" className="px-4 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
+                                            <CloudDownloadIcon className="w-6 h-6" />
+                                        </button>
                                         <button onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
                                         <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
                                     </div>
