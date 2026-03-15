@@ -298,3 +298,25 @@ export interface PayrollRecord {
     note?: string;          // 備註
     createdAt: string;
 }
+
+// ✨ 新增：每月薪資結算紀錄
+export interface MonthlySalaryRecord {
+    id: string;
+    clientId: string;
+    employeeId: string;
+    month: string; // 例如: '2026-03'
+    
+    // 出勤變數
+    workHours: number; lateHours: number; sickLeave: number; personalLeave: number;
+    annualLeave: number; holidayOt: number; normalOt: number;
+    // 應加
+    baseSalary: number; fullAttendance: number; positionAllowance: number; performanceBonus: number; taxableOt: number;
+    // 應扣
+    leaveDeduction: number; dailyShortage: number; lateDeduction: number; pensionSelf: number;
+    // 免稅
+    foodAllowance: number; taxFreeOt: number;
+    // 代扣
+    laborIns: number; healthIns: number; incomeTax: number; advancePay: number;
+    
+    updatedAt: string;
+}
