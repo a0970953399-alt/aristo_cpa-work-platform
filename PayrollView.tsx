@@ -39,9 +39,20 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       withholdings: false  // 代扣款項
   });
 
-  // ✨ 新增：年份與月份獨立狀態
-  const [selectedYear, setSelectedYear] = useState('2026');
-  const [selectedMonth, setSelectedMonth] = useState('03');
+  // ✨ 新增：動態取得當前系統的年份與月份
+  const currentSystemYear = new Date().getFullYear();
+  const currentSystemMonth = String(new Date().getMonth() + 1).padStart(2, '0');
+
+  // ✨ 動態生成年份陣列 (從 2025 年開始，一直到「當前系統年份 + 1 年」)
+  // reverse() 是為了讓越新的年份排在越上面
+  const availableYears = Array.from(
+      { length: Math.max(currentSystemYear - 2025 + 2, 2) }, 
+      (_, i) => String(2025 + i)
+  ).reverse();
+
+  // 年份與月份獨立狀態 (預設帶入系統當前年月)
+  const [selectedYear, setSelectedYear] = useState(String(currentSystemYear));
+  const [selectedMonth, setSelectedMonth] = useState(currentSystemMonth);
   const [monthlyData, setMonthlyData] = useState<Record<string, any>>({});
   
   // 編輯視窗狀態
@@ -343,9 +354,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             {/* ✨ 標題旁的動態篩選器 */}
             {(activeInnerTab === 'monthly' || activeInnerTab === 'yearly') && (
                 <div className="flex items-center gap-2 ml-4 animate-fade-in">
-                    <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors focus:ring-2 focus:ring-blue-500">
-                        <option value="2026">2026 年</option>
-                        <option value="2025">2025 年</option>
+                  <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors focus:ring-2 focus:ring-blue-500">
+                        {/* ✨ 讓系統自動把剛剛生成的 availableYears 陣列印出來 */}
+                        {availableYears.map(year => (
+                            <option key={year} value={year}>{year} 年</option>
+                        ))}
                     </select>
                     {/* 只有「每月薪資」才需要選擇月份 */}
                     {activeInnerTab === 'monthly' && (
