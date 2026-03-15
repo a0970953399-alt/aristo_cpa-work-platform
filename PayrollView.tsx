@@ -744,12 +744,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
                                             <td className="p-3 text-right border-r border-gray-200 font-black text-purple-700 bg-purple-50/20">0</td>
 
+                                          {/* 免稅 */}
                                             {expandedGroups.taxFree ? (
                                                 <>
                                                     <td className="p-3 text-right font-medium text-yellow-600">{(rowData.foodAllowance || 0).toLocaleString()}</td>
-                                                    <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{(rowData.taxFreeOt ?? realTaxFreeOt || 0).toLocaleString()}</td>
+                                                    <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{((rowData.taxFreeOt ?? realTaxFreeOt) || 0).toLocaleString()}</td>
                                                 </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{((rowData.foodAllowance||0) + (rowData.taxFreeOt ?? realTaxFreeOt||0)).toLocaleString()}</td>}
+                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{((rowData.foodAllowance || 0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0)).toLocaleString()}</td>}
 
                                             {expandedGroups.withholdings ? (
                                                 <>
