@@ -704,20 +704,51 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             )}
 
           {/* 🚀 薪資編輯小視窗 */}
-                    {isMonthlyEditModalOpen && editingMonthlyEmp && (
+                    {isMonthlyEditModalOpen && (
                         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsMonthlyEditModalOpen(false)}>
                             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                                 <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
                                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
-                                        編輯薪資結算 - {editingMonthlyEmp.name} 
-                                        <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${editingMonthlyEmp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
-                                            {editingMonthlyEmp.employmentType === 'full_time' ? '正職' : '兼職'}
-                                        </span>
+                                        {isAddingNewMonthly ? '新增薪資紀錄' : `編輯薪資結算 - ${editingMonthlyEmp?.name}`}
+                                        {editingMonthlyEmp && (
+                                            <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${editingMonthlyEmp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                {editingMonthlyEmp.employmentType === 'full_time' ? '正職' : '兼職'}
+                                            </span>
+                                        )}
                                     </h3>
                                     <button onClick={() => setIsMonthlyEditModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl font-black">✕</button>
                                 </div>
                                 
                                 <form onSubmit={handleSaveMonthlyData} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
+                                    
+                                    {/* ✨ 如果是由「新增按鈕」開啟，強制要求先選擇員工 */}
+                                    {isAddingNewMonthly && (
+                                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
+                                            <label className="block text-sm font-bold text-blue-800 mb-2">請選擇要編輯的員工</label>
+                                            <select 
+                                                required
+                                                onChange={(e) => {
+                                                    const emp = employees.find(emp => emp.id === e.target.value);
+                                                    if (emp) {
+                                                        setEditingMonthlyEmp(emp);
+                                                        setMonthlyFormData(monthlyData[emp.id] || {
+                                                            baseSalary: emp.defaultBaseSalary, foodAllowance: emp.defaultFoodAllowance
+                                                        });
+                                                    }
+                                                }} 
+                                                className="w-full border border-blue-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white"
+                                            >
+                                                <option value="">-- 請選擇員工 --</option>
+                                                {employees.filter(e => e.clientId === String(selectedClient?.id) && !e.endDate).map(emp => (
+                                                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.empNo})</option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                    )}
+
+                                    {/* 只有選擇了員工，才會顯示下方的填寫欄位 */}
+                                    {editingMonthlyEmp && (
+                                        <>
                                     
                                     {/* 區塊 1: 出勤時數變數 (兼職專屬) */}
                                     <div className="space-y-4">
