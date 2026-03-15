@@ -36,6 +36,7 @@ interface DataStore {
     payrollClients?: import('./types').PayrollClientConfig[];
     payrollRecords?: import('./types').PayrollRecord[];
     employees?: import('./types').Employee[];
+    monthlySalaries?: import('./types').MonthlySalaryRecord[];
 }
 
 const initDB = (): Promise<IDBDatabase> => {
@@ -94,8 +95,8 @@ const normalizeData = (raw: any): DataStore => {
         stockTransactions: Array.isArray(raw.stockTransactions) ? raw.stockTransactions : [],
         payrollClients: Array.isArray(raw.payrollClients) ? raw.payrollClients : [],
         payrollRecords: Array.isArray(raw.payrollRecords) ? raw.payrollRecords : [],
-        employees: Array.isArray(raw.employees) ? raw.employees : []
-
+        employees: Array.isArray(raw.employees) ? raw.employees : [],
+        monthlySalaries: Array.isArray(raw.monthlySalaries) ? raw.monthlySalaries : []
 
 
 
@@ -803,6 +804,17 @@ async deleteInstruction(id: string): Promise<Instruction[]> {
         const updated = emps.filter(e => e.id !== id);
         await this.saveEmployees(updated);
         return updated;
+    },
+    // ==========================================
+    // ✨ 每月薪資 API (Monthly Salary)
+    // ==========================================
+    async fetchMonthlySalaries(): Promise<import('./types').MonthlySalaryRecord[]> {
+        const data = await this.loadFullData();
+        return data.monthlySalaries || [];
+    },
+    async saveMonthlySalaries(monthlySalaries: import('./types').MonthlySalaryRecord[]): Promise<void> {
+        const data = await this.loadFullData();
+        await this.saveFullData({ ...data, monthlySalaries });
     }
 
 } // ✅ TaskService 結尾
