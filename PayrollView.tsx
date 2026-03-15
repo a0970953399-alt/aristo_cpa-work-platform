@@ -661,6 +661,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
                                     }
                                     const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
+
+                                    // ✨ 四大群組總計試算
+                                    const totalAdditions = (rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.performanceBonus||0) + (rowData.taxableOt||0);
+                                    const totalDeductions = (rowData.leaveDeduction ?? realLeaveDeduction) + (rowData.dailyShortage||0) + (rowData.lateDeduction ?? realLateDeduction) + (rowData.pensionSelf||0);
+                                    const totalTaxFree = (rowData.foodAllowance||0) + (rowData.taxFreeOt ?? realTaxFreeOt);
+                                    const totalWithholdings = (rowData.laborIns||0) + (rowData.healthIns||0) + (rowData.incomeTax||0) + (rowData.advancePay||0);
+
+                                    // ⚡ 終極公式結算
+                                    const taxableAmount = totalAdditions - totalDeductions;
+                                    const netPay = taxableAmount + totalTaxFree - totalWithholdings;
                                     
                                     return (
                                         <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
@@ -722,7 +732,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 )}
                                             </td>
 
-                                            {/* 財務摺疊顯示區塊 */}
+                                          {/* 財務摺疊顯示區塊 */}
                                             {expandedGroups.additions ? (
                                                 <>
                                                     <td className="p-3 text-right font-medium text-gray-600">{(rowData.baseSalary || 0).toLocaleString()}</td>
@@ -731,26 +741,26 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     <td className="p-3 text-right font-medium text-gray-600">{(rowData.performanceBonus || 0).toLocaleString()}</td>
                                                     <td className="p-3 text-right font-medium text-gray-600 border-r border-gray-200">{(rowData.taxableOt || 0).toLocaleString()}</td>
                                                 </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-blue-700">{((rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.performanceBonus||0) + (rowData.taxableOt||0)).toLocaleString()}</td>}
+                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-blue-700">{totalAdditions.toLocaleString()}</td>}
 
-                                          {expandedGroups.deductions ? (
+                                            {expandedGroups.deductions ? (
                                                 <>
                                                     <td className="p-3 text-right font-medium text-red-500">{(rowData.leaveDeduction ?? realLeaveDeduction).toLocaleString()}</td>
                                                     <td className="p-3 text-right font-medium text-red-500">{(rowData.dailyShortage || 0).toLocaleString()}</td>
                                                     <td className="p-3 text-right font-medium text-red-500">{(rowData.lateDeduction ?? realLateDeduction).toLocaleString()}</td>
                                                     <td className="p-3 text-right font-medium text-red-500 border-r border-gray-200">{(rowData.pensionSelf || 0).toLocaleString()}</td>
                                                 </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">{((rowData.leaveDeduction ?? realLeaveDeduction) + (rowData.dailyShortage || 0) + (rowData.lateDeduction ?? realLateDeduction) + (rowData.pensionSelf || 0)).toLocaleString()}</td>}
+                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">{totalDeductions.toLocaleString()}</td>}
 
-                                            <td className="p-3 text-right border-r border-gray-200 font-black text-purple-700 bg-purple-50/20">0</td>
+                                            {/* ⚡ 應稅金額 (自動計算) */}
+                                            <td className="p-3 text-right border-r border-gray-200 font-black text-purple-700 bg-purple-50/20">{taxableAmount.toLocaleString()}</td>
 
-                                          {/* 免稅 */}
                                             {expandedGroups.taxFree ? (
                                                 <>
                                                     <td className="p-3 text-right font-medium text-yellow-600">{(rowData.foodAllowance || 0).toLocaleString()}</td>
                                                     <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{((rowData.taxFreeOt ?? realTaxFreeOt) || 0).toLocaleString()}</td>
                                                 </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{((rowData.foodAllowance || 0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0)).toLocaleString()}</td>}
+                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{totalTaxFree.toLocaleString()}</td>}
 
                                             {expandedGroups.withholdings ? (
                                                 <>
@@ -759,9 +769,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     <td className="p-3 text-right font-medium text-orange-500">{(rowData.incomeTax || 0).toLocaleString()}</td>
                                                     <td className="p-3 text-right font-medium text-orange-500 border-r border-gray-200">{(rowData.advancePay || 0).toLocaleString()}</td>
                                                 </>
-                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-orange-600">0</td>}
+                                            ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-orange-600">{totalWithholdings.toLocaleString()}</td>}
 
-                                            <td className="p-3 text-right font-black text-lg text-green-700 bg-green-50/50">0</td>
+                                            {/* ⚡ 實發金額 (自動計算) */}
+                                            <td className="p-3 text-right font-black text-lg text-green-700 bg-green-50/50">{netPay.toLocaleString()}</td>
                                         </tr>
                                     );
                                 })}
@@ -892,8 +903,24 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <button onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
                                     <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
                                 </div>
-                            </div>
-                        </div>
+
+                              {/* ✨ 即時預估實發金額與操作按鈕 */}
+                                <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
+                                    <div className="flex flex-col">
+                                        <span className="text-xs font-bold text-gray-500 mb-0.5">預估實發金額</span>
+                                        <span className="text-2xl font-black text-green-600">${
+                                            // 即時套用你的終極公式
+                                            (((monthlyFormData.baseSalary||0) + (monthlyFormData.fullAttendance||0) + (monthlyFormData.positionAllowance||0) + (monthlyFormData.performanceBonus||0) + (monthlyFormData.taxableOt||0)) - 
+                                            ((monthlyFormData.leaveDeduction||0) + (monthlyFormData.dailyShortage||0) + (monthlyFormData.lateDeduction||0) + (monthlyFormData.pensionSelf||0)) + 
+                                            ((monthlyFormData.foodAllowance||0) + (monthlyFormData.taxFreeOt||0)) - 
+                                            ((monthlyFormData.laborIns||0) + (monthlyFormData.healthIns||0) + (monthlyFormData.incomeTax||0) + (monthlyFormData.advancePay||0))).toLocaleString()
+                                        }</span>
+                                    </div>
+                                    <div className="flex gap-3 w-1/2">
+                                        <button onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
+                                        <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
+                                    </div>
+                                </div>
                     )}
           
             {/* 📍 標籤三：年度薪資帳冊 (施工中) */}
