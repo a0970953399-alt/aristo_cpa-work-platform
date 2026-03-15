@@ -261,6 +261,7 @@ export interface Employee {
     defaultFoodAllowance: number; // 預設伙食費 (僅正職擁有)
     
     createdAt: string;
+    insuranceBracket?: number; hasLaborIns?: boolean; hasHealthIns?: boolean;
 }
 
 // 1. 紀錄有開通薪資計算的客戶
