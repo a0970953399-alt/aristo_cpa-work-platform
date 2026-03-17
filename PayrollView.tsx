@@ -933,9 +933,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                                 {isFullTime ? '正職' : '兼職'}
                                                             </span>
                                                         </td>
-                                                        <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                      <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                             <div className="flex flex-col">
                                                                 <span className="font-black text-gray-800 group-hover:text-blue-600 transition-colors">{emp.name}</span>
+                                                                
+                                                                {/* ✨ 新增：綠色的到職提示 */}
+                                                                {emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}` && (
+                                                                    <span className="text-[10px] text-green-600 font-bold -mt-0.5 tracking-tighter">
+                                                                        {emp.startDate.substring(5).replace('-', '/')} 到職
+                                                                    </span>
+                                                                )}
+
+                                                                {/* 既有的紅字離職提示 */}
                                                                 {emp.endDate && emp.endDate.substring(0, 7) === `${selectedYear}-${selectedMonth}` && (
                                                                     <span className="text-[10px] text-red-500 font-bold -mt-0.5 tracking-tighter">
                                                                         {emp.endDate.substring(5).replace('-', '/')} 離職
