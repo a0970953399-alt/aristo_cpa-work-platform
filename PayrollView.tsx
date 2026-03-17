@@ -250,18 +250,32 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                   if (types.length > 0) insStr = `${emp.insuranceBracket.toLocaleString()} (${types.join("")})`;
               }
 
-              const remarks = [];
-              if (emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}`) {
-                  const m = parseInt(emp.startDate.substring(5, 7), 10);
-                  const d = parseInt(emp.startDate.substring(8, 10), 10);
-                  remarks.push(`${m}/${d}到職`);
-              }
-              if (rowData.lateHours > 0) remarks.push(`遲到${rowData.lateHours}分鐘`);
-              if (rowData.sickLeave > 0) remarks.push(`病假${rowData.sickLeave}小時`);
-              if (rowData.personalLeave > 0) remarks.push(`事假${rowData.personalLeave}小時`);
-              if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
-              if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
-              const remarkStr = remarks.length > 0 ? remarks.join("，") + "。" : "";
+            // 📝 備註造句
+          const remarks = [];
+          
+          // 1. 判斷當月到職
+          if (emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}`) {
+              const m = parseInt(emp.startDate.substring(5, 7), 10);
+              const d = parseInt(emp.startDate.substring(8, 10), 10);
+              remarks.push(`${m}/${d}到職`);
+          }
+
+          // ✨ 新增：2. 判斷當月離職
+          if (emp.endDate && emp.endDate.substring(0, 7) === `${selectedYear}-${selectedMonth}`) {
+              const m = parseInt(emp.endDate.substring(5, 7), 10);
+              const d = parseInt(emp.endDate.substring(8, 10), 10);
+              remarks.push(`${m}/${d}離職`);
+          }
+
+          // 3. 判斷其他出勤與扣款變數
+          if (rowData.lateHours > 0) remarks.push(`遲到${rowData.lateHours}分鐘`);
+          if (rowData.sickLeave > 0) remarks.push(`病假${rowData.sickLeave}小時`);
+          if (rowData.personalLeave > 0) remarks.push(`事假${rowData.personalLeave}小時`);
+          if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
+          if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
+          
+          // 將所有句子組裝起來，加上全形逗號與句號
+          const remarkStr = remarks.length > 0 ? remarks.join("，") + "。" : "";
 
               totals.base += baseSalary; totals.food += foodAllowance; totals.ot += otPay; totals.otherAdd += otherAdd;
               totals.leave += leaveDed; totals.late += lateDed; totals.labor += laborIns; totals.health += healthIns;
