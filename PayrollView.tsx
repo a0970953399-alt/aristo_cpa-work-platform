@@ -81,12 +81,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               
             const initialData: Record<string, any> = {};
               // ✨ 修正離職邏輯：如果沒離職，或是「目標月份 <= 離職月份」，就將其納入當月名單
-              const activeEmps = employees.filter(e => {
+            const activeEmps = employees.filter(e => {
                   if (e.clientId !== String(selectedClient.id)) return false;
-                  if (!e.endDate) return true; // 沒離職，永遠納入
+                  // ✨ 已經移除 `if (!e.endDate) return true;`
+                  
                   const targetMonthStr = `${selectedYear}-${selectedMonth}`;
-                  const endMonthStr = e.endDate.substring(0, 7); // 取出 "YYYY-MM"
-                  return targetMonthStr <= endMonthStr;
+                  const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
+                  const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
+                  
+                  if (startMonthStr && targetMonthStr < startMonthStr) return false;
+                  if (endMonthStr && targetMonthStr > endMonthStr) return false;
+                  
+                  return true;
               });
               
               activeEmps.forEach(emp => {
@@ -175,19 +181,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           await workbook.xlsx.load(bytes.buffer);
           const ws = workbook.worksheets[0]; // 抓取第一個工作表
 
-          // 3. 過濾當月在職員工
+        // 3. 過濾當月在職員工
           const currentMonthEmps = employees.filter(e => {
               if (e.clientId !== String(selectedClient.id)) return false;
-              if (!e.endDate) return true;
-              // ✨ 升級版：同時判斷到職日與離職日
-            const targetMonthStr = `${selectedYear}-${selectedMonth}`;
-            const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
-            const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
-            // 如果查詢的月份「早於」到職月份，則不顯示
-            if (startMonthStr && targetMonthStr < startMonthStr) return false;
-            // 如果查詢的月份「晚於」離職月份，則不顯示
-            if (endMonthStr && targetMonthStr > endMonthStr) return false;
-            return true;;
+              
+              const targetMonthStr = `${selectedYear}-${selectedMonth}`;
+              const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
+              const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
+              
+              if (startMonthStr && targetMonthStr < startMonthStr) return false;
+              if (endMonthStr && targetMonthStr > endMonthStr) return false;
+              
+              return true;
           });
 
           if (currentMonthEmps.length === 0) {
@@ -849,17 +854,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             <tbody>
                                 {/* ✨ 1. 利用 IIFE 將過濾後的本月員工存成變數，並準備加總 */}
                                 {(() => {
-                                    const currentMonthEmps = employees.filter(e => {
+                  const currentMonthEmps = employees.filter(e => {
                                         if (e.clientId !== String(selectedClient.id)) return false;
-                                        if (!e.endDate) return true;
-                                      // ✨ 升級版：同時判斷到職日與離職日
+                                        
                                         const targetMonthStr = `${selectedYear}-${selectedMonth}`;
                                         const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
                                         const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
                                         
-                                        // 如果查詢的月份「早於」到職月份，則不顯示
                                         if (startMonthStr && targetMonthStr < startMonthStr) return false;
-                                        // 如果查詢的月份「晚於」離職月份，則不顯示
                                         if (endMonthStr && targetMonthStr > endMonthStr) return false;
                                         
                                         return true;
@@ -1127,21 +1129,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 className="w-full border border-blue-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white"
                                             >
                                               <option value="">-- 請選擇員工 --</option>
-                                                {/* ✨ 下拉選單也套用相同的離職過濾邏輯 */}
+                                              {/* ✨ 下拉選單也套用相同的過濾邏輯 */}
                                                 {employees.filter(e => {
                                                     if (e.clientId !== String(selectedClient?.id)) return false;
-                                                    if (!e.endDate) return true;
-                                              // ✨ 升級版：同時判斷到職日與離職日
-                                        const targetMonthStr = `${selectedYear}-${selectedMonth}`;
-                                        const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
-                                        const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
-                                        
-                                        // 如果查詢的月份「早於」到職月份，則不顯示
-                                        if (startMonthStr && targetMonthStr < startMonthStr) return false;
-                                        // 如果查詢的月份「晚於」離職月份，則不顯示
-                                        if (endMonthStr && targetMonthStr > endMonthStr) return false;
-                                        
-                                        return true;
+                                                    
+                                                    const targetMonthStr = `${selectedYear}-${selectedMonth}`;
+                                                    const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
+                                                    const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
+                                                    
+                                                    if (startMonthStr && targetMonthStr < startMonthStr) return false;
+                                                    if (endMonthStr && targetMonthStr > endMonthStr) return false;
+                                                    
+                                                    return true;
                                                 }).map(emp => (
                                                     <option key={emp.id} value={emp.id}>{emp.name} ({emp.empNo})</option>
                                                 ))}
