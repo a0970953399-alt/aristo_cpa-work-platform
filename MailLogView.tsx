@@ -231,7 +231,8 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
         if (inbound.length > 0) {
             report += `📥 [收文]\n`;
             inbound.forEach((r, i) => {
-                report += `${i + 1}. ${r.fileName} | 收件客戶: ${r.clientName} | 寄件者: ${r.counterpart} | ${r.method} ${r.trackingNumber ? `(${r.trackingNumber})` : ''}\n`;
+                // 格式：(寄件者)-(文件名稱)
+                report += `${i + 1}. ${r.counterpart}-${r.fileName}\n`;
             });
             report += `\n`;
         }
@@ -239,7 +240,8 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
         if (aristoOut.length > 0) {
             report += `📤 [寄件 - 碩業]\n`;
             aristoOut.forEach((r, i) => {
-                report += `${i + 1}. ${r.fileName} | 客戶: ${r.clientName} | 收件者: ${r.counterpart} | ${r.method} ${r.trackingNumber ? `(${r.trackingNumber})` : ''} | 金額: $${r.amount || 0}\n`;
+                // 格式：(客戶名稱)-(文件名稱)
+                report += `${i + 1}. ${r.clientName}-${r.fileName}\n`;
             });
             report += `\n`;
         }
@@ -247,7 +249,8 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
         if (lawyerOut.length > 0) {
             report += `📤 [寄件 - 張律師]\n`;
             lawyerOut.forEach((r, i) => {
-                report += `${i + 1}. ${r.fileName} | 客戶: ${r.clientName} | 收件者: ${r.counterpart} | ${r.method} ${r.trackingNumber ? `(${r.trackingNumber})` : ''} | 金額: $${r.amount || 0}\n`;
+                // 格式：(客戶名稱)-(文件名稱)
+                report += `${i + 1}. ${r.clientName}-${r.fileName}\n`;
             });
             report += `\n`;
         }
