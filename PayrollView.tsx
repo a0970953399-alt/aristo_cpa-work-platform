@@ -179,7 +179,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           const currentMonthEmps = employees.filter(e => {
               if (e.clientId !== String(selectedClient.id)) return false;
               if (!e.endDate) return true;
-              return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
+              // ✨ 升級版：同時判斷到職日與離職日
+            const targetMonthStr = `${selectedYear}-${selectedMonth}`;
+            const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
+            const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
+            // 如果查詢的月份「早於」到職月份，則不顯示
+            if (startMonthStr && targetMonthStr < startMonthStr) return false;
+            // 如果查詢的月份「晚於」離職月份，則不顯示
+            if (endMonthStr && targetMonthStr > endMonthStr) return false;
+            return true;;
           });
 
           if (currentMonthEmps.length === 0) {
@@ -844,7 +852,17 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     const currentMonthEmps = employees.filter(e => {
                                         if (e.clientId !== String(selectedClient.id)) return false;
                                         if (!e.endDate) return true;
-                                        return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
+                                      // ✨ 升級版：同時判斷到職日與離職日
+                                        const targetMonthStr = `${selectedYear}-${selectedMonth}`;
+                                        const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
+                                        const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
+                                        
+                                        // 如果查詢的月份「早於」到職月份，則不顯示
+                                        if (startMonthStr && targetMonthStr < startMonthStr) return false;
+                                        // 如果查詢的月份「晚於」離職月份，則不顯示
+                                        if (endMonthStr && targetMonthStr > endMonthStr) return false;
+                                        
+                                        return true;
                                     });
 
                                     // ✨ 2. 準備用來累加總額的物件
@@ -1104,7 +1122,17 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 {employees.filter(e => {
                                                     if (e.clientId !== String(selectedClient?.id)) return false;
                                                     if (!e.endDate) return true;
-                                                    return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
+                                              // ✨ 升級版：同時判斷到職日與離職日
+                                        const targetMonthStr = `${selectedYear}-${selectedMonth}`;
+                                        const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
+                                        const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
+                                        
+                                        // 如果查詢的月份「早於」到職月份，則不顯示
+                                        if (startMonthStr && targetMonthStr < startMonthStr) return false;
+                                        // 如果查詢的月份「晚於」離職月份，則不顯示
+                                        if (endMonthStr && targetMonthStr > endMonthStr) return false;
+                                        
+                                        return true;
                                                 }).map(emp => (
                                                     <option key={emp.id} value={emp.id}>{emp.name} ({emp.empNo})</option>
                                                 ))}
