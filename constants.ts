@@ -55,7 +55,7 @@ export const TABS = [
   ...MATRIX_TABS
 ];
 
-export const ACCOUNTING_SUB_ITEMS = ['入帳', '查核', '貼傳票', '覆核'];
+export const ACCOUNTING_SUB_ITEMS = ['入帳', '檢核', '貼傳票', '覆核'];
 export const TAX_SUB_ITEMS = ["憑證整理", "EXCEL", "文中", "申報", "歸檔"];
 
 export const COLUMN_CONFIG: Record<string, string[]> = {
