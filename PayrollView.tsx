@@ -146,164 +146,174 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setIsMonthlyEditModalOpen(false);
   };
 
-  // ✨ 一鍵生成合併員工薪資單 (ExcelJS 完美格式版)
-  const handleExportEmployerExcel = async () => { // ✨ 注意這裡加上了 async
-      if (!selectedClient) return;
-      if (!PAYROLL_TEMPLATE_BASE64 || PAYROLL_TEMPLATE_BASE64.startsWith("這裡放")) {
-          alert("請先在程式碼最上方放入 Base64 模板代碼！");
-          return;
-      }
-
-      // 1. 將 Base64 轉換為二進位 Buffer
-      const binaryString = window.atob(PAYROLL_TEMPLATE_BASE64);
-      const bytes = new Uint8Array(binaryString.length);
-      for (let i = 0; i < binaryString.length; i++) {
-          bytes[i] = binaryString.charCodeAt(i);
-      }
-
-      // 2. 使用 ExcelJS 讀取完美的模板
-      const workbook = new ExcelJS.Workbook();
-      await workbook.xlsx.load(bytes.buffer);
-      const ws = workbook.worksheets[0]; // 抓取第一個工作表
-
-      // 3. 過濾當月在職員工
-      const currentMonthEmps = employees.filter(e => {
-          if (e.clientId !== String(selectedClient.id)) return false;
-          if (!e.endDate) return true;
-          return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
-      });
-
-      if (currentMonthEmps.length === 0) {
-          alert("本月無在職員工可匯出！");
-          return;
-      }
-
-      // 準備用來累加總額的物件
-      const totals = {
-          base: 0, food: 0, ot: 0, otherAdd: 0,
-          leave: 0, late: 0, labor: 0, health: 0, otherDed: 0, net: 0
-      };
-
-      const twYear = Number(selectedYear) - 1911;
-      const monthStr = `${twYear}-${selectedMonth}`;
-
-      // 🌟 神奇魔法：如果員工大於 1 人，我們就複製第 2 列的「完美格式」，往下插入 N-1 列！
-      // 這樣原本在第 3 列的「總計列」就會自動乖乖往下推，完全不會蓋到！
-      if (currentMonthEmps.length > 1) {
-          ws.duplicateRow(2, currentMonthEmps.length - 1, true);
-      }
-
-      // 4. 迴圈填入員工真實數據
-      currentMonthEmps.forEach((emp, index) => {
-          const R = 2 + index; // ExcelJS 列數是從 1 開始算，第 2 列是第一位員工
-          const row = ws.getRow(R);
-          const rowData = monthlyData[emp.id] || {};
-          const isFullTime = emp.employmentType === 'full_time';
-
-          // ⚡ 即時公式試算
-          const baseSalaryForCalc = rowData.baseSalary || 0;
-          const hourlyWageForCalc = baseSalaryForCalc / 240;
-          const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
-          const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2); 
-          const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0)); 
-          const realLeaveDeduction = realSickDeduction + realPersonalDeduction;
-
-          const foodAllowanceForCalc = rowData.foodAllowance || 0;
-          let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
-          if (isFullTime) {
-              const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
-              realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
-              realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-              realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
-          } else {
-              const partTimeHourlyWage = emp.defaultBaseSalary || 0;
-              realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
-          }
-          const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
-
-          // 🧮 欄位合併
-          const baseSalary = rowData.baseSalary || 0;
-          const foodAllowance = rowData.foodAllowance || 0;
-          const otPay = (rowData.taxableOt || 0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
-          const otherAdd = (rowData.fullAttendance || 0) + (rowData.positionAllowance || 0) + (rowData.performanceBonus || 0);
-
-          const leaveDed = -(rowData.leaveDeduction ?? realLeaveDeduction);
-          const lateDed = -(rowData.lateDeduction ?? realLateDeduction);
-          const laborIns = -(rowData.laborIns || 0);
-          const healthIns = -(rowData.healthIns || 0);
-          const otherDed = -((rowData.dailyShortage || 0) + (rowData.pensionSelf || 0) + (rowData.advancePay || 0) + (rowData.incomeTax || 0));
-
-          const netPay = baseSalary + foodAllowance + otPay + otherAdd + leaveDed + lateDed + laborIns + healthIns + otherDed;
-
-          // 🛡️ 投保狀況
-          let insStr = "";
-          if (emp.insuranceBracket) {
-              const types = [];
-              if (emp.hasLaborIns ?? true) types.push("勞");
-              if (emp.hasHealthIns ?? true) types.push("健");
-              if (types.length > 0) insStr = `${emp.insuranceBracket.toLocaleString()} (${types.join("")})`;
+  // ✨ 一鍵生成合併員工薪資單 (ExcelJS 完美格式版 - 終極防護版)
+  const handleExportEmployerExcel = async () => {
+      try {
+          if (!selectedClient) return;
+          if (!PAYROLL_TEMPLATE_BASE64 || PAYROLL_TEMPLATE_BASE64.startsWith("這裡放")) {
+              alert("請先在程式碼最上方放入 Base64 模板代碼！");
+              return;
           }
 
-          // 📝 備註造句
-          const remarks = [];
-          if (emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}`) {
-              const m = parseInt(emp.startDate.substring(5, 7), 10);
-              const d = parseInt(emp.startDate.substring(8, 10), 10);
-              remarks.push(`${m}/${d}到職`);
+          // 🛡️ 防護 1：清除 Base64 字串中可能夾帶的換行符號或空白 (這是最常導致點擊沒反應的兇手)
+          const cleanBase64 = PAYROLL_TEMPLATE_BASE64.replace(/\s/g, '');
+
+          // 1. 將 Base64 轉換為二進位 Buffer
+          const binaryString = window.atob(cleanBase64);
+          const bytes = new Uint8Array(binaryString.length);
+          for (let i = 0; i < binaryString.length; i++) {
+              bytes[i] = binaryString.charCodeAt(i);
           }
-          if (rowData.lateHours > 0) remarks.push(`遲到${rowData.lateHours}分鐘`);
-          if (rowData.sickLeave > 0) remarks.push(`病假${rowData.sickLeave}小時`);
-          if (rowData.personalLeave > 0) remarks.push(`事假${rowData.personalLeave}小時`);
-          if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
-          if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
-          const remarkStr = remarks.length > 0 ? remarks.join("，") + "。" : "";
 
-          // ➕ 累加總計
-          totals.base += baseSalary; totals.food += foodAllowance; totals.ot += otPay; totals.otherAdd += otherAdd;
-          totals.leave += leaveDed; totals.late += lateDed; totals.labor += laborIns; totals.health += healthIns;
-          totals.otherDed += otherDed; totals.net += netPay;
+          // 🛡️ 防護 2：相容不同打包工具的套件引入方式
+          const Workbook = ExcelJS.Workbook || (ExcelJS as any).default?.Workbook;
+          if (!Workbook) {
+              throw new Error("ExcelJS 套件載入異常，找不到 Workbook 建構子");
+          }
 
-          // 🎯 將數字填入對應的格子 (A欄=1, B欄=2 ... R欄=18)
-          row.getCell(1).value = monthStr;
-          row.getCell(2).value = emp.empNo || "";
-          row.getCell(3).value = emp.name || "";
-          row.getCell(4).value = insStr;
-          row.getCell(5).value = emp.idNumber || "";
-          row.getCell(6).value = emp.email || "";
-          row.getCell(7).value = baseSalary || "";
-          row.getCell(8).value = foodAllowance || "";
-          row.getCell(9).value = otPay || "";
-          row.getCell(10).value = otherAdd || "";
-          row.getCell(11).value = leaveDed || "";
-          row.getCell(12).value = lateDed || "";
-          row.getCell(13).value = laborIns || "";
-          row.getCell(14).value = healthIns || "";
-          row.getCell(15).value = otherDed || "";
-          row.getCell(16).value = netPay || 0;
-          row.getCell(17).value = emp.bankAccount || "";
-          row.getCell(18).value = remarkStr;
-          row.commit(); // 儲存該列的變更
-      });
+          // 2. 使用 ExcelJS 讀取完美的模板
+          const workbook = new Workbook();
+          await workbook.xlsx.load(bytes.buffer);
+          const ws = workbook.worksheets[0]; // 抓取第一個工作表
 
-      // 5. 填入底部總計列
-      const totalR = 2 + currentMonthEmps.length; // 總計列的真實位置
-      const totalRow = ws.getRow(totalR);
-      totalRow.getCell(7).value = totals.base || "";
-      totalRow.getCell(8).value = totals.food || "";
-      totalRow.getCell(9).value = totals.ot || "";
-      totalRow.getCell(10).value = totals.otherAdd || "";
-      totalRow.getCell(11).value = totals.leave || "";
-      totalRow.getCell(12).value = totals.late || "";
-      totalRow.getCell(13).value = totals.labor || "";
-      totalRow.getCell(14).value = totals.health || "";
-      totalRow.getCell(15).value = totals.otherDed || "";
-      totalRow.getCell(16).value = totals.net || 0;
-      totalRow.commit();
+          // 3. 過濾當月在職員工
+          const currentMonthEmps = employees.filter(e => {
+              if (e.clientId !== String(selectedClient.id)) return false;
+              if (!e.endDate) return true;
+              return `${selectedYear}-${selectedMonth}` <= e.endDate.substring(0, 7);
+          });
 
-      // 6. 完美打包下載！
-      const buffer = await workbook.xlsx.writeBuffer();
-      const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
-      saveAs(blob, `${selectedClient.name}_薪資總表_${selectedYear}${selectedMonth}.xlsx`);
+          if (currentMonthEmps.length === 0) {
+              alert("本月無在職員工可匯出！");
+              return;
+          }
+
+          // 準備用來累加總額的物件
+          const totals = {
+              base: 0, food: 0, ot: 0, otherAdd: 0,
+              leave: 0, late: 0, labor: 0, health: 0, otherDed: 0, net: 0
+          };
+
+          const twYear = Number(selectedYear) - 1911;
+          const monthStr = `${twYear}-${selectedMonth}`;
+
+          // 🌟 神奇魔法：往下複製完美格式列
+          if (currentMonthEmps.length > 1) {
+              ws.duplicateRow(2, currentMonthEmps.length - 1, true);
+          }
+
+          // 4. 迴圈填入員工真實數據
+          currentMonthEmps.forEach((emp, index) => {
+              const R = 2 + index; // ExcelJS 列數是從 1 開始算，第 2 列是第一位員工
+              const row = ws.getRow(R);
+              const rowData = monthlyData[emp.id] || {};
+              const isFullTime = emp.employmentType === 'full_time';
+
+              // ⚡ 即時公式試算
+              const baseSalaryForCalc = rowData.baseSalary || 0;
+              const hourlyWageForCalc = baseSalaryForCalc / 240;
+              const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
+              const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2); 
+              const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0)); 
+              const realLeaveDeduction = realSickDeduction + realPersonalDeduction;
+
+              const foodAllowanceForCalc = rowData.foodAllowance || 0;
+              let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
+              if (isFullTime) {
+                  const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
+                  realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
+                  realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
+                  realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+              } else {
+                  const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+                  realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+              }
+              const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
+
+              const baseSalary = rowData.baseSalary || 0;
+              const foodAllowance = rowData.foodAllowance || 0;
+              const otPay = (rowData.taxableOt || 0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
+              const otherAdd = (rowData.fullAttendance || 0) + (rowData.positionAllowance || 0) + (rowData.performanceBonus || 0);
+
+              const leaveDed = -(rowData.leaveDeduction ?? realLeaveDeduction);
+              const lateDed = -(rowData.lateDeduction ?? realLateDeduction);
+              const laborIns = -(rowData.laborIns || 0);
+              const healthIns = -(rowData.healthIns || 0);
+              const otherDed = -((rowData.dailyShortage || 0) + (rowData.pensionSelf || 0) + (rowData.advancePay || 0) + (rowData.incomeTax || 0));
+
+              const netPay = baseSalary + foodAllowance + otPay + otherAdd + leaveDed + lateDed + laborIns + healthIns + otherDed;
+
+              let insStr = "";
+              if (emp.insuranceBracket) {
+                  const types = [];
+                  if (emp.hasLaborIns ?? true) types.push("勞");
+                  if (emp.hasHealthIns ?? true) types.push("健");
+                  if (types.length > 0) insStr = `${emp.insuranceBracket.toLocaleString()} (${types.join("")})`;
+              }
+
+              const remarks = [];
+              if (emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}`) {
+                  const m = parseInt(emp.startDate.substring(5, 7), 10);
+                  const d = parseInt(emp.startDate.substring(8, 10), 10);
+                  remarks.push(`${m}/${d}到職`);
+              }
+              if (rowData.lateHours > 0) remarks.push(`遲到${rowData.lateHours}分鐘`);
+              if (rowData.sickLeave > 0) remarks.push(`病假${rowData.sickLeave}小時`);
+              if (rowData.personalLeave > 0) remarks.push(`事假${rowData.personalLeave}小時`);
+              if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
+              if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
+              const remarkStr = remarks.length > 0 ? remarks.join("，") + "。" : "";
+
+              totals.base += baseSalary; totals.food += foodAllowance; totals.ot += otPay; totals.otherAdd += otherAdd;
+              totals.leave += leaveDed; totals.late += lateDed; totals.labor += laborIns; totals.health += healthIns;
+              totals.otherDed += otherDed; totals.net += netPay;
+
+              row.getCell(1).value = monthStr;
+              row.getCell(2).value = emp.empNo || "";
+              row.getCell(3).value = emp.name || "";
+              row.getCell(4).value = insStr;
+              row.getCell(5).value = emp.idNumber || "";
+              row.getCell(6).value = emp.email || "";
+              row.getCell(7).value = baseSalary || "";
+              row.getCell(8).value = foodAllowance || "";
+              row.getCell(9).value = otPay || "";
+              row.getCell(10).value = otherAdd || "";
+              row.getCell(11).value = leaveDed || "";
+              row.getCell(12).value = lateDed || "";
+              row.getCell(13).value = laborIns || "";
+              row.getCell(14).value = healthIns || "";
+              row.getCell(15).value = otherDed || "";
+              row.getCell(16).value = netPay || 0;
+              row.getCell(17).value = emp.bankAccount || "";
+              row.getCell(18).value = remarkStr;
+              row.commit(); 
+          });
+
+          // 5. 填入底部總計列
+          const totalR = 2 + currentMonthEmps.length;
+          const totalRow = ws.getRow(totalR);
+          totalRow.getCell(7).value = totals.base || "";
+          totalRow.getCell(8).value = totals.food || "";
+          totalRow.getCell(9).value = totals.ot || "";
+          totalRow.getCell(10).value = totals.otherAdd || "";
+          totalRow.getCell(11).value = totals.leave || "";
+          totalRow.getCell(12).value = totals.late || "";
+          totalRow.getCell(13).value = totals.labor || "";
+          totalRow.getCell(14).value = totals.health || "";
+          totalRow.getCell(15).value = totals.otherDed || "";
+          totalRow.getCell(16).value = totals.net || 0;
+          totalRow.commit();
+
+          // 6. 完美打包下載！
+          const buffer = await workbook.xlsx.writeBuffer();
+          const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
+          saveAs(blob, `${selectedClient.name}_薪資總表_${selectedYear}${selectedMonth}.xlsx`);
+
+      } catch (error: any) {
+          // 🛡️ 防護 3：如果發生任何錯誤，直接在畫面上彈出警告！
+          console.error("匯出失敗詳細錯誤：", error);
+          alert(`匯出失敗！請將此錯誤訊息告訴 AI：\n\n${error.message}`);
+      }
   };
   
   // ✨ 點擊整列時，開啟編輯視窗並載入該員工資料
