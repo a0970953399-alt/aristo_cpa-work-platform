@@ -8,6 +8,7 @@ import { TaskService } from './taskService';
 
 const PAYROLL_TEMPLATE_BASE64 = "UEsDBBQABgAIAAAAIQBBN4LPbgEAAAQFAAATAAgCW0NvbnRlbnRfVHlwZXNdLnhtbCCiBAIooAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACsVMluwjAQvVfqP0S+Vomhh6qqCBy6HFsk6AeYeJJYJLblGSj8fSdmUVWxCMElUWzPWybzPBit2iZZQkDjbC76WU8kYAunja1y8T39SJ9FgqSsVo2zkIs1oBgN7+8G07UHTLjaYi5qIv8iJRY1tAoz58HyTulCq4g/QyW9KuaqAvnY6z3JwlkCSyl1GGI4eINSLRpK3le8vFEyM1Ykr5tzHVUulPeNKRSxULm0+h9J6srSFKBdsWgZOkMfQGmsAahtMh8MM4YJELExFPIgZ4AGLyPdusq4MgrD2nh8YOtHGLqd4662dV/8O4LRkIxVoE/Vsne5auSPC/OZc/PsNMilrYktylpl7E73Cf54GGV89W8spPMXgc/oIJ4xkPF5vYQIc4YQad0A3rrtEfQcc60C6Anx9FY3F/AX+5QOjtQ4OI+c2gCXd2EXka469QwEgQzsQ3Jo2PaMHPmr2w7dnaJBH+CW8Q4b/gIAAP//AwBQSwMEFAAGAAgAAAAhALVVMCP0AAAATAIAAAsACAJfcmVscy8ucmVscyCiBAIooAACAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAACskk1PwzAMhu9I/IfI99XdkBBCS3dBSLshVH6ASdwPtY2jJBvdvyccEFQagwNHf71+/Mrb3TyN6sgh9uI0rIsSFDsjtnethpf6cXUHKiZylkZxrOHEEXbV9dX2mUdKeSh2vY8qq7iooUvJ3yNG0/FEsRDPLlcaCROlHIYWPZmBWsZNWd5i+K4B1UJT7a2GsLc3oOqTz5t/15am6Q0/iDlM7NKZFchzYmfZrnzIbCH1+RpVU2g5abBinnI6InlfZGzA80SbvxP9fC1OnMhSIjQS+DLPR8cloPV/WrQ08cudecQ3CcOryPDJgosfqN4BAAD//wMAUEsDBBQABgAIAAAAIQBPf5at6wMAADwJAAAPAAAAeGwvd29ya2Jvb2sueG1srFbbauRGEH0P5B+E3tvqllrSSHi8jG7EYO8ar9d+GTBtqccjrMuk1XMxZh/ynpAf2EBi2IeEBAIJhCTkb2Jv9i9Srbn5EsLEm2Gmpe5qHZ2qOlU9289mZaFNuGjyuurqZAvrGq/SOsur867+6ihBHV1rJKsyVtQV7+qXvNGf7Xz80fa0FhdndX2hAUDVdPWhlCPfMJp0yEvWbNUjXoFlUIuSSZiKc6MZCc6yZsi5LAvDxNgxSpZX+hzBF5tg1INBnvKoTsclr+QcRPCCSaDfDPNRs0Qr003gSiYuxiOU1uUIIM7yIpeXLaiulam/e17Vgp0V4PaM2NpMwNeBH8EwmMs3genRq8o8FXVTD+QWQBtz0o/8J9gg5F4IZo9jsBkSNQSf5CqHK1bCeSIrZ4XlrMEI/mA0AtJqteJD8J6IZq+4mfrO9iAv+PFcuhobjZ6zUmWq0LWCNTLOcsmzru7CtJ7yewtiPArGeQFWk1oW1Y2dlZwPhJbxARsX8giEvISHynAcz7TVThBGr5BcVEzysK4k6HDh14dqrsUOhzUoXDvkn45zwaGwQF/gK4ws9dlZc8DkUBuLoquHfv9VA+73GfZc3H9R8UjkE96//ebz919d999df3v79oebX97++cebd9e//fXdFze//nTz5Y/9O8Jlj6vkP0iXpSoeBgRkTnp+/zA4wF34S3keSKHB/W60Byl6ySaQMJBFtqjnXcgIsU6rVPjk9CqKE89zOgQlIe4hGrkh8sLAgmmPeD0rDJOe8xqcEY6f1mwshwstKOiuTiHxj0z7bLa0EOyP82xN4wovPkhdHwxL22vlsOp6xzmfNmvVqKk2O8mrrJ52dURMcOry/nTaGk/yTA5Bdh6msGW+9gnPz4fAmDhULUJ1KGZd/YoEHexYYQ+ZDo0RtYGWFwQx6pGOS2LTJFEnahkZdyi1/RWotVetamvi9uff33/92e2b76GXq/ar4gz9S/jqNWI3I20el0+mrEihDNSlTYhHsOmpHXwm9xrZXkGBuWJIcc/FHkU4tmxEO56JOtQyUUgjM7bdOIoDW6VIHRH+/9Eo20Lwl2ePYjlkQh4Jll7AiXXIBwFrQFNzh4DvXbKB3QmwBRRpQhJEiYdREDgU2VFi2S6JwthO1mSV+4MntqmO0T7NmRxDCavqbee+GpPF6mpxMF9YpOpe+fmHkYr74ul/2/gSvC/4hpuT4w03hs/3j/Y33LsXH52eJK2Q/tFb40E2IkI9bMU9ZFkhRdRNXNRJsI0s6tLQpkFMsLvORjFNJ09LhkmNpVzCu8f8olmo5Chwf/EfSGu4XJjuyUjRb8W/Qtv5GwAA//8DAFBLAwQUAAYACAAAACEAgT6Ul/MAAAC6AgAAGgAIAXhsL19yZWxzL3dvcmtib29rLnhtbC5yZWxzIKIEASigAAEAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAArFJNS8QwEL0L/ocwd5t2FRHZdC8i7FXrDwjJtCnbJiEzfvTfGyq6XVjWSy8Db4Z5783Hdvc1DuIDE/XBK6iKEgR6E2zvOwVvzfPNAwhi7a0egkcFExLs6uur7QsOmnMTuT6SyCyeFDjm+CglGYejpiJE9LnShjRqzjB1Mmpz0B3KTVney7TkgPqEU+ytgrS3tyCaKWbl/7lD2/YGn4J5H9HzGQlJPA15ANHo1CEr+MFF9gjyvPxmTXnOa8Gj+gzlHKtLHqo1PXyGdCCHyEcffymSc+WimbtV7+F0QvvKKb/b8izL9O9m5MnH1d8AAAD//wMAUEsDBBQABgAIAAAAIQCtgmzqlQUAADwTAAAYAAAAeGwvd29ya3NoZWV0cy9zaGVldDEueG1snFVdb9owFH2ftP8Q+Z0kDiR8iFAVOrRK04RKuz0bxwGrSZzZpsCm/fddmzggVZpCJci9OD7nfvhcM707loX3xqTiokoR9kPksYqKjFfbFL08L3sj5ClNqowUomIpOjGF7mafP00PQr6qHWPaA4ZKpWindT0JAkV3rCTKFzWr4E0uZEk0/JTbQNWSkcyCyiKIwjAJSsIrdGaYyC4cIs85ZQ+C7ktW6TOJZAXRkL/a8Vo5tpJ2oSuJfN3XPSrKGig2vOD6ZEmRV9LJ47YSkmwKqPuIB4R6RwmfCL59F8auv4tUciqFErn2gTk45/y+/HEwDghtmd7X34kGDwLJ3rg5wAtV9LGUcNxyRRey/gfJkpbMtEtO9jxL0Z84HuAoXMx7g/txAo/kS28+WoS9cL4Mk6Q/XM7H8V80m1qdrORsWpMtWzP9Uq+kl3P9LFawAFpFwWwatLsyDoIwTfAky1N0jydPsdlhN/zg7KCufE+TzZoVjGoGKWHk/RaiXFNSsO9GrwWshTAJ7eraCP0bOYm9NlTNazMCGyFezdIj8IQma8tq0iBU8ze2YAWwrTDEUL9sZsZvMzdQV8V1kks7NlBwxnKyL/RCFD95pncpGvmjYYzc+pM4fGV8u9OQUuybF1aQk+z0wBSFCYGs/Mg2gooCWgBPr+Rm1EHh5GjtwTHDRhj2k9G7SZjulRZlE9cm3aJBHRYNtkEP/c5gUIMFg23A4+7gQQMG24DxoDsacrShwV7QfdO3bnUnDR5sg48S/wb8sMGDdfHt+XQMD5exTR9se2hWDt2yHzdwsC28e+0YJuIsGXBafNJdNEZTZwJwHEHXzmMnOeO00TsfHHaiM06ruhtODjvhGed22WKnPOO0I3NL85z08EV7OPLxDe134sNX6rN/710mHjvtGacpIMb2ynHig87+58rATn046Y8uPWzus4uAzd1o76p/AAAA//8AAAD//5yW3W6CQBSEX8XwAEUEf4Mm9Q9FBfENCCW1F2oj1LZv37MuQXbOiRe9URw+FpiZPdEvjnleztMynfjXy3frOrYcq1V8pueCjkbOgH7QgWu1sq+ivJyWl+spLe/Qkb5cOvHjeGk2evud50WWn0lsv3S61sTP1GKvarU7TicKUm+Ttm/fJr6dVcSUE45JzDjRMYk5J1yTWHDCM4klJ7omEXCiZxIrTvRNYs2JgUmEnBiaxEZwDEzdCgi4uhMQsDUSEPA1FhAwdi8g4GwiIGDtQUAe3trU3brAHSiwKqpHom7wKv94Vwqt97y5apmxRZ91cx2IaqoR2gMPBLKaaUTto5rpQFhzzXhNBMJaaKTbRCCspUZ6TQTCCjTSbyIQ1kpAIKy1gEBYoYDARtgICNi7FRCwd8cRF9yNBATcjQUE3N1rpBmjC+4mGhk23HXB3UPVBoN52Gu0mFpljOF7Z3svVIHntVXXUbvbll0N2KBS6N51BV0cXBKDo0ticHhJDI4vgfFwfkkMDjCJwQkmMTjCJAZnmMTgEKsZct6Iknb2f6IM1HUUpVdHuWLKmikhUzZM2TJlx5SIKXGldOvn2VdKr1aSSukrxTCBimuY8LTFgaLNV2fKmikhUzZM2TJlx5SIKTFT9kxJmop+dfvx7+oPAAD//wAAAP//dJBBbsIwEEWvYs0BSuyYJK4SNl2xqFSJExgySSxSjzUZqMrpMYgFm+xGevpf/02bJooo4fTDaqAo+74DC0r+E3YQ6YviFXkJFGGza5Mf8dvzGOKiZhykg+KjLpqq0lbXpTFNaWsDisM4rTGh9EzZpii1dVVRGeeMLkEdSYR+V+CEvkd+wPeU2bomjx2IZA2+Vh9QLkkln5AP4ZbVHKjl5Od8bXMDccAoXrJnB7OPfWYJs8lnyP/gfa8f+ps/4vMyIcruDgAA//8DAFBLAwQUAAYACAAAACEAG9IFPWEHAADNIAAAEwAAAHhsL3RoZW1lL3RoZW1lMS54bWzsWVuPGzUUfkfiP4zmPc1tJpdVU5Rrl3Z3W3XToj56Eyfjrmcc2c5uo6oSal9AQkhIBcEDEjzxgBBIIFGBED+mqBWUH8GxZ5KxN05vbBGg3UirjPOd48/nHB+fOT7/1u2YekeYC8KSll8+V/I9nIzYmCTTln99OCg0fE9IlIwRZQlu+Qss/LcuvPnGebQlIxxjD+QTsYVafiTlbKtYFCMYRuIcm+EEfpswHiMJj3xaHHN0DHpjWqyUSrVijEjiewmKQe2VyYSMsPfbL+89/uzb3x7+/PuXH/gXlnP0KUyUSKEGRpTvqxmwJaix48OyQoiF6FLuHSHa8mG6MTse4tvS9ygSEn5o+SX95xcvnC+irUyIyg2yhtxA/2VymcD4sKLn5NOD1aRBEAa19kq/BlC5juvX+7V+baVPA9BoBCtNudg665VukGENUPrVobtX71XLFt7QX13j3A7Vx8JrUKo/WMMPBl2wooXXoBQfruHDTrPTs/VrUIqvreHrpXYvqFv6NSiiJDlcQ5fCWrW7XO0KMmF02wlvhsGgXsmU5yiIhlV0qSkmLJGbYi1GtxgfAEABKZIk8eRihidoBMHcRZQccOLtkGkEgTdDCRMwXKqUBqUq/FefQH/THkVbGBnSihcwEWtDio8nRpzMZMu/BFp9A/L44cNH9354dO/HR/fvP7r3bTa3VmXJbaNkaso9/eqjPz9/1/vj+y+ePvg4nfokXpj4J9+8/+SnX5+lHlacm+LxJ989+eG7x59++PvXDxza2xwdmPAhibHw9vCxd43FsEAHf3zAX05iGCFiSaAIdDtU92VkAfcWiLpwHWyb8AaHLOMCXpzfsrjuR3wuiWPmy1FsAXcZox3GnQa4rOYyLDycJ1P35Hxu4q4hdOSau4sSy8H9+QzSK3Gp7EbYonmVokSiKU6w9NRv7BBjx+puEmLZdZeMOBNsIr2bxOsg4jTJkBxYgZQLbZMY/LJwEQRXW7bZveF1GHWtuoePbCRsC0Qd5IeYWma8iOYSxS6VQxRT0+A7SEYukvsLPjJxfSHB01NMmdcfYyFcMlc4rNdw+mXIMG6379JFbCO5JIcunTuIMRPZY4fdCMUzJ2eSRCb2bXEIIYq8q0y64LvM3iHqGfyAko3uvkGw5e7nJ4LrkFxNSnmAqF/m3OHLi5jZ+3FBJwi7skybx1Z2bXPijI7OfGqF9g7GFB2jMcbe9bcdDDpsZtk8J30pgqyyjV2BdQnZsaqeEyywp+ua9RS5Q4QVsvt4yjbw2V2cSDwLlMSIb9K8B163QhdOOWcqvUJHhyZwj0AVCPHiNMoVATqM4O5v0no1QtbZpZ6FO14X3PLfi+wx2Je3XnZfggx+aRlI7C9smyGi1gR5wAwRFBiudAsilvtzEXWuarG5U25ib9rcDVAYWfVOTJLnFj8nyp7wnyl73AXMKRQ8bsV/p9TZlFK2TxQ4m3D/wbKmh+bJVQwnyXrOOqtqzqoa/39f1Wzay2e1zFktc1bLuN6+Xkstk5cvUNnkXR7d84k3tnwmhNJ9uaB4R+iuj4A3mvEABnU7SvckVy3AWQRfswaThZtypGU8zuQ7REb7EZpBa6isG5hTkameCm/GBHSM9LDuqOITunXfaR7vsnHa6SyXVVczNaFAMh8vhatx6FLJFF2r5927lXrdD53qLuuSgJJ9GRLGZDaJqoNEfTkIXngWCb2yU2HRdLBoKPVLVy29uDIFUFt5BV65PXhRb/lhkHaQoRkH5flY+SltJi+9q5xzqp7eZExqRgCU2MsIyD3dVFw3Lk+tLg21F/C0RcIIN5uEEYYRvAhn0Wm23E/T183cpRY9ZYrlbshp1Buvw9cqiZzIDTQxMwVNvOOWX6uGcLkyQrOWP4GOMXyNZxA7Qr11ITqF25eR5OmGf5XMMuNC9pCIUoPrpJNmg5hIzD1K4pavlr+KBproHKK5lSuQEP615JqQVv5t5MDptpPxZIJH0nS7MaIsnT5Chk9zhfNXLf7qYCXJ5uDu/Wh87B3QOb+GIMTCelkZcEwEXByUU2uOCdyErRJZHn8nDqYs7ZpXUTqG0nFEZxHKThQzmadwnURXdPTTygbGU7ZmMOi6CQ+m6oD926fu849qZTkjaeZnppVV1KnpTqav75A3WOWHqMUqTd36nVrkua65zHUQqM5T4jmn7gscCAa1fDKLmmK8noZVzs5GbWqnWBAYlqhtsNvqjHBa4lVPfpA7GbXqgFjWlTrw9c25eavNDm5B8ujB/eGcSqFdCXfWHEHRl95ApmkDtshtmdWI8M2bc9Ly75TCdtCthN1CqRH2C0E1KBUaYbtaaIdhtdwPy6Vep3IXDhYZxeUwvbUfwBUGXWR393p87f4+Xt7SnBuxuMj0/XxRE9f39+WK6/5+qG7mfY9A0rlTqwya1WanVmhW24NC0Os0Cs1urVPo1br13qDXDRvNwV3fO9LgoF3tBrV+o1Ard7uFoFZS9BvNQj2oVNpBvd3oB+27WRkDK0/TR2YLMK/mdeEvAAAA//8DAFBLAwQUAAYACAAAACEAYRXU2qcFAAA4GgAADQAAAHhsL3N0eWxlcy54bWzUWVuP20QUfkfiP1guQhThtZ3E2U02zrLZbaRKBVV0kZAoWk3sSTJa25OOJ9ukCAkJCfWlPCEEPwAJCR76gAQv/Jt2gX/BmRlfJt1kc+u2JS/x3M58850z52K3DiZxZJxjlhKa+Ka745gGTgIakmTgm5+edK0900g5SkIU0QT75hSn5kH77bdaKZ9G+N4QY26AiCT1zSHno6Ztp8EQxyjdoSOcwEifshhxaLKBnY4YRmEqFsWRXXGcuh0jkphKQjMOVhESI3Y2HlkBjUeIkx6JCJ9KWaYRB83bg4Qy1IsA6sStocCYuHVWMSYs30T2XtonJgGjKe3zHZBr036fBPgy3IbdsFFQSgLJm0lyPdupzJx9wjaUVLMZPidCfWa7lYzjbsxTI6DjhPumV3QZauR26Ju1qmkopRzREGg6td43bnxw44az4zin1v792aYYfffBmPJ9S/0dHMCkU+vDU8u08w016e5ufVa8FHtz//NPcPjF/fdE6/7NBSt3Z1dKUKfFUtlcuBbMVD+UU65bvF9jdo063zvqr2Ck2H/usMJjZ7y3W32alPS7cJmkuTXPEvow6YoxuGOgFDGt3UofGecogp6KICSgEWUGh8sDSnElRSjGasbFD0///v3pxY/f/fvr92Kkj2ISTdWYWjxELIWrqORV62KSvIiZgJjAtRCdttr6DQHQEzBXZqFD6ZlxmHDyYIxeZEESNnO49WRf/PLTxc9/zKG3JnUzh965TDbeML2tR9k8VbBBzze78HPgN3u6DYVLKVdZ+8vR88sHvvyabmpE0pZSuNckigrvXRWOAjraLQh0HLOkCw0jez6ZjsBNJBCT1a2W85bMHjA0dSve6gtSGpFQoBgcSedUUCqsQYjpZQMkCfEEQ3Cpy+tia4CFy5Hg5B+csUdZCPlGHqPEKVVXuxXhPgepjAyG4p/TkdiDcg4xud0KCRrQBEXCi+Ur9JWQp0BK4pt8CClF7k/RmNPMndpCfCZ96VyJQUJYOhVg5iiXzlWHWX6WWRbWgbCAqIwx4D/AUXRPMPVZv1BCBfia9LUwDpFLhAiRL4hHUGD2qAhXjXYLRWSQxDiBwIMZJ4GIZgE0sYo1k/4LYlXuoeS6C+UaaDSKpiJcyt1VCyCUrY60obJ9mOMou+4yynHAZVrrwPFWgGrr1CiidI6ElPVJMib9TdnKcilFV6WkCx5LNQCN+Q6Kt4/HcQ+zrky7heXrbBYtyWbeytnM2xqbIlkpmRtSRh6BWjQ1X1a88ZCh0QmegPJUUL5kBTPn8haYwUbnKk+ygW3KdFCRfU2glCq2o1d4vzmMytxZgRcJ+LwLWzCa63kVS9mG0Veh52ukVBYyilLB7pWUgpOUbmo9StcAL2KXuaKXdXc1a1hqyq/OGq4LlciLSk+3ncXKOvL/qXTNXhcpHSLH+sFiG0K1PGIRJlEkZyFyNlSt78JnDF8LmLCFnresxcH6KLY58xKPcCnLWiXYrnDtLungaj+2pWZWtoRVvOl1R1PhEOanv9dsRu6u5otePWXrBRzN94g06hpi5SY2p2V0GqrXlj6vdntlFQJ1h1apzdRpRZFiJPB+0Def/fn1P49/05xob0wiThJVdYgXi3nBly14/uSb54+/ffbXk3wNZADamqp8P1AsAhzhpKwUZdnPxQt2WUMWyMCDhLiPxhE/KQZ9s3z+CIdkHAP12ay75JxyKcI3y+c7ovJ35dtLKCDupFCuw78xZsQ3v7zV2W0c3+pWrD2ns2fVqtizGl7n2PJqR53j427DqThHX2mv+bd4yS+/SkC159aaaQSfAlh22Az8vbLPN7WGgi/5A9g69kal7hx6rmN1q45r1epoz9qrVz2r67mV43qtc8vrehp2b8OPAY7tuuqzggDvNTmJcUSSXFe5hvReUBI0rziEnWvCLj/5tP8DAAD//wMAUEsDBBQABgAIAAAAIQDpg7KglwIAAB4VAAAUAAAAeGwvc2hhcmVkU3RyaW5ncy54bWzUmGFr1DAYx98LfofS91t3cwyRu+7FcOCbMVA/QK7N1rI2qUlueI6BJ8zd7hSV6ebhdHccp2PbMdnAHTt1X6bptd/CXDb8AKYggVLI0+SXf5LnT9IU556GgbEGCfUxKpmFySnTgMjBro9WSubjRwsTd02DMoBcEGAES2YVUnPOvn2rSCkzRFtES6bHWHTPsqjjwRDQSRxBJL4sYxICJopkxaIRgcClHoQsDKzpqalZKwQ+Mg0HVxArmTOzplFB/pMKnP8bsIvUt4tEPEviVbZE+ZmxBgKhctoUJQcHmBhM9ClkFcYRsoARu66SHLaS3kV2/H4cXwahH1SvP8zIph4gFN5ULdyZHccs2Q2zk/16PPxVtNg4ZBcjTwyb+c4SMZYF/YErxJoGq0aiU4TnMbqZO4kYC/4vovlOh1/04mE3bR3oJv3bDn/7WjPRSeNDfPV51HyenNc0k55eHvP6y7S/zft7ytnC7PsTwsiBnAM9rJLsn6S7R5otWvyzlXUP0rOhbuZutEdv+hrq3vwRD3d5o521NzWb8tHeZnzZ5LWtZLurX6JntTNe/66ldN78IvaEdOsoPWtnHd12NF7r6axe+jUZfNLPr/z0a9b+mG290y9n4kE/vurwV6fJyW8+ONfw7PmilR4q7qnMXl8PxZ+Bt7Hx76egMQSG0SJWhSAQQlWGj2iFAOSog1z1ORGHS1VIGVD4EASAVFVJIQTKarD4YWS++iqVMapQ1QFR31lVZQSAKWdKAMqYqArxxOqo29CFbsVh4jZEVc4iZBFQTrkyQKvAkdckqoKIuJ0hysvNMANBfpaSuDx8JUF5met6kHk4TJLysJkE5eG1G1AOhpOkfFwnUblZT9LU/GeJ+037DwAAAP//AwBQSwMEFAAGAAgAAAAhADttMkvBAAAAQgEAACMAAAB4bC93b3Jrc2hlZXRzL19yZWxzL3NoZWV0MS54bWwucmVsc4SPwYrCMBRF9wP+Q3h7k9aFDENTNyK4VecDYvraBtuXkPcU/XuzHGXA5eVwz+U2m/s8qRtmDpEs1LoCheRjF2iw8HvaLb9BsTjq3BQJLTyQYdMuvpoDTk5KiceQWBULsYVRJP0Yw37E2bGOCamQPubZSYl5MMn5ixvQrKpqbfJfB7QvTrXvLOR9V4M6PVJZ/uyOfR88bqO/zkjyz4RJOZBgPqJIOchF7fKAYkHrd/aea30OBKZtzMvz9gkAAP//AwBQSwMEFAAGAAgAAAAhAJAnSPuzAQAANBUAACcAAAB4bC9wcmludGVyU2V0dGluZ3MvcHJpbnRlclNldHRpbmdzMS5iaW7slMlKw1AUhv8kDlUXKghuXIhLaaGlcdoZkjrR2GKsdCfFRghoUtKIqLgQH0IQX0XwEXwA167EB3Cj/40VUYoUcSOcG8494x3ycTkuAuwhRoQ2ZR8JplGlHyBM7YRRFXGwgm5D6zMGHlCfMHIadAzhesTMNKFhFHVdp67rBmcLZtfVvwtqnWVK6xSlXzlW170vxzjrm7UZ3CNrZMevbr2ln07rT5Pzf3hL2eq/Efh4V73c+55Fnru9oWrHcIcz5LHIV75CXeBsIYcS5lFkLEdxsMAvx5oi4yVaefom/QK1Ta+IudQ7545bJc8pl1ELg9hvK6vaaPmxF5z6sExU4sAPk0YSRCHK1qbj2Va1tGvbS3ls+e3o4CjN0Ky0lFWAHR1EsRs1/Xer2/9lx4Ed03E/GNwMt2amWPhEMSgvWiVjPh67l8+Da5N3cxfq/8udHDKfO6pa5c92tPKXKTvKHwM5ROw3RziEn3aYGvuOz35TRYNWG8fMx2iy+Htlhbmwx1qbe5ygxQ7mcYU6T3W0hDEZQkAICAEhIASEgBAQAkJACAgBISAEhIAQ6IXAGwAAAP//AwBQSwMEFAAGAAgAAAAhAGMjO6VkAQAAmgIAABEACAFkb2NQcm9wcy9jb3JlLnhtbCCiBAEooAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAIySTU7DMBSE90jcIfI+sZOoAVlJKgHqikqVKAKxs+xHG5E4kW1IewA4Ajdgw5orAdfA+aUFFiyTmfk08+R4uily5wGUzkqZIN8jyAHJS5HJVYIulzP3GDnaMClYXkpI0BY0mqaHBzGvKC8VLFRZgTIZaMeSpKa8StDamIpirPkaCqY965BWvC1VwYz9VCtcMX7HVoADQiJcgGGCGYYboFuNRNQjBR+R1b3KW4DgGHIoQBqNfc/H314DqtB/Blplx1lkZlvZTX3dXbbgnTi6NzobjXVde3XY1rD9fXw9P79op7qZbG7FAaWx4JQrYKZU6efjy/vzk/Px9hrjnd/NCXOmzdxe+zYDcbLdc/5Wh8BCZdKASAMSRC4JXf9oSUJKCA3JTYz73GCyRdrdXRsQjl1Cu92DchWeni1naI8X0MmEksjyfuSbZR2w6Hv/kxjSIKLhZIc4ANK29P5rSr8AAAD//wMAUEsDBBQABgAIAAAAIQAhm/dGpAEAABMDAAAQAAgBZG9jUHJvcHMvYXBwLnhtbCCiBAEooAABAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAJySwWobMRCG74G+w6J7rHVaQjFaheK05NASg53cVe2sLaqVhDRZ7N76Hjmkh0AOOQZyKH2bNrRv0dld4qybnnqbmX/49c2MxNG6tlkDMRnvCjYe5SwDp31p3LJgZ4t3+69ZllC5UlnvoGAbSOxIvtgTs+gDRDSQMrJwqWArxDDhPOkV1CqNSHakVD7WCimNS+6rymg49vqiBof8IM8POawRXAnlftgast5x0uD/mpZet3zpfLEJBCzFmxCs0QppSvnB6OiTrzB7u9ZgBR+KgujmoC+iwY3MBR+mYq6VhSkZy0rZBII/FcQJqHZpM2VikqLBSQMafcyS+UxrO2DZR5WgxSlYo6JRDgmrbeuTLrYhYZQ/769/fL/89fVGcNL7WhcOW4exeSXHXQMFu42tQc9Bwi7hwqCFdFrNVMR/AI+HwB1Dj9vjPNx9+3315eHy9hliNzQ99pf91NdBuQ0J2+i9cZ/SWVj4Y4XwuNDdopivVISSbrBd+LYgTmiX0bYm05VySygfe54L7fnP+z8ux4ej/GVOlx3UBH/6zfIPAAAA//8DAFBLAQItABQABgAIAAAAIQBBN4LPbgEAAAQFAAATAAAAAAAAAAAAAAAAAAAAAABbQ29udGVudF9UeXBlc10ueG1sUEsBAi0AFAAGAAgAAAAhALVVMCP0AAAATAIAAAsAAAAAAAAAAAAAAAAApwMAAF9yZWxzLy5yZWxzUEsBAi0AFAAGAAgAAAAhAE9/lq3rAwAAPAkAAA8AAAAAAAAAAAAAAAAAzAYAAHhsL3dvcmtib29rLnhtbFBLAQItABQABgAIAAAAIQCBPpSX8wAAALoCAAAaAAAAAAAAAAAAAAAAAOQKAAB4bC9fcmVscy93b3JrYm9vay54bWwucmVsc1BLAQItABQABgAIAAAAIQCtgmzqlQUAADwTAAAYAAAAAAAAAAAAAAAAABcNAAB4bC93b3Jrc2hlZXRzL3NoZWV0MS54bWxQSwECLQAUAAYACAAAACEAG9IFPWEHAADNIAAAEwAAAAAAAAAAAAAAAADiEgAAeGwvdGhlbWUvdGhlbWUxLnhtbFBLAQItABQABgAIAAAAIQBhFdTapwUAADgaAAANAAAAAAAAAAAAAAAAAHQaAAB4bC9zdHlsZXMueG1sUEsBAi0AFAAGAAgAAAAhAOmDsqCXAgAAHhUAABQAAAAAAAAAAAAAAAAARiAAAHhsL3NoYXJlZFN0cmluZ3MueG1sUEsBAi0AFAAGAAgAAAAhADttMkvBAAAAQgEAACMAAAAAAAAAAAAAAAAADyMAAHhsL3dvcmtzaGVldHMvX3JlbHMvc2hlZXQxLnhtbC5yZWxzUEsBAi0AFAAGAAgAAAAhAJAnSPuzAQAANBUAACcAAAAAAAAAAAAAAAAAESQAAHhsL3ByaW50ZXJTZXR0aW5ncy9wcmludGVyU2V0dGluZ3MxLmJpblBLAQItABQABgAIAAAAIQBjIzulZAEAAJoCAAARAAAAAAAAAAAAAAAAAAkmAABkb2NQcm9wcy9jb3JlLnhtbFBLAQItABQABgAIAAAAIQAhm/dGpAEAABMDAAAQAAAAAAAAAAAAAAAAAKQoAABkb2NQcm9wcy9hcHAueG1sUEsFBgAAAAAMAAwAJgMAAH4rAAAAAA==";
 
+
 interface PayrollViewProps {
   clients: Client[];
 }
@@ -31,12 +32,10 @@ const CloudDownloadIcon = ({ className }: { className?: string }) => (
 );
 
 export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
-  // --- 全域狀態 ---
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
 
-  // --- UI 切換狀態 ---
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [activeInnerTab, setActiveInnerTab] = useState<'employees' | 'monthly' | 'yearly'>('employees');
 
@@ -56,15 +55,21 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [selectedMonth, setSelectedMonth] = useState(currentSystemMonth);
   const [monthlyData, setMonthlyData] = useState<Record<string, any>>({});
   
-  // ✨ 新增：存放年度薪資所有紀錄的狀態
   const [yearlySalaries, setYearlySalaries] = useState<any[]>([]);
+  const [refreshTrigger, setRefreshTrigger] = useState(0); // ✨ 用來觸發資料更新的魔法變數
   
   const [isMonthlyEditModalOpen, setIsMonthlyEditModalOpen] = useState(false);
   const [editingMonthlyEmp, setEditingMonthlyEmp] = useState<Employee | null>(null);
   const [monthlyFormData, setMonthlyFormData] = useState<any>({});
   const [isAddingNewMonthly, setIsAddingNewMonthly] = useState(false);
+  
+  // ✨ 新增：彈出視窗專用的月份狀態
+  const [editModalMonth, setEditModalMonth] = useState(selectedMonth);
 
-  // ✨ 當年份、月份或客戶改變時，從資料庫載入真實資料
+  // ✨ 新增：年度帳冊的反白選取狀態
+  const [yearlyHighlightEmpId, setYearlyHighlightEmpId] = useState<string | null>(null);
+  const [yearlyHighlightCell, setYearlyHighlightCell] = useState<{empId: string, rowType: string, month: string} | null>(null);
+
   useEffect(() => {
       const loadMonthlyData = async () => {
           if (activeInnerTab === 'monthly' && selectedClient) {
@@ -73,18 +78,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month === targetMonth);
               
               const initialData: Record<string, any> = {};
-              
-              // 🛡️ 修復：過濾員工 (只保留還在職的)
               const activeEmps = employees.filter(e => {
                   if (e.clientId !== String(selectedClient.id)) return false;
-                  
                   const targetMonthStr = `${selectedYear}-${selectedMonth}`;
                   const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
                   const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
-                  
                   if (startMonthStr && targetMonthStr < startMonthStr) return false;
                   if (endMonthStr && targetMonthStr > endMonthStr) return false;
-                  
                   return true;
               });
               
@@ -97,7 +97,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                           workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
                           baseSalary: emp.defaultBaseSalary || 0, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
                           leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
-                          foodAllowance: emp.defaultFoodAllowance || 0, taxFreeOt: 0,
+                          foodAllowance: emp.employmentType === 'full_time' ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
                           laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
                       };
                   }
@@ -106,11 +106,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           }
       };
 
-      // ✨ 新增：載入年度專用資料
       const loadYearlyData = async () => {
           if (activeInnerTab === 'yearly' && selectedClient) {
               const allSalaries = await TaskService.fetchMonthlySalaries();
-              // 抓取該客戶在選定年份的「所有月份」薪資紀錄
               const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month.startsWith(`${selectedYear}-`));
               setYearlySalaries(savedRecords);
           }
@@ -118,13 +116,31 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
       loadMonthlyData();
       loadYearlyData();
-  }, [activeInnerTab, selectedClient, employees, selectedYear, selectedMonth]);
+  }, [activeInnerTab, selectedClient, employees, selectedYear, selectedMonth, refreshTrigger]);
 
-  const handleOpenAddMonthly = () => {
-      setIsAddingNewMonthly(true);
-      setEditingMonthlyEmp(null);
-      setMonthlyFormData({});
-      setIsMonthlyEditModalOpen(true);
+  // ✨ 專門給 Modal 讀取指定月份資料用的函數
+  const loadFormDataForMonth = async (emp: Employee, month: string) => {
+      const targetMonthStr = `${selectedYear}-${month}`;
+      const allSalaries = await TaskService.fetchMonthlySalaries();
+      const record = allSalaries.find(r => r.clientId === String(selectedClient?.id) && r.employeeId === emp.id && r.month === targetMonthStr);
+
+      if (record) {
+          setMonthlyFormData(record);
+      } else {
+          setMonthlyFormData({
+              workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
+              baseSalary: emp.defaultBaseSalary || 0, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
+              leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
+              foodAllowance: emp.employmentType === 'full_time' ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
+              laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
+          });
+      }
+  };
+
+  const handleModalMonthSwitch = (m: string) => {
+      if (!editingMonthlyEmp) return;
+      setEditModalMonth(m);
+      loadFormDataForMonth(editingMonthlyEmp, m);
   };
 
   const handleSaveMonthlyData = async (e: React.FormEvent) => {
@@ -132,24 +148,24 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       if (!editingMonthlyEmp || !selectedClient) return;
 
       const record: any = {
-          id: monthlyData[editingMonthlyEmp.id]?.id || Date.now().toString(),
+          id: monthlyFormData.id || Date.now().toString(),
           clientId: String(selectedClient.id),
           employeeId: editingMonthlyEmp.id,
-          month: `${selectedYear}-${selectedMonth}`,
+          month: `${selectedYear}-${editModalMonth}`, // ✨ 存到視窗目前選擇的月份
           updatedAt: new Date().toISOString(),
           ...monthlyFormData
       };
 
-      setMonthlyData(prev => ({ ...prev, [editingMonthlyEmp.id]: record }));
-
       const allSalaries = await TaskService.fetchMonthlySalaries();
-      const existingIdx = allSalaries.findIndex(r => r.id === record.id);
+      const existingIdx = allSalaries.findIndex(r => r.clientId === String(selectedClient.id) && r.employeeId === editingMonthlyEmp.id && r.month === record.month);
       if (existingIdx !== -1) {
           allSalaries[existingIdx] = record;
       } else {
           allSalaries.push(record);
       }
+      
       await TaskService.saveMonthlySalaries(allSalaries);
+      setRefreshTrigger(p => p + 1); // ✨ 觸發重新讀取，讓背景表格瞬間更新
       setIsMonthlyEditModalOpen(false);
   };
 
@@ -175,7 +191,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           await workbook.xlsx.load(bytes.buffer);
           const ws = workbook.worksheets[0]; 
 
-          // 🛡️ 修復：過濾員工
           const currentMonthEmps = employees.filter(e => {
               if (e.clientId !== String(selectedClient.id)) return false;
               const targetMonthStr = `${selectedYear}-${selectedMonth}`;
@@ -321,7 +336,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   
   const handleRowClickMonthly = (emp: Employee) => {
       setEditingMonthlyEmp(emp);
-      setMonthlyFormData(monthlyData[emp.id] || {});
+      setEditModalMonth(selectedMonth);
+      loadFormDataForMonth(emp, selectedMonth);
+      setIsAddingNewMonthly(false);
       setIsMonthlyEditModalOpen(true);
   };
 
@@ -381,6 +398,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const empFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportEmpExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    // 匯入邏輯保持不變
     const file = e.target.files?.[0];
     if (!file || !selectedClient) return;
 
@@ -530,6 +548,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   };
 
   if (selectedClient) {
+    // ✨ Feature 1: 員工排序邏輯 (正職優先，再來依編號，離職墊底)
     const currentEmps = employees
         .filter(e => e.clientId === String(selectedClient.id))
         .sort((a, b) => {
@@ -537,6 +556,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             const bResigned = !!b.endDate;
             if (aResigned && !bResigned) return 1; 
             if (!aResigned && bResigned) return -1;
+            
+            if (a.employmentType === 'full_time' && b.employmentType !== 'full_time') return -1;
+            if (a.employmentType !== 'full_time' && b.employmentType === 'full_time') return 1;
+
             return (a.empNo || '').localeCompare(b.empNo || '');
         });
 
@@ -596,18 +619,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                     <button onClick={handleExportEmployerExcel} className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
                       <CloudDownloadIcon className="w-5 h-5" />
                     </button>
-                  </div>
-              )}
-
-              {/* ✨ 年度薪資帳冊 (唯讀模式) */}
-              {activeInnerTab === 'yearly' && (
-                  <div className="flex items-center gap-2">
-                      <button title="年度帳冊無法編輯，資料皆由每月薪資自動彙總" className="p-2.5 bg-gray-100 text-gray-400 font-bold rounded-xl shadow-sm flex items-center justify-center cursor-not-allowed">
-                          <span className="text-xs px-2">唯讀模式</span>
-                      </button>
-                      <button title="匯出年度薪資帳冊 (開發中)" className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center opacity-50 cursor-not-allowed">
-                          <CloudDownloadIcon className="w-5 h-5" />
-                      </button>
                   </div>
               )}
           </div>
@@ -757,7 +768,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             </thead>
                             <tbody>
                                 {(() => {
-                                    // 🛡️ 修復：過濾員工
                                     const currentMonthEmps = employees.filter(e => {
                                         if (e.clientId !== String(selectedClient.id)) return false;
                                         
@@ -980,10 +990,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                 </div>
             )}
 
-            {/* 📍 標籤三：年度薪資帳冊 (唯讀匯總版) */}
+            {/* 📍 標籤三：年度薪資帳冊 (唯讀匯總版 + 互動式編輯) */}
             {activeInnerTab === 'yearly' && (() => {
-                
-                // 1. 過濾出該年度有在職的員工
                 const yearlyEmps = employees.filter(e => {
                     if (e.clientId !== String(selectedClient.id)) return false;
                     const startYear = e.startDate ? e.startDate.substring(0, 4) : '';
@@ -995,7 +1003,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
                 const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
 
-                // 2. 準備全公司年度大加總
                 const grandTotals = {
                     salary: Array(12).fill(0),
                     food: Array(12).fill(0),
@@ -1004,7 +1011,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                     totalSalary: 0, totalFood: 0, totalTaxFreeOt: 0, totalBonus: 0
                 };
 
-                // 3. 處理每位員工的年度矩陣資料
                 const yearlyData = yearlyEmps.map(emp => {
                     const empMonths = months.map((m, mIndex) => {
                         const targetMonthStr = `${selectedYear}-${m}`;
@@ -1017,7 +1023,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                         if (startMonthStr && targetMonthStr < startMonthStr) isActive = false;
                         if (endMonthStr && targetMonthStr > endMonthStr) isActive = false;
 
-                        // ✨ 防呆與格式化：如果在職，將數字與勞健保勾選狀態組合成字串
                         let insurance: string | number = 0;
                         if (isActive && emp.insuranceBracket) {
                             const types = [];
@@ -1055,14 +1060,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                         }
                         const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
 
-                        // ✨ 依照使用者需求，計算 4 大項目
                         const salary = (rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.taxableOt||0) 
                                      - (rowData.leaveDeduction ?? realLeaveDeduction) - (rowData.dailyShortage||0) - (rowData.lateDeduction ?? realLateDeduction);
                         const food = rowData.foodAllowance || 0;
                         const taxFreeOt = (rowData.taxFreeOt ?? realTaxFreeOt) || 0;
                         const bonus = rowData.performanceBonus || 0;
 
-                        // 累加到大加總
                         grandTotals.salary[mIndex] += salary;
                         grandTotals.food[mIndex] += food;
                         grandTotals.taxFreeOt[mIndex] += taxFreeOt;
@@ -1073,20 +1076,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                         grandTotals.totalTaxFreeOt += taxFreeOt;
                         grandTotals.totalBonus += bonus;
 
-                        return { salary, food, taxFreeOt, bonus, insurance, isActive };
+                        return { salary, food, taxFreeOt, bonus, insurance, isActive, month: m };
                     });
 
                     return { emp, empMonths };
                 });
 
-                // UI 渲染小幫手
                 const renderVal = (val: number, isActive: boolean) => {
                     if (!isActive) return <span className="text-transparent">-</span>;
                     if (val === 0) return <span className="text-gray-300">-</span>;
-                    return <span className="font-medium text-gray-700">{val.toLocaleString()}</span>;
+                    return <span>{val.toLocaleString()}</span>;
                 };
 
-                // ✨ 新增：專門用來渲染勞健保的函數 (加上藍綠色標籤)
                 const renderInsuranceVal = (val: number | string, isActive: boolean) => {
                     if (!isActive) return <span className="text-transparent">-</span>;
                     if (val === 0 || val === "0" || val === "") return <span className="text-gray-300">-</span>;
@@ -1113,52 +1114,76 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         const empTotalTaxFreeOt = empMonths.reduce((sum, m) => sum + m.taxFreeOt, 0);
                                         const empTotalBonus = empMonths.reduce((sum, m) => sum + m.bonus, 0);
 
+                                        // ✨ 判斷此員工區塊是否被點擊選取
+                                        const isEmpHighlighted = yearlyHighlightEmpId === emp.id;
+                                        const bgBase = isEmpHighlighted ? "bg-yellow-50/60" : "bg-white group-hover:bg-blue-50/20";
+                                        const stickyBg = isEmpHighlighted ? "bg-yellow-50" : "bg-white group-hover:bg-blue-50/20";
+
+                                        // ✨ 取得特定格子 class
+                                        const getCellClass = (rowType: string, month: string, isActive: boolean) => {
+                                            const isHighlighted = yearlyHighlightCell?.empId === emp.id && yearlyHighlightCell?.rowType === rowType && yearlyHighlightCell?.month === month;
+                                            if (isHighlighted) return "p-3 text-right cursor-pointer ring-inset ring-2 ring-blue-500 bg-blue-100/80 shadow-md font-black text-blue-800 relative z-10 transition-all scale-105 rounded-sm";
+                                            if (!isActive) return `p-3 text-right ${isEmpHighlighted ? 'bg-yellow-50/30' : 'bg-gray-50'}`;
+                                            return `p-3 text-right cursor-pointer font-medium text-gray-700 transition-colors ${isEmpHighlighted ? 'hover:bg-yellow-200/50' : 'hover:bg-blue-100/50'}`;
+                                        };
+
                                         return (
                                             <React.Fragment key={emp.id}>
-                                                {/* Row 1: 薪資總額 */}
-                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
-                                                    <td rowSpan={5} className="p-3 text-center font-mono text-gray-500 border-r border-gray-100 border-b-2 border-b-gray-300 sticky left-0 z-20 bg-white group-hover:bg-blue-50/30">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
-                                                    <td rowSpan={5} className="p-3 text-center font-black text-gray-800 border-r-2 border-gray-200 border-b-2 border-b-gray-300 sticky left-[60px] z-20 bg-white group-hover:bg-blue-50/30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                <tr className={`${bgBase} transition-colors group`}>
+                                                    {/* 序號 - 點擊反白整區 */}
+                                                    <td rowSpan={5} onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-mono text-gray-500 border-r border-gray-100 border-b-2 border-b-gray-300 sticky left-0 z-20 cursor-pointer ${stickyBg}`}>{emp.empNo || String(index + 1).padStart(3, '0')}</td>
+                                                    
+                                                    {/* 姓名 - 點擊開啟編輯視窗 */}
+                                                    <td rowSpan={5} onClick={() => {
+                                                        setEditingMonthlyEmp(emp);
+                                                        const firstActiveMonth = empMonths.find(m => m.isActive)?.month || '01';
+                                                        setEditModalMonth(firstActiveMonth);
+                                                        loadFormDataForMonth(emp, firstActiveMonth);
+                                                        setIsAddingNewMonthly(false);
+                                                        setIsMonthlyEditModalOpen(true);
+                                                    }} className={`p-3 text-center border-r-2 border-gray-200 border-b-2 border-b-gray-300 sticky left-[60px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer group/name ${stickyBg}`}>
                                                         <div className="flex flex-col items-center">
-                                                            <span>{emp.name}</span>
+                                                            <span className="font-black text-gray-800 group-hover/name:text-blue-600 transition-colors">{emp.name}</span>
                                                             <span className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold ${emp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                                 {emp.employmentType === 'full_time' ? '正職' : '兼職'}
                                                             </span>
+                                                            <span className={`mt-2 text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded transition-opacity font-bold ${isEmpHighlighted ? 'opacity-100' : 'opacity-0 group-hover/name:opacity-100'}`}>✏️ 編輯明細</span>
                                                         </div>
                                                     </td>
-                                                    <td className="p-3 text-center font-bold text-gray-600 bg-gray-50 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">薪資總額</td>
-                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.salary, m.isActive)}</td>)}
+
+                                                    {/* Row 1: 薪資總額 */}
+                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>薪資總額</td>
+                                                    {empMonths.map((m, i) => <td key={i} onClick={() => m.isActive && setYearlyHighlightCell({empId: emp.id, rowType: 'salary', month: m.month})} className={getCellClass('salary', m.month, m.isActive)}>{renderVal(m.salary, m.isActive)}</td>)}
                                                     <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalSalary > 0 ? empTotalSalary.toLocaleString() : '-'}</td>
                                                 </tr>
                                                 {/* Row 2: 伙食費 */}
-                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
-                                                    <td className="p-3 text-center font-bold text-gray-600 bg-gray-50 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">伙食費</td>
-                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.food, m.isActive)}</td>)}
+                                                <tr className={`${bgBase} transition-colors group`}>
+                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>伙食費</td>
+                                                    {empMonths.map((m, i) => <td key={i} onClick={() => m.isActive && setYearlyHighlightCell({empId: emp.id, rowType: 'food', month: m.month})} className={getCellClass('food', m.month, m.isActive)}>{renderVal(m.food, m.isActive)}</td>)}
                                                     <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalFood > 0 ? empTotalFood.toLocaleString() : '-'}</td>
                                                 </tr>
                                                 {/* Row 3: 免稅加班費 */}
-                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
-                                                    <td className="p-3 text-center font-bold text-gray-600 bg-gray-50 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">免稅加班費</td>
-                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.taxFreeOt, m.isActive)}</td>)}
+                                                <tr className={`${bgBase} transition-colors group`}>
+                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>免稅加班費</td>
+                                                    {empMonths.map((m, i) => <td key={i} onClick={() => m.isActive && setYearlyHighlightCell({empId: emp.id, rowType: 'taxFreeOt', month: m.month})} className={getCellClass('taxFreeOt', m.month, m.isActive)}>{renderVal(m.taxFreeOt, m.isActive)}</td>)}
                                                     <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalTaxFreeOt > 0 ? empTotalTaxFreeOt.toLocaleString() : '-'}</td>
                                                 </tr>
                                                 {/* Row 4: 獎金 */}
-                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
-                                                    <td className="p-3 text-center font-bold text-gray-600 bg-gray-50 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">獎金</td>
-                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.bonus, m.isActive)}</td>)}
+                                                <tr className={`${bgBase} transition-colors group`}>
+                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>獎金</td>
+                                                    {empMonths.map((m, i) => <td key={i} onClick={() => m.isActive && setYearlyHighlightCell({empId: emp.id, rowType: 'bonus', month: m.month})} className={getCellClass('bonus', m.month, m.isActive)}>{renderVal(m.bonus, m.isActive)}</td>)}
                                                     <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalBonus > 0 ? empTotalBonus.toLocaleString() : '-'}</td>
                                                 </tr>
-                                              {/* Row 5: 健保投保金額 */}
-                                                <tr className="hover:bg-teal-50/40 transition-colors bg-white group">
-                                                    <td className="p-3 text-center font-black text-teal-800 bg-teal-50 border-r border-teal-200 border-b-2 border-b-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">健保投保金額</td>
-                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-center border-b-2 border-b-gray-300 ${m.isActive ? '' : 'bg-gray-50'}`}>{renderInsuranceVal(m.insurance, m.isActive)}</td>)}
+                                                {/* Row 5: 健保投保金額 */}
+                                                <tr className={`${bgBase} transition-colors group`}>
+                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-teal-700 border-r border-teal-200 border-b-2 border-b-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-teal-100/80' : 'bg-teal-50'}`}>健保投保金額</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-center border-b-2 border-b-gray-300 ${m.isActive ? (isEmpHighlighted ? 'bg-yellow-50/30' : '') : 'bg-gray-50'}`}>{renderInsuranceVal(m.insurance, m.isActive)}</td>)}
                                                     <td className="p-3 text-center font-black text-gray-400 bg-gray-50 border-l border-gray-200 border-b-2 border-b-gray-300">-</td>
                                                 </tr>
                                             </React.Fragment>
                                         );
                                     })}
                                     
-                                    {/* 全公司年度大加總 */}
                                     {yearlyData.length > 0 && (
                                         <>
                                             <tr className="bg-gray-100 border-t-4 border-gray-400">
@@ -1195,13 +1220,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                 );
             })()}
 
-          {/* 🚀 薪資編輯小視窗 */}
+          {/* 🚀 薪資編輯小視窗 (整合月份切換器) */}
                     {isMonthlyEditModalOpen && (
                         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsMonthlyEditModalOpen(false)}>
                             <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                                 <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
                                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
                                         {isAddingNewMonthly ? '新增薪資紀錄' : `編輯薪資結算 - ${editingMonthlyEmp?.name}`}
+                                        {!isAddingNewMonthly && <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded text-sm">{selectedYear} 年</span>}
                                         {editingMonthlyEmp && (
                                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${editingMonthlyEmp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                 {editingMonthlyEmp.employmentType === 'full_time' ? '正職' : '兼職'}
@@ -1210,6 +1236,26 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     </h3>
                                     <button onClick={() => setIsMonthlyEditModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl font-black">✕</button>
                                 </div>
+                                
+                                {/* ✨ 魔法月份切換器 (只有在編輯既有員工時才顯示) */}
+                                {!isAddingNewMonthly && (
+                                    <div className="px-6 pt-4 pb-0 bg-white border-b flex gap-1 overflow-x-auto custom-scrollbar shadow-sm z-10">
+                                        {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => (
+                                            <button
+                                                key={m}
+                                                type="button"
+                                                onClick={() => handleModalMonthSwitch(m)}
+                                                className={`px-4 py-2 rounded-t-lg font-bold transition-colors border-b-2 whitespace-nowrap ${
+                                                    editModalMonth === m
+                                                    ? 'border-blue-600 text-blue-700 bg-blue-50/50'
+                                                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                                                }`}
+                                            >
+                                                {Number(m)} 月
+                                            </button>
+                                        ))}
+                                    </div>
+                                )}
                                 
                               <form onSubmit={handleSaveMonthlyData} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
                                     
@@ -1222,21 +1268,18 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     const emp = employees.find(emp => emp.id === e.target.value);
                                                     if (emp) {
                                                         setEditingMonthlyEmp(emp);
-                                                        setMonthlyFormData(monthlyData[emp.id] || {
-                                                            baseSalary: emp.defaultBaseSalary, foodAllowance: emp.defaultFoodAllowance
-                                                        });
+                                                        setEditModalMonth(selectedMonth);
+                                                        loadFormDataForMonth(emp, selectedMonth);
                                                     }
                                                 }} 
                                                 className="w-full border border-blue-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white"
                                             >
                                               <option value="">-- 請選擇員工 --</option>
-                                                {/* 🛡️ 修復：下拉選單也套用相同的過濾邏輯 */}
                                                 {employees.filter(e => {
                                                     if (e.clientId !== String(selectedClient?.id)) return false;
                                                     const targetMonthStr = `${selectedYear}-${selectedMonth}`;
                                                     const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
                                                     const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
-                                                    
                                                     if (startMonthStr && targetMonthStr < startMonthStr) return false;
                                                     if (endMonthStr && targetMonthStr > endMonthStr) return false;
                                                     return true;
@@ -1310,7 +1353,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 
                                 <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
                                     <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-gray-500 mb-0.5">預估實發金額</span>
+                                        <span className="text-xs font-bold text-gray-500 mb-0.5">預估實發金額 ({selectedYear}年{editModalMonth}月)</span>
                                         <span className="text-2xl font-black text-green-600">${
                                             (((monthlyFormData.baseSalary||0) + (monthlyFormData.fullAttendance||0) + (monthlyFormData.positionAllowance||0) + (monthlyFormData.performanceBonus||0) + (monthlyFormData.taxableOt||0)) - 
                                             ((monthlyFormData.leaveDeduction||0) + (monthlyFormData.dailyShortage||0) + (monthlyFormData.lateDeduction||0) + (monthlyFormData.pensionSelf||0)) + 
@@ -1319,9 +1362,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         }</span>
                                     </div>
                                   <div className="flex gap-3 w-1/2">
-                                        <button type="button" className="px-4 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
-                                            <CloudDownloadIcon className="w-6 h-6" />
-                                        </button>
                                         <button onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
                                         <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
                                     </div>
