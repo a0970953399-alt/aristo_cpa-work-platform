@@ -628,11 +628,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                       </div>
                   )}
 
-                  {activeInnerTab === 'monthly' && (
+                {activeInnerTab === 'monthly' && (
                       <div className="flex items-center gap-2 animate-fade-in">
-                          <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
-                              <ExcelFileIcon className="w-5 h-5" />
-                          </button>
+                          {/* 僅保留匯出按鈕 */}
                           <button onClick={handleExportEmployerExcel} className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
                               <CloudDownloadIcon className="w-5 h-5" />
                           </button>
