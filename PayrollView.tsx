@@ -62,6 +62,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [editingMonthlyEmp, setEditingMonthlyEmp] = useState<Employee | null>(null);
   const [monthlyFormData, setMonthlyFormData] = useState<any>({});
   const [isAddingNewMonthly, setIsAddingNewMonthly] = useState(false);
+  const [editModalMode, setEditModalMode] = useState<'monthly' | 'yearly'>('monthly'); // ✨ 區分是從哪個頁面打開的
   
   // ✨ 新增：彈出視窗專用的月份狀態
   const [editModalMonth, setEditModalMonth] = useState(selectedMonth);
@@ -336,6 +337,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const handleRowClickMonthly = (emp: Employee) => {
       setEditingMonthlyEmp(emp);
       setEditModalMonth(selectedMonth);
+      setEditModalMode('monthly'); // ✨ 設定為每月模式
       loadFormDataForMonth(emp, selectedMonth);
       setIsAddingNewMonthly(false);
       setIsMonthlyEditModalOpen(true);
@@ -1133,14 +1135,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     {/* 序號 - 點擊反白/取消反白整區 */}
                                                     <td rowSpan={5} onClick={() => setYearlyHighlightEmpId(yearlyHighlightEmpId === emp.id ? null : emp.id)} className={`p-3 text-center font-mono text-gray-500 border-r border-gray-100 border-b-2 border-b-gray-300 sticky left-0 z-20 cursor-pointer hover:bg-yellow-100 transition-colors ${stickyBg}`}>{emp.empNo || String(index + 1).padStart(3, '0')}</td>
                                                     
-                                                    {/* 姓名 - 點擊開啟編輯視窗 */}
+                                                {/* 姓名 - 點擊開啟編輯視窗 */}
                                                     <td rowSpan={5} onClick={() => {
                                                         setEditingMonthlyEmp(emp);
+                                                        setEditModalMode('yearly'); // ✨ 設定為年度模式
                                                         const firstActiveMonth = empMonths.find(m => m.isActive)?.month || '01';
                                                         setEditModalMonth(firstActiveMonth);
                                                         loadFormDataForMonth(emp, firstActiveMonth);
                                                         setIsAddingNewMonthly(false);
                                                         setIsMonthlyEditModalOpen(true);
+                                                    }} className={`p-3 text-center ...
                                                     }} className={`p-3 text-center border-r-2 border-gray-200 border-b-2 border-b-gray-300 sticky left-[60px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer group/name hover:bg-blue-50 transition-colors ${stickyBg}`}>
                                                         <div className="flex flex-col items-center">
                                                             <span className="font-black text-gray-800 group-hover/name:text-blue-600 transition-colors">{emp.name}</span>
@@ -1225,8 +1229,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>                                <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
                                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
                                         {isAddingNewMonthly ? '新增薪資紀錄' : `編輯薪資結算 - ${editingMonthlyEmp?.name}`}
-                                        {!isAddingNewMonthly && <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded text-sm">{selectedYear} 年</span>}
-                                        {editingMonthlyEmp && (
+                                      {!isAddingNewMonthly && <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded text-sm">{selectedYear} 年 {editModalMode === 'monthly' ? `${selectedMonth} 月` : ''}</span>}                                        {editingMonthlyEmp && (
                                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${editingMonthlyEmp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                 {editingMonthlyEmp.employmentType === 'full_time' ? '正職' : '兼職'}
                                             </span>
@@ -1235,8 +1238,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <button onClick={() => setIsMonthlyEditModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl font-black">✕</button>
                                 </div>
                                 
-                                {/* ✨ 魔法月份切換器 (只有在編輯既有員工時才顯示) */}
-                                {!isAddingNewMonthly && (
+                            {/* ✨ 魔法月份切換器 (只有在「年度帳冊」模式下才顯示) */}
+                            {!isAddingNewMonthly && editModalMode === 'yearly' && (
                                     <div className="px-6 pt-4 pb-0 bg-white border-b flex gap-1 overflow-x-auto custom-scrollbar shadow-sm z-10">
                                         {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => (
                                             <button
