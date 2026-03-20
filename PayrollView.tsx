@@ -183,6 +183,133 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setIsMonthlyEditModalOpen(false);
   };
 
+  // ✨ 新增：預覽 Email 薪資單
+  const handlePreviewEmail = () => {
+      if (!editingMonthlyEmp) return;
+
+      // 1. 抓取當前表單的數字
+      const baseSalary = monthlyFormData.baseSalary || 0;
+      const foodAllowance = monthlyFormData.foodAllowance || 0;
+      const leaveDeduction = monthlyFormData.leaveDeduction || 0;
+      const lateDeduction = monthlyFormData.lateDeduction || 0;
+      const laborIns = monthlyFormData.laborIns || 0;
+      const healthIns = monthlyFormData.healthIns || 0;
+      
+      // 自動加總其他項目
+      const totalOtPay = (monthlyFormData.taxableOt || 0) + (monthlyFormData.taxFreeOt || 0);
+      const otherAdditions = (monthlyFormData.fullAttendance || 0) + (monthlyFormData.positionAllowance || 0) + (monthlyFormData.performanceBonus || 0);
+      const otherDeductions = (monthlyFormData.dailyShortage || 0) + (monthlyFormData.pensionSelf || 0) + (monthlyFormData.incomeTax || 0) + (monthlyFormData.advancePay || 0);
+
+      const netPay = (baseSalary + foodAllowance + totalOtPay + otherAdditions) - (leaveDeduction + lateDeduction + laborIns + healthIns + otherDeductions);
+
+      // 自動產生備註
+      const remarksArr = [];
+      if (monthlyFormData.lateHours > 0) remarksArr.push(`遲到${monthlyFormData.lateHours}分鐘`);
+      if (monthlyFormData.sickLeave > 0) remarksArr.push(`病假${monthlyFormData.sickLeave}小時`);
+      if (monthlyFormData.personalLeave > 0) remarksArr.push(`事假${monthlyFormData.personalLeave}小時`);
+      if (monthlyFormData.normalOt > 0 || monthlyFormData.holidayOt > 0) remarksArr.push(`加班${(monthlyFormData.normalOt||0) + (monthlyFormData.holidayOt||0)}小時`);
+      const remarks = remarksArr.length > 0 ? remarksArr.join('，') + '。' : '無';
+
+      // 2. 組合 HTML 模板
+      const htmlContent = `
+        <!DOCTYPE html>
+        <html>
+        <head>
+          <meta charset="utf-8">
+          <title>預覽薪資單 - ${editingMonthlyEmp.name}</title>
+        </head>
+        <body style="background-color: #e5e7eb; padding: 40px; margin: 0;">
+          <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 650px; margin: 0 auto; background-color: white; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
+            <div style="background-color: #2563eb; padding: 20px; text-align: center; color: white;">
+              <h2 style="margin: 0; letter-spacing: 2px;">薪資結算明細表</h2>
+              <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">發放月份：${selectedYear} 年 ${editModalMonth} 月</p>
+            </div>
+            <div style="padding: 20px; background-color: #f9fafb; border-bottom: 2px solid #e5e7eb;">
+              <table style="width: 100%; font-size: 14px; color: #374151;">
+                <tr>
+                  <td style="padding: 4px 0; width: 50%;"><strong>員工姓名：</strong>${editingMonthlyEmp.name}</td>
+                  <td style="padding: 4px 0; width: 50%;"><strong>員工代號：</strong>${editingMonthlyEmp.empNo || '-'}</td>
+                </tr>
+                <tr>
+                  <td style="padding: 4px 0;"><strong>身分證字號：</strong>${editingMonthlyEmp.idNumber || '-'}</td>
+                  <td style="padding: 4px 0;"><strong>E-mail：</strong>${editingMonthlyEmp.email || '尚未設定信箱'}</td>
+                </tr>
+              </table>
+            </div>
+            <div style="padding: 20px;">
+              <p style="text-align: right; font-size: 12px; color: #6b7280; margin-top: 0;">單位：新台幣 (元)</p>
+              <table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: right;">
+                <thead>
+                  <tr style="background-color: #f3f4f6; color: #1f2937;">
+                    <th style="padding: 10px; border: 1px solid #d1d5db; text-align: center; width: 25%;">加項</th>
+                    <th style="padding: 10px; border: 1px solid #d1d5db; text-align: center; width: 25%;">金額</th>
+                    <th style="padding: 10px; border: 1px solid #d1d5db; text-align: center; width: 25%;">減項</th>
+                    <th style="padding: 10px; border: 1px solid #d1d5db; text-align: center; width: 25%;">金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">本薪</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; color: #047857;">${baseSalary.toLocaleString()}</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">病事假扣薪</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; color: #b91c1c;">${leaveDeduction.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">伙食費</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; color: #047857;">${foodAllowance.toLocaleString()}</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">遲到扣薪</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; color: #b91c1c;">${lateDeduction.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">加班費</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; color: #047857;">${totalOtPay.toLocaleString()}</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">勞保自負額</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; color: #b91c1c;">${laborIns.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">其他加項</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; color: #047857;">${otherAdditions.toLocaleString()}</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">健保自負額</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; color: #b91c1c;">${healthIns.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center; background-color: #f9fafb;"></td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; background-color: #f9fafb;"></td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; text-align: center;">其他減項</td>
+                    <td style="padding: 10px; border: 1px solid #d1d5db; color: #b91c1c;">${otherDeductions.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </div>
+            <div style="padding: 20px; background-color: #f8fafc; border-top: 2px solid #e5e7eb;">
+              <p style="margin: 0 0 15px 0; font-size: 13px; color: #4b5563; line-height: 1.5;">
+                <strong>其他備註：</strong><br/>${remarks}
+              </p>
+              <div style="text-align: right; margin-top: 20px;">
+                <span style="font-size: 16px; font-weight: bold; color: #374151; margin-right: 15px;">實領金額：</span>
+                <span style="font-size: 24px; font-weight: 900; color: #15803d; border-bottom: 4px double #15803d; padding-bottom: 2px;">
+                  $ ${netPay.toLocaleString()}
+                </span>
+              </div>
+            </div>
+            <div style="background-color: #f3f4f6; padding: 15px; text-align: center; font-size: 12px; color: #9ca3af;">
+              此信件為系統自動發送，請勿直接回覆。若對薪資結算有疑問，請洽會計部門。
+            </div>
+          </div>
+        </body>
+        </html>
+      `;
+
+      // 3. 開啟新分頁並寫入 HTML
+      const newWindow = window.open('', '_blank');
+      if (newWindow) {
+          newWindow.document.write(htmlContent);
+          newWindow.document.close();
+      } else {
+          alert('預覽視窗被瀏覽器阻擋了，請允許彈出視窗！');
+      }
+  };
+  
   const handleExportEmployerExcel = async () => {
       try {
           if (!selectedClient) return;
@@ -1391,9 +1518,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <button type="submit" id="submitMonthlyForm" className="hidden"></button>
                                 </form>
                                 
-                                <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
+                            <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
                                     <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-gray-500 mb-0.5">實發金額 ({selectedYear}年{editModalMonth}月)</span>
+                                        <span className="text-xs font-bold text-gray-500 mb-0.5">預估實發金額 ({selectedYear}年{editModalMonth}月)</span>
                                         <span className="text-2xl font-black text-green-600">${
                                             (((monthlyFormData.baseSalary||0) + (monthlyFormData.fullAttendance||0) + (monthlyFormData.positionAllowance||0) + (monthlyFormData.performanceBonus||0) + (monthlyFormData.taxableOt||0)) - 
                                             ((monthlyFormData.leaveDeduction||0) + (monthlyFormData.dailyShortage||0) + (monthlyFormData.lateDeduction||0) + (monthlyFormData.pensionSelf||0)) + 
@@ -1401,8 +1528,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             ((monthlyFormData.laborIns||0) + (monthlyFormData.healthIns||0) + (monthlyFormData.incomeTax||0) + (monthlyFormData.advancePay||0))).toLocaleString()
                                         }</span>
                                     </div>
-                                  <div className="flex gap-3 w-1/2">
-                                        <button onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
+                                    <div className="flex gap-3 w-3/5">
+                                        {/* ✨ 新增的預覽與寄送按鈕 */}
+                                        <button type="button" onClick={handlePreviewEmail} className="px-4 py-3 bg-white border border-blue-200 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors whitespace-nowrap shadow-sm">
+                                            👀 預覽
+                                        </button>
+                                        <button type="button" onClick={() => alert('寄送功能即將串接 API，敬請期待！')} className="px-4 py-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">
+                                            ✉️ 寄送
+                                        </button>
+                                        
+                                        <button type="button" onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
                                         <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
                                     </div>
                                 </div>
