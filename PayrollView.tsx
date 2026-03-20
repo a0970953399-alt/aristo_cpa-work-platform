@@ -1258,7 +1258,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             </button>
                                         ))}
                                     </div>
-                                )})}
+                                )}
                                 
                               <form onSubmit={handleSaveMonthlyData} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
                                     
