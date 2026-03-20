@@ -12,7 +12,6 @@ interface PayrollViewProps {
   clients: Client[];
 }
 
-// ✨ 新增：編輯用的鉛筆圖示
 const EditIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
     <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
@@ -35,37 +34,31 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   // --- 全域狀態 ---
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]); // ✨ 新增員工狀態
+  const [employees, setEmployees] = useState<Employee[]>([]);
 
   // --- UI 切換狀態 ---
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [activeInnerTab, setActiveInnerTab] = useState<'employees' | 'monthly' | 'yearly'>('employees');
 
-  // ✨ 新增：每月薪資明細的群組展開狀態
   const [expandedGroups, setExpandedGroups] = useState({
-      additions: false,    // 應加金額
-      deductions: false,   // 應扣金額
-      taxFree: false,      // 應加免稅
-      withholdings: false  // 代扣款項
+      additions: false, deductions: false, taxFree: false, withholdings: false
   });
 
-  // ✨ 新增：動態取得當前系統的年份與月份
   const currentSystemYear = new Date().getFullYear();
   const currentSystemMonth = String(new Date().getMonth() + 1).padStart(2, '0');
 
-  // ✨ 動態生成年份陣列 (從 2025 年開始，一直到「當前系統年份 + 1 年」)
-  // reverse() 是為了讓越新的年份排在越上面
   const availableYears = Array.from(
       { length: Math.max(currentSystemYear - 2025 + 2, 2) }, 
       (_, i) => String(2025 + i)
   ).reverse();
 
-  // 年份與月份獨立狀態 (預設帶入系統當前年月)
   const [selectedYear, setSelectedYear] = useState(String(currentSystemYear));
   const [selectedMonth, setSelectedMonth] = useState(currentSystemMonth);
   const [monthlyData, setMonthlyData] = useState<Record<string, any>>({});
   
-  // 編輯視窗狀態
+  // ✨ 新增：存放年度薪資所有紀錄的狀態
+  const [yearlySalaries, setYearlySalaries] = useState<any[]>([]);
+  
   const [isMonthlyEditModalOpen, setIsMonthlyEditModalOpen] = useState(false);
   const [editingMonthlyEmp, setEditingMonthlyEmp] = useState<Employee | null>(null);
   const [monthlyFormData, setMonthlyFormData] = useState<any>({});
@@ -76,14 +69,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       const loadMonthlyData = async () => {
           if (activeInnerTab === 'monthly' && selectedClient) {
               const allSalaries = await TaskService.fetchMonthlySalaries();
-              const targetMonth = `${selectedYear}-${selectedMonth}`; // ✨ 組合年月
+              const targetMonth = `${selectedYear}-${selectedMonth}`;
               const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month === targetMonth);
               
-            const initialData: Record<string, any> = {};
-              // ✨ 修正離職邏輯：如果沒離職，或是「目標月份 <= 離職月份」，就將其納入當月名單
-            const activeEmps = employees.filter(e => {
+              const initialData: Record<string, any> = {};
+              
+              // 🛡️ 修復：過濾員工 (只保留還在職的)
+              const activeEmps = employees.filter(e => {
                   if (e.clientId !== String(selectedClient.id)) return false;
-                  // ✨ 已經移除 `if (!e.endDate) return true;`
                   
                   const targetMonthStr = `${selectedYear}-${selectedMonth}`;
                   const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
@@ -112,10 +105,21 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               setMonthlyData(initialData);
           }
       };
-      loadMonthlyData();
-  }, [activeInnerTab, selectedClient, employees, selectedYear, selectedMonth]); // ✨ 加入新相依性
 
-  // 處理點擊「+」新增按鈕
+      // ✨ 新增：載入年度專用資料
+      const loadYearlyData = async () => {
+          if (activeInnerTab === 'yearly' && selectedClient) {
+              const allSalaries = await TaskService.fetchMonthlySalaries();
+              // 抓取該客戶在選定年份的「所有月份」薪資紀錄
+              const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month.startsWith(`${selectedYear}-`));
+              setYearlySalaries(savedRecords);
+          }
+      };
+
+      loadMonthlyData();
+      loadYearlyData();
+  }, [activeInnerTab, selectedClient, employees, selectedYear, selectedMonth]);
+
   const handleOpenAddMonthly = () => {
       setIsAddingNewMonthly(true);
       setEditingMonthlyEmp(null);
@@ -123,7 +127,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setIsMonthlyEditModalOpen(true);
   };
 
-  // 真實儲存到資料庫
   const handleSaveMonthlyData = async (e: React.FormEvent) => {
       e.preventDefault();
       if (!editingMonthlyEmp || !selectedClient) return;
@@ -132,7 +135,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           id: monthlyData[editingMonthlyEmp.id]?.id || Date.now().toString(),
           clientId: String(selectedClient.id),
           employeeId: editingMonthlyEmp.id,
-          month: `${selectedYear}-${selectedMonth}`, // ✨ 儲存時組合年月
+          month: `${selectedYear}-${selectedMonth}`,
           updatedAt: new Date().toISOString(),
           ...monthlyFormData
       };
@@ -147,11 +150,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           allSalaries.push(record);
       }
       await TaskService.saveMonthlySalaries(allSalaries);
-      
       setIsMonthlyEditModalOpen(false);
   };
 
-  // ✨ 一鍵生成合併員工薪資單 (ExcelJS 完美格式版 - 終極防護版)
   const handleExportEmployerExcel = async () => {
       try {
           if (!selectedClient) return;
@@ -160,38 +161,29 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               return;
           }
 
-          // 🛡️ 防護 1：清除 Base64 字串中可能夾帶的換行符號或空白 (這是最常導致點擊沒反應的兇手)
           const cleanBase64 = PAYROLL_TEMPLATE_BASE64.replace(/\s/g, '');
-
-          // 1. 將 Base64 轉換為二進位 Buffer
           const binaryString = window.atob(cleanBase64);
           const bytes = new Uint8Array(binaryString.length);
           for (let i = 0; i < binaryString.length; i++) {
               bytes[i] = binaryString.charCodeAt(i);
           }
 
-          // 🛡️ 防護 2：相容不同打包工具的套件引入方式
           const Workbook = ExcelJS.Workbook || (ExcelJS as any).default?.Workbook;
-          if (!Workbook) {
-              throw new Error("ExcelJS 套件載入異常，找不到 Workbook 建構子");
-          }
+          if (!Workbook) throw new Error("ExcelJS 套件載入異常，找不到 Workbook 建構子");
 
-          // 2. 使用 ExcelJS 讀取完美的模板
           const workbook = new Workbook();
           await workbook.xlsx.load(bytes.buffer);
-          const ws = workbook.worksheets[0]; // 抓取第一個工作表
+          const ws = workbook.worksheets[0]; 
 
-        // 3. 過濾當月在職員工
+          // 🛡️ 修復：過濾員工
           const currentMonthEmps = employees.filter(e => {
               if (e.clientId !== String(selectedClient.id)) return false;
-              
               const targetMonthStr = `${selectedYear}-${selectedMonth}`;
               const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
               const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
               
               if (startMonthStr && targetMonthStr < startMonthStr) return false;
               if (endMonthStr && targetMonthStr > endMonthStr) return false;
-              
               return true;
           });
 
@@ -200,7 +192,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               return;
           }
 
-          // 準備用來累加總額的物件
           const totals = {
               base: 0, food: 0, ot: 0, otherAdd: 0,
               leave: 0, late: 0, labor: 0, health: 0, otherDed: 0, net: 0
@@ -209,19 +200,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           const twYear = Number(selectedYear) - 1911;
           const monthStr = `${twYear}-${selectedMonth}`;
 
-          // 🌟 神奇魔法：往下複製完美格式列
           if (currentMonthEmps.length > 1) {
               ws.duplicateRow(2, currentMonthEmps.length - 1, true);
           }
 
-          // 4. 迴圈填入員工真實數據
           currentMonthEmps.forEach((emp, index) => {
-              const R = 2 + index; // ExcelJS 列數是從 1 開始算，第 2 列是第一位員工
+              const R = 2 + index; 
               const row = ws.getRow(R);
               const rowData = monthlyData[emp.id] || {};
               const isFullTime = emp.employmentType === 'full_time';
 
-              // ⚡ 即時公式試算
               const baseSalaryForCalc = rowData.baseSalary || 0;
               const hourlyWageForCalc = baseSalaryForCalc / 240;
               const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
@@ -263,31 +251,23 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                   if (types.length > 0) insStr = `${emp.insuranceBracket.toLocaleString()} (${types.join("")})`;
               }
 
-            // 📝 備註造句
           const remarks = [];
-          
-          // 1. 判斷當月到職
           if (emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}`) {
               const m = parseInt(emp.startDate.substring(5, 7), 10);
               const d = parseInt(emp.startDate.substring(8, 10), 10);
               remarks.push(`${m}/${d}到職`);
           }
-
-          // ✨ 新增：2. 判斷當月離職
           if (emp.endDate && emp.endDate.substring(0, 7) === `${selectedYear}-${selectedMonth}`) {
               const m = parseInt(emp.endDate.substring(5, 7), 10);
               const d = parseInt(emp.endDate.substring(8, 10), 10);
               remarks.push(`${m}/${d}離職`);
           }
-
-          // 3. 判斷其他出勤與扣款變數
           if (rowData.lateHours > 0) remarks.push(`遲到${rowData.lateHours}分鐘`);
           if (rowData.sickLeave > 0) remarks.push(`病假${rowData.sickLeave}小時`);
           if (rowData.personalLeave > 0) remarks.push(`事假${rowData.personalLeave}小時`);
           if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
           if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
           
-          // 將所有句子組裝起來，加上全形逗號與句號
           const remarkStr = remarks.length > 0 ? remarks.join("，") + "。" : "";
 
               totals.base += baseSalary; totals.food += foodAllowance; totals.ot += otPay; totals.otherAdd += otherAdd;
@@ -315,7 +295,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               row.commit(); 
           });
 
-          // 5. 填入底部總計列
           const totalR = 2 + currentMonthEmps.length;
           const totalRow = ws.getRow(totalR);
           totalRow.getCell(7).value = totals.base || "";
@@ -330,39 +309,32 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           totalRow.getCell(16).value = totals.net || 0;
           totalRow.commit();
 
-          // 6. 完美打包下載！
           const buffer = await workbook.xlsx.writeBuffer();
           const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
           saveAs(blob, `${selectedClient.name}_薪資總表_${selectedYear}${selectedMonth}.xlsx`);
 
       } catch (error: any) {
-          // 🛡️ 防護 3：如果發生任何錯誤，直接在畫面上彈出警告！
           console.error("匯出失敗詳細錯誤：", error);
           alert(`匯出失敗！請將此錯誤訊息告訴 AI：\n\n${error.message}`);
       }
   };
   
-  // ✨ 點擊整列時，開啟編輯視窗並載入該員工資料
   const handleRowClickMonthly = (emp: Employee) => {
       setEditingMonthlyEmp(emp);
       setMonthlyFormData(monthlyData[emp.id] || {});
       setIsMonthlyEditModalOpen(true);
   };
 
-  // ✨ 小視窗內的輸入變更處理 (包含所有自動計算公式)
   const handleMonthlyFormChange = (field: string, value: string) => {
       const numValue = Number(value) || 0;
       let updatedData = { ...monthlyFormData, [field]: numValue };
       
       const isFullTime = editingMonthlyEmp?.employmentType === 'full_time';
 
-      // 1. 如果是兼職且修改了出勤時數，自動以「時數 * 預設時薪」重算本薪總額
       if (field === 'workHours' && !isFullTime) {
           updatedData.baseSalary = numValue * (editingMonthlyEmp?.defaultBaseSalary || 0);
       }
       
-      // 2. ⚡ 核心薪資計算引擎 ⚡
-      // 隨時抓取最新的變數來試算
       const currentBaseSalary = field === 'baseSalary' ? numValue : (updatedData.baseSalary || 0);
       const currentFoodAllowance = field === 'foodAllowance' ? numValue : (updatedData.foodAllowance || 0);
       
@@ -373,20 +345,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       const currentSick = field === 'sickLeave' ? numValue : (updatedData.sickLeave || 0);
       const currentPersonal = field === 'personalLeave' ? numValue : (updatedData.personalLeave || 0);
 
-      // 🔴 扣款計算
       updatedData.lateDeduction = Math.round(minuteWage * currentLate);
       const sickDed = Math.round(hourlyWage * currentSick / 2);
       const personalDed = Math.round(hourlyWage * currentPersonal);
       updatedData.leaveDeduction = sickDed + personalDed;
 
-      // 🔵 免稅加班費計算
       const currentAnnual = field === 'annualLeave' ? numValue : (updatedData.annualLeave || 0);
       const currentHoliday = field === 'holidayOt' ? numValue : (updatedData.holidayOt || 0);
       const currentNormal = field === 'normalOt' ? numValue : (updatedData.normalOt || 0);
 
-      let annualPay = 0;
-      let holidayPay = 0;
-      let normalPay = 0;
+      let annualPay = 0, holidayPay = 0, normalPay = 0;
 
       if (isFullTime) {
           const otHourlyWage = (currentBaseSalary + currentFoodAllowance) / 240;
@@ -394,28 +362,22 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           holidayPay = Math.round(otHourlyWage * currentHoliday);
           normalPay = Math.round(otHourlyWage * currentNormal * 1.33);
       } else {
-          // 兼職員工的時薪 (在系統中定義為 defaultBaseSalary)
           const partTimeHourlyWage = editingMonthlyEmp?.defaultBaseSalary || 0;
           holidayPay = Math.round(partTimeHourlyWage * currentHoliday * 2);
       }
 
-      // 免稅加班費總額
       updatedData.taxFreeOt = annualPay + holidayPay + normalPay;
-      
       setMonthlyFormData(updatedData);
   };
   
-  // --- 彈跳視窗狀態 ---
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false);
   const [newClientSelectId, setNewClientSelectId] = useState('');
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
   
-  // ✨ 員工編輯視窗狀態
   const [isEmpModalOpen, setIsEmpModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Partial<Employee> | null>(null);
 
-  // ✨ 新增：Excel 匯入的 Ref 與處理邏輯
   const empFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportEmpExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
@@ -432,10 +394,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
         const newEmps: Employee[] = [];
 
-        // 假設第一行是標題，從第二行 (i=1) 開始讀取
         for (let i = 1; i < data.length; i++) {
           const row = data[i] as any[];
-          if (!row[2]) continue; // 防呆：姓名(2) 是必填
+          if (!row[2]) continue;
 
           const empNo = String(row[0] || '').trim();
           const typeStr = String(row[1] || '').trim();
@@ -443,14 +404,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           const name = String(row[2] || '').trim();
           const email = String(row[3] || '').trim();
 
-          // 日期格式防呆轉換
           const formatDate = (val: any) => {
               if (!val) return '';
               if (val instanceof Date) return new Date(val.getTime() - (val.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
               return String(val).replace(/\//g, '-').trim();
           };
 
-          const startDate = formatDate(row[4]) || new Date().toISOString().split('T')[0]; // 預設今天
+          const startDate = formatDate(row[4]) || new Date().toISOString().split('T')[0];
           const endDate = formatDate(row[5]);
           const idNumber = String(row[6] || '').trim().toUpperCase();
           const bankBranch = String(row[7] || '').trim();
@@ -460,25 +420,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           const newEmp: Employee = {
               id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
               clientId: String(selectedClient.id),
-              empNo,
-              employmentType,
-              name,
-              email,
-              startDate,
-              endDate,
-              idNumber,
-              bankBranch,
-              bankAccount,
-              address,
-              defaultBaseSalary: 0, // Excel 沒匯入薪資，先預設 0
-              defaultFoodAllowance: 0,
+              empNo, employmentType, name, email, startDate, endDate, idNumber,
+              bankBranch, bankAccount, address, defaultBaseSalary: 0, defaultFoodAllowance: 0,
               createdAt: new Date().toISOString()
           };
           newEmps.push(newEmp);
         }
 
         if (newEmps.length > 0) {
-          // 循序寫入資料庫
           for (const emp of newEmps) {
               await TaskService.addEmployee(emp);
           }
@@ -491,7 +440,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
         alert('檔案讀取失敗，請確認是否為標準的 Excel 檔案。');
       }
       
-      // 清空 input 讓同一個檔案能被重複選取
       if (empFileInputRef.current) empFileInputRef.current.value = '';
     };
     reader.readAsBinaryString(file);
@@ -510,13 +458,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     setEmployees(fetchedEmps);
   };
 
-  // --- 員工 CRUD 邏輯 ---
   const handleOpenAddEmp = () => {
     setEditingEmp({
-        employmentType: 'full_time',
-        email: '',
-        defaultBaseSalary: 0,
-        defaultFoodAllowance: 0,
+        employmentType: 'full_time', email: '', defaultBaseSalary: 0, defaultFoodAllowance: 0,
         startDate: new Date().toISOString().split('T')[0]
     });
     setIsEmpModalOpen(true);
@@ -540,14 +484,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
         bankAccount: editingEmp.bankAccount || '',
         address: editingEmp.address || '',
         defaultBaseSalary: Number(editingEmp.defaultBaseSalary) || 0,
-        // 若為兼職，強制伙食費為 0
         defaultFoodAllowance: editingEmp.employmentType === 'full_time' ? (Number(editingEmp.defaultFoodAllowance) || 0) : 0,
-
-        // ✨ 新增這三行：將勞健保設定寫入資料庫
         insuranceBracket: Number(editingEmp.insuranceBracket) || 0,
-        hasLaborIns: editingEmp.hasLaborIns ?? true, // 如果沒特別設定，預設為打勾
-        hasHealthIns: editingEmp.hasHealthIns ?? true, // 如果沒特別設定，預設為打勾
-      
+        hasLaborIns: editingEmp.hasLaborIns ?? true,
+        hasHealthIns: editingEmp.hasHealthIns ?? true,
         createdAt: editingEmp.createdAt || new Date().toISOString(),
     };
 
@@ -567,7 +507,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setIsEmpModalOpen(false);
   };
 
-  // --- 客戶牆邏輯 ---
   const enabledClientIds = payrollClients.map(pc => pc.clientId);
   const availableClientsToAdd = clients.filter(c => !enabledClientIds.includes(String(c.id)));
   const displayClients = clients.filter(c => enabledClientIds.includes(String(c.id)));
@@ -590,23 +529,20 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     setClientsToDelete([]);
   };
 
-  // 🔺 第二層：單一客戶專屬薪資系統
   if (selectedClient) {
-    // ✨ 排序邏輯：過濾出該客戶的員工，並將「已離職 (有 endDate)」的員工排到最下面
     const currentEmps = employees
         .filter(e => e.clientId === String(selectedClient.id))
         .sort((a, b) => {
             const aResigned = !!a.endDate;
             const bResigned = !!b.endDate;
-            if (aResigned && !bResigned) return 1;  // a 離職，往下沉
-            if (!aResigned && bResigned) return -1; // b 離職，往下沉
-            return (a.empNo || '').localeCompare(b.empNo || ''); // 都沒離職則照序號排
+            if (aResigned && !bResigned) return 1; 
+            if (!aResigned && bResigned) return -1;
+            return (a.empNo || '').localeCompare(b.empNo || '');
         });
 
     return (
       <div className="h-full flex flex-col animate-fade-in bg-gray-50">
         
-        {/* 頂部導航 */}
         <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => setSelectedClient(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors" title="返回客戶列表">
@@ -614,16 +550,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             </button>
             <h2 className="text-xl sm:text-2xl font-black text-gray-800 leading-tight">{selectedClient.name} - 薪資明細</h2>
             
-            {/* ✨ 標題旁的動態篩選器 */}
             {(activeInnerTab === 'monthly' || activeInnerTab === 'yearly') && (
                 <div className="flex items-center gap-2 ml-4 animate-fade-in">
                   <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors focus:ring-2 focus:ring-blue-500">
-                        {/* ✨ 讓系統自動把剛剛生成的 availableYears 陣列印出來 */}
                         {availableYears.map(year => (
                             <option key={year} value={year}>{year} 年</option>
                         ))}
                     </select>
-                    {/* 只有「每月薪資」才需要選擇月份 */}
                     {activeInnerTab === 'monthly' && (
                         <select value={selectedMonth} onChange={e => setSelectedMonth(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors focus:ring-2 focus:ring-blue-500">
                             {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => (
@@ -635,19 +568,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             )}
           </div>
           
-          {/* ✨ 右側操作區：膠囊標籤頁 + 操作按鈕 */}
           <div className="flex items-center gap-3">
-              {/* 膠囊標籤頁 */}
               <div className="flex p-1 bg-gray-100 rounded-xl shadow-inner">
                   <button onClick={() => setActiveInnerTab('employees')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'employees' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>👥 員工名單</button>
                   <button onClick={() => setActiveInnerTab('monthly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'monthly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📅 每月薪資明細</button>
                   <button onClick={() => setActiveInnerTab('yearly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'yearly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📖 年度薪資帳冊</button>
               </div>
 
-              {/* 隱藏的實體檔案上傳輸入框 */}
               <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={empFileInputRef} onChange={handleImportEmpExcel} />
 
-              {/* 按鈕區：員工名單 */}
               {activeInnerTab === 'employees' && (
                   <div className="flex items-center gap-2">
                       <button onClick={() => empFileInputRef.current?.click()} title="匯入 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
@@ -659,65 +588,57 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                   </div>
               )}
 
-            {/* ✨ NEW: 按鈕區：每月薪資明細 */}
               {activeInnerTab === 'monthly' && (
                   <div className="flex items-center gap-2">
                       <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
                           <ExcelFileIcon className="w-5 h-5" />
                       </button>
-                    {/* ✨ 一鍵生成合併員工薪資單 (老闆用，綠色無文字) */}
                     <button onClick={handleExportEmployerExcel} className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
                       <CloudDownloadIcon className="w-5 h-5" />
                     </button>
                   </div>
               )}
 
-              {/* ✨ NEW: 按鈕區：年度薪資帳冊 (預先套用) */}
+              {/* ✨ 年度薪資帳冊 (唯讀模式) */}
               {activeInnerTab === 'yearly' && (
                   <div className="flex items-center gap-2">
-                      <button title="匯入年度資料 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
-                          <ExcelFileIcon className="w-5 h-5" />
+                      <button title="年度帳冊無法編輯，資料皆由每月薪資自動彙總" className="p-2.5 bg-gray-100 text-gray-400 font-bold rounded-xl shadow-sm flex items-center justify-center cursor-not-allowed">
+                          <span className="text-xs px-2">唯讀模式</span>
                       </button>
-                      <button title="新增年度紀錄" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
-                          <PlusIcon className="w-5 h-5" />
+                      <button title="匯出年度薪資帳冊 (開發中)" className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center opacity-50 cursor-not-allowed">
+                          <CloudDownloadIcon className="w-5 h-5" />
                       </button>
                   </div>
               )}
           </div>
         </div>
 
-        {/* 內容區 */}
         <div className="flex-1 overflow-hidden flex flex-col p-6">
             
-          {/* 📍 標籤一：員工名單 */}
+            {/* 📍 標籤一：員工名單 */}
             {activeInnerTab === 'employees' && (
                 <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-                    {/* ✨ 內層標題與按鈕已移除，表格直接滿版顯示 */}
                     <div className="flex-1 overflow-y-auto custom-scrollbar">
                       <table className="w-full text-left text-sm whitespace-nowrap">
                             <thead className="bg-gray-50 sticky top-0 border-b border-gray-200">
                                 <tr>
                                   <th className="p-3 font-bold text-gray-500 w-16 text-center">序號</th>
                                     <th className="p-3 font-bold text-gray-500 w-20 text-center">職稱</th>
-                                    {/* ✨ 讓表頭回歸純粹的「姓名」 */}
                                     <th className="p-3 font-bold text-gray-500 w-32">姓名</th>
                                     <th className="p-3 font-bold text-gray-500 w-48">電子郵件</th>
                                     <th className="p-3 font-bold text-gray-500 w-32 font-mono">身分證字號</th>
                                     <th className="p-3 font-bold text-gray-500 w-40">銀行分行</th>
                                     <th className="p-3 font-bold text-gray-500 w-40 font-mono">帳戶代號</th>
                                     <th className="p-3 font-bold text-gray-500">戶籍地址</th>
-                                    {/* ✨ 狀態欄位已被移除 */}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {currentEmps.map((emp, index) => {
-                                    const isResigned = !!emp.endDate; // 判斷是否離職
-
+                                    const isResigned = !!emp.endDate; 
                                     return (
                                         <tr 
                                             key={emp.id} 
                                             onClick={() => { setEditingEmp(emp); setIsEmpModalOpen(true); }}
-                                            // ✨ 灰色濾鏡與互動特效：如果離職就套用灰底、透明度與灰色文字
                                             className={`cursor-pointer transition-colors group ${
                                                 isResigned 
                                                 ? 'bg-gray-100/50 opacity-75 hover:bg-gray-200/50' 
@@ -726,7 +647,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         >
                                             <td className={`p-3 text-center font-mono ${isResigned ? 'text-gray-400' : 'text-gray-400'}`}>{emp.empNo || String(index + 1).padStart(3, '0')}</td>
                                             <td className="p-3 text-center">
-                                                {/* ✨ 離職員工的職稱標籤也一併灰階化 */}
                                                 <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
                                                     isResigned 
                                                     ? 'bg-gray-200 text-gray-500' 
@@ -735,7 +655,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     {emp.employmentType === 'full_time' ? '正職' : '兼職'}
                                                 </span>
                                             </td>
-                                          {/* ✨ 徹底移除狀態標籤，只保留乾淨的姓名與懸停特效 */}
                                             <td className={`p-3 font-black text-base transition-colors ${isResigned ? 'text-gray-500' : 'text-gray-800 group-hover:text-blue-600'}`}>
                                                 {emp.name}
                                             </td>
@@ -744,14 +663,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             <td className={`p-3 text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.bankBranch || '-'}</td>
                                             <td className={`p-3 font-mono text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.bankAccount || '-'}</td>
                                             
-                                            {/* ✨ 移除 truncate 與 max-w，加入 whitespace-normal 讓超長地址自動換行顯示全部 */}
                                             <td className={`p-3 text-sm whitespace-normal ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>
                                                 {emp.address || '-'}
                                             </td>
                                         </tr>
                                     );
                                 })}
-                              {/* ✨ 將 colSpan 改回 8 */}
                                 {currentEmps.length === 0 && (
                                     <tr><td colSpan={8} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
                                 )}
@@ -761,42 +678,31 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                 </div>
             )}
 
-          {/* 📍 標籤二：每月薪資明細 */}
+            {/* 📍 標籤二：每月薪資明細 */}
             {activeInnerTab === 'monthly' && (
                 <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
-                    {/* 📊 核心試算表格區塊 */}
                     <div className="flex-1 overflow-auto custom-scrollbar relative">
-                      {/* ✨ 修正：改用 border-separate 並以任意值套用所有底線，徹底解決滑動透字與邊框消失問題 */}
                         <table className="w-full text-left text-sm border-separate border-spacing-0 whitespace-nowrap [&_td]:border-b [&_td]:border-gray-100 [&_th]:border-b [&_th]:border-gray-200">
                             <thead className="sticky top-0 z-30 shadow-sm">
-                                {/* 第一層表頭：大群組 */}
                                 <tr className="text-[11px] uppercase tracking-widest text-center bg-gray-50">
                                     <th colSpan={3} className="p-2 border-r border-gray-200 text-gray-500 bg-gray-100 sticky left-0 z-40">員工</th>
                                     <th colSpan={7} className="p-2 border-r border-gray-200 text-gray-500">出勤紀錄</th>
-                                    
                                     <th colSpan={expandedGroups.additions ? 5 : 1} onClick={() => setExpandedGroups(p => ({...p, additions: !p.additions}))} className="p-2 border-r border-gray-200 text-blue-600 bg-blue-50/50 hover:bg-blue-100 cursor-pointer transition-colors">
                                         應加金額 {expandedGroups.additions ? '[-]' : '[+]'}
                                     </th>
-                                    
                                     <th colSpan={expandedGroups.deductions ? 4 : 1} onClick={() => setExpandedGroups(p => ({...p, deductions: !p.deductions}))} className="p-2 border-r border-gray-200 text-red-600 bg-red-50/50 hover:bg-red-100 cursor-pointer transition-colors">
                                         應扣金額 {expandedGroups.deductions ? '[-]' : '[+]'}
                                     </th>
-                                    
                                     <th className="p-2 border-r border-gray-200 text-purple-600 bg-purple-50/50">稅務結轉</th>
-                                    
                                     <th colSpan={expandedGroups.taxFree ? 2 : 1} onClick={() => setExpandedGroups(p => ({...p, taxFree: !p.taxFree}))} className="p-2 border-r border-gray-200 text-yellow-600 bg-yellow-50/50 hover:bg-yellow-100 cursor-pointer transition-colors">
                                         應加免稅 {expandedGroups.taxFree ? '[-]' : '[+]'}
                                     </th>
-                                    
                                     <th colSpan={expandedGroups.withholdings ? 4 : 1} onClick={() => setExpandedGroups(p => ({...p, withholdings: !p.withholdings}))} className="p-2 border-r border-gray-200 text-orange-600 bg-orange-50/50 hover:bg-orange-100 cursor-pointer transition-colors">
                                         代扣款項 {expandedGroups.withholdings ? '[-]' : '[+]'}
                                     </th>
-                                    
                                     <th className="p-2 text-green-700 bg-green-100">最終結算</th>
                                 </tr>
-                                {/* 第二層表頭：詳細欄位 */}
                                 <tr className="text-xs font-bold text-gray-500 bg-white">
-                                    {/* ✨ 絕對鎖死寬度與座標：60 + 60 + 100 = 220px，保證永不產生裂縫 */}
                                     <th className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-0 z-40 bg-white border-r border-gray-100">序號</th>
                                     <th className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-[60px] z-40 bg-white border-r border-gray-100">職稱</th>
                                     <th className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-40 bg-white border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">姓名</th>
@@ -849,12 +755,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <th className="p-3 text-right bg-green-50 text-green-800 font-black">實發金額</th>
                                 </tr>
                             </thead>
-                            
-                          {/* ✨ 移除了 divide-y，底線由 table 共用的 className 負責 */}
                             <tbody>
-                                {/* ✨ 1. 利用 IIFE 將過濾後的本月員工存成變數，並準備加總 */}
                                 {(() => {
-                  const currentMonthEmps = employees.filter(e => {
+                                    // 🛡️ 修復：過濾員工
+                                    const currentMonthEmps = employees.filter(e => {
                                         if (e.clientId !== String(selectedClient.id)) return false;
                                         
                                         const targetMonthStr = `${selectedYear}-${selectedMonth}`;
@@ -867,7 +771,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         return true;
                                     });
 
-                                    // ✨ 2. 準備用來累加總額的物件
                                     const totals = {
                                         base: 0, fullAtt: 0, pos: 0, perf: 0, taxOt: 0, addTotal: 0,
                                         leave: 0, short: 0, late: 0, pension: 0, dedTotal: 0,
@@ -879,11 +782,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
                                     return (
                                         <>
-                                            {/* ✨ 3. 渲染每一位員工的資料列 */}
                                             {currentMonthEmps.map((emp, index) => {
                                                 const rowData = monthlyData[emp.id] || {};
                                                 
-                                                // ⚡ 即時公式試算
                                                 const baseSalaryForCalc = rowData.baseSalary || 0;
                                                 const hourlyWageForCalc = baseSalaryForCalc / 240;
                                                 
@@ -894,7 +795,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 
                                                 const isFullTime = emp.employmentType === 'full_time';
                                                 
-                                                // 加班費試算
                                                 const foodAllowanceForCalc = rowData.foodAllowance || 0;
                                                 let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
 
@@ -909,7 +809,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 }
                                                 const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
 
-                                                // 四大群組與終極公式結算
                                                 const totalAdditions = (rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.performanceBonus||0) + (rowData.taxableOt||0);
                                                 const totalDeductions = (rowData.leaveDeduction ?? realLeaveDeduction) + (rowData.dailyShortage||0) + (rowData.lateDeduction ?? realLateDeduction) + (rowData.pensionSelf||0);
                                                 const totalTaxFree = (rowData.foodAllowance||0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
@@ -918,7 +817,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 const taxableAmount = totalAdditions - totalDeductions;
                                                 const netPay = taxableAmount + totalTaxFree - totalWithholdings;
 
-                                                // ✨ 4. 將這名員工的金額累加到總計物件中
                                                 totals.base += (rowData.baseSalary||0); totals.fullAtt += (rowData.fullAttendance||0); totals.pos += (rowData.positionAllowance||0); totals.perf += (rowData.performanceBonus||0); totals.taxOt += (rowData.taxableOt||0); totals.addTotal += totalAdditions;
                                                 totals.leave += (rowData.leaveDeduction ?? realLeaveDeduction); totals.short += (rowData.dailyShortage||0); totals.late += (rowData.lateDeduction ?? realLateDeduction); totals.pension += (rowData.pensionSelf||0); totals.dedTotal += totalDeductions;
                                                 totals.taxable += taxableAmount;
@@ -928,7 +826,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
                                                 return (
                                                     <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
-                                                        {/* 凍結區 */}
                                                         <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
                                                         <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-[60px] z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">
                                                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${isFullTime ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
@@ -938,15 +835,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                       <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                             <div className="flex flex-col">
                                                                 <span className="font-black text-gray-800 group-hover:text-blue-600 transition-colors">{emp.name}</span>
-                                                                
-                                                                {/* ✨ 新增：綠色的到職提示 */}
                                                                 {emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}` && (
                                                                     <span className="text-[10px] text-green-600 font-bold -mt-0.5 tracking-tighter">
                                                                         {emp.startDate.substring(5).replace('-', '/')} 到職
                                                                     </span>
                                                                 )}
-
-                                                                {/* 既有的紅字離職提示 */}
                                                                 {emp.endDate && emp.endDate.substring(0, 7) === `${selectedYear}-${selectedMonth}` && (
                                                                     <span className="text-[10px] text-red-500 font-bold -mt-0.5 tracking-tighter">
                                                                         {emp.endDate.substring(5).replace('-', '/')} 離職
@@ -955,7 +848,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                             </div>
                                                         </td>
                                                         
-                                                        {/* 出勤變數 */}
                                                         <td className="p-3 text-center font-bold text-gray-600">{isFullTime ? '-' : (rowData.workHours || 0)}</td>
                                                         <td className="p-3 group/cell relative text-center">
                                                             <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.lateHours || 0}</span>
@@ -983,7 +875,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                             {isFullTime && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realNormalPay}</div>}
                                                         </td>
 
-                                                        {/* 財務摺疊顯示 */}
                                                         {expandedGroups.additions ? (
                                                             <>
                                                                 <td className="p-3 text-right font-medium text-gray-600">{(rowData.baseSalary || 0).toLocaleString()}</td>
@@ -1026,15 +917,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 );
                                             })}
 
-                                            {/* ✨ 5. 新增：超顯眼的「本月總計」列 */}
                                             {currentMonthEmps.length > 0 && (
                                                 <tr className="bg-gray-100 hover:bg-gray-200 transition-colors cursor-default border-t-2 border-gray-300">
-                                                    {/* 凍結區：序號與職稱留白，顯示本月總計 */}
                                                     <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] sticky left-0 z-20 bg-gray-100 border-r border-gray-200"></td>
                                                     <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] sticky left-[60px] z-20 bg-gray-100 border-r border-gray-200"></td>
                                                     <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] font-black text-gray-800 text-center sticky left-[120px] z-20 bg-gray-100 border-r-2 border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">本月總計</td>
                                                     
-                                                    {/* 時數區塊全部留白 (顯示 -) */}
                                                     <td className="p-3 text-center text-gray-400">-</td>
                                                     <td className="p-3 text-center text-gray-400">-</td>
                                                     <td className="p-3 text-center text-gray-400">-</td>
@@ -1043,7 +931,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     <td className="p-3 text-center text-gray-400">-</td>
                                                     <td className="p-3 text-center text-gray-400 border-r border-gray-200">-</td>
 
-                                                    {/* 財務摺疊顯示區塊 (總和) */}
                                                     {expandedGroups.additions ? (
                                                         <>
                                                             <td className="p-3 text-right font-black text-gray-700">{totals.base.toLocaleString()}</td>
@@ -1093,6 +980,206 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                 </div>
             )}
 
+            {/* 📍 標籤三：年度薪資帳冊 (唯讀匯總版) */}
+            {activeInnerTab === 'yearly' && (() => {
+                
+                // 1. 過濾出該年度有在職的員工
+                const yearlyEmps = employees.filter(e => {
+                    if (e.clientId !== String(selectedClient.id)) return false;
+                    const startYear = e.startDate ? e.startDate.substring(0, 4) : '';
+                    const endYear = e.endDate ? e.endDate.substring(0, 4) : '';
+                    if (startYear && selectedYear < startYear) return false;
+                    if (endYear && selectedYear > endYear) return false;
+                    return true;
+                });
+
+                const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
+
+                // 2. 準備全公司年度大加總
+                const grandTotals = {
+                    salary: Array(12).fill(0),
+                    food: Array(12).fill(0),
+                    taxFreeOt: Array(12).fill(0),
+                    bonus: Array(12).fill(0),
+                    totalSalary: 0, totalFood: 0, totalTaxFreeOt: 0, totalBonus: 0
+                };
+
+                // 3. 處理每位員工的年度矩陣資料
+                const yearlyData = yearlyEmps.map(emp => {
+                    const empMonths = months.map((m, mIndex) => {
+                        const targetMonthStr = `${selectedYear}-${m}`;
+                        const record = yearlySalaries.find(r => r.employeeId === emp.id && r.month === targetMonthStr);
+                        
+                        const startMonthStr = emp.startDate ? emp.startDate.substring(0, 7) : '';
+                        const endMonthStr = emp.endDate ? emp.endDate.substring(0, 7) : '';
+                        
+                        let isActive = true;
+                        if (startMonthStr && targetMonthStr < startMonthStr) isActive = false;
+                        if (endMonthStr && targetMonthStr > endMonthStr) isActive = false;
+
+                        // ✨ 防呆：如果在職，即使當月沒資料也顯示投保級距；如果不在職，就直接填 0 不顯示。
+                        const insurance = isActive ? (emp.insuranceBracket || 0) : 0;
+
+                        if (!isActive || !record) {
+                            return { salary: 0, food: 0, taxFreeOt: 0, bonus: 0, insurance, isActive };
+                        }
+
+                        const rowData = record;
+                        const isFullTime = emp.employmentType === 'full_time';
+                        
+                        const baseSalaryForCalc = rowData.baseSalary || 0;
+                        const hourlyWageForCalc = baseSalaryForCalc / 240;
+                        const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
+                        const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2); 
+                        const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0)); 
+                        const realLeaveDeduction = realSickDeduction + realPersonalDeduction;
+
+                        const foodAllowanceForCalc = rowData.foodAllowance || 0;
+                        let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
+                        if (isFullTime) {
+                            const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
+                            realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
+                            realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
+                            realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+                        } else {
+                            const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+                            realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+                        }
+                        const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
+
+                        // ✨ 依照使用者需求，計算 4 大項目
+                        const salary = (rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.taxableOt||0) 
+                                     - (rowData.leaveDeduction ?? realLeaveDeduction) - (rowData.dailyShortage||0) - (rowData.lateDeduction ?? realLateDeduction);
+                        const food = rowData.foodAllowance || 0;
+                        const taxFreeOt = (rowData.taxFreeOt ?? realTaxFreeOt) || 0;
+                        const bonus = rowData.performanceBonus || 0;
+
+                        // 累加到大加總
+                        grandTotals.salary[mIndex] += salary;
+                        grandTotals.food[mIndex] += food;
+                        grandTotals.taxFreeOt[mIndex] += taxFreeOt;
+                        grandTotals.bonus[mIndex] += bonus;
+
+                        grandTotals.totalSalary += salary;
+                        grandTotals.totalFood += food;
+                        grandTotals.totalTaxFreeOt += taxFreeOt;
+                        grandTotals.totalBonus += bonus;
+
+                        return { salary, food, taxFreeOt, bonus, insurance, isActive };
+                    });
+
+                    return { emp, empMonths };
+                });
+
+                // UI 渲染小幫手
+                const renderVal = (val: number, isActive: boolean) => {
+                    if (!isActive) return <span className="text-transparent">-</span>;
+                    if (val === 0) return <span className="text-gray-300">-</span>;
+                    return <span className="font-medium text-gray-700">{val.toLocaleString()}</span>;
+                };
+
+                return (
+                    <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden animate-fade-in">
+                        <div className="flex-1 overflow-auto custom-scrollbar relative">
+                            <table className="w-full text-left text-sm border-separate border-spacing-0 whitespace-nowrap [&_td]:border-b [&_td]:border-gray-100 [&_th]:border-b [&_th]:border-gray-200">
+                                <thead className="sticky top-0 z-30 shadow-sm bg-gray-50">
+                                    <tr className="text-xs font-bold text-gray-500">
+                                        <th className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-0 z-40 bg-gray-50 border-r border-gray-200">序號</th>
+                                        <th className="p-3 w-[100px] min-w-[100px] max-w-[100px] text-center sticky left-[60px] z-40 bg-gray-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">姓名</th>
+                                        <th className="p-3 w-[120px] min-w-[120px] max-w-[120px] text-center sticky left-[160px] z-40 bg-gray-50 border-r border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">明細項目</th>
+                                        {months.map(m => <th key={m} className="p-3 text-center w-20">{Number(m)}月</th>)}
+                                        <th className="p-3 text-center w-24 text-blue-700 bg-blue-50 font-black border-l border-blue-200">年度合計</th>
+                                    </tr>
+                                </thead>
+                                <tbody>
+                                    {yearlyData.map(({ emp, empMonths }, index) => {
+                                        const empTotalSalary = empMonths.reduce((sum, m) => sum + m.salary, 0);
+                                        const empTotalFood = empMonths.reduce((sum, m) => sum + m.food, 0);
+                                        const empTotalTaxFreeOt = empMonths.reduce((sum, m) => sum + m.taxFreeOt, 0);
+                                        const empTotalBonus = empMonths.reduce((sum, m) => sum + m.bonus, 0);
+
+                                        return (
+                                            <React.Fragment key={emp.id}>
+                                                {/* Row 1: 薪資總額 */}
+                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
+                                                    <td rowSpan={5} className="p-3 text-center font-mono text-gray-500 border-r border-gray-100 border-b-2 border-b-gray-300 sticky left-0 z-20 bg-white group-hover:bg-blue-50/30">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
+                                                    <td rowSpan={5} className="p-3 text-center font-black text-gray-800 border-r-2 border-gray-200 border-b-2 border-b-gray-300 sticky left-[60px] z-20 bg-white group-hover:bg-blue-50/30 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
+                                                        <div className="flex flex-col items-center">
+                                                            <span>{emp.name}</span>
+                                                            <span className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold ${emp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
+                                                                {emp.employmentType === 'full_time' ? '正職' : '兼職'}
+                                                            </span>
+                                                        </div>
+                                                    </td>
+                                                    <td className="p-3 text-center font-bold text-gray-600 bg-gray-50 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">薪資總額</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.salary, m.isActive)}</td>)}
+                                                    <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalSalary > 0 ? empTotalSalary.toLocaleString() : '-'}</td>
+                                                </tr>
+                                                {/* Row 2: 伙食費 */}
+                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
+                                                    <td className="p-3 text-center font-bold text-gray-600 bg-gray-50 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">伙食費</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.food, m.isActive)}</td>)}
+                                                    <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalFood > 0 ? empTotalFood.toLocaleString() : '-'}</td>
+                                                </tr>
+                                                {/* Row 3: 免稅加班費 */}
+                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
+                                                    <td className="p-3 text-center font-bold text-gray-600 bg-gray-50 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">免稅加班費</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.taxFreeOt, m.isActive)}</td>)}
+                                                    <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalTaxFreeOt > 0 ? empTotalTaxFreeOt.toLocaleString() : '-'}</td>
+                                                </tr>
+                                                {/* Row 4: 獎金 */}
+                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
+                                                    <td className="p-3 text-center font-bold text-gray-600 bg-gray-50 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">獎金</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.bonus, m.isActive)}</td>)}
+                                                    <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalBonus > 0 ? empTotalBonus.toLocaleString() : '-'}</td>
+                                                </tr>
+                                                {/* Row 5: 健保投保金額 */}
+                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
+                                                    <td className="p-3 text-center font-bold text-teal-600 bg-gray-50 border-r border-gray-100 border-b-2 border-b-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">健保投保金額</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right border-b-2 border-b-gray-300 ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.insurance, m.isActive)}</td>)}
+                                                    <td className="p-3 text-center font-black text-gray-400 bg-gray-50 border-l border-gray-200 border-b-2 border-b-gray-300">-</td>
+                                                </tr>
+                                            </React.Fragment>
+                                        );
+                                    })}
+                                    
+                                    {/* 全公司年度大加總 */}
+                                    {yearlyData.length > 0 && (
+                                        <>
+                                            <tr className="bg-gray-100 border-t-4 border-gray-400">
+                                                <td rowSpan={4} colSpan={2} className="p-3 text-center font-black text-gray-800 text-lg sticky left-0 z-20 bg-gray-100 border-r-2 border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">年度總計</td>
+                                                <td className="p-3 text-center font-black text-gray-700 bg-gray-200 border-r border-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">薪資總額</td>
+                                                {grandTotals.salary.map((val, i) => <td key={i} className="p-3 text-right font-black text-gray-800">{val > 0 ? val.toLocaleString() : '-'}</td>)}
+                                                <td className="p-3 text-right font-black text-blue-800 bg-blue-200 border-l border-blue-300">{grandTotals.totalSalary.toLocaleString()}</td>
+                                            </tr>
+                                            <tr className="bg-gray-100">
+                                                <td className="p-3 text-center font-black text-gray-700 bg-gray-200 border-r border-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">伙食費</td>
+                                                {grandTotals.food.map((val, i) => <td key={i} className="p-3 text-right font-black text-gray-800">{val > 0 ? val.toLocaleString() : '-'}</td>)}
+                                                <td className="p-3 text-right font-black text-blue-800 bg-blue-200 border-l border-blue-300">{grandTotals.totalFood.toLocaleString()}</td>
+                                            </tr>
+                                            <tr className="bg-gray-100">
+                                                <td className="p-3 text-center font-black text-gray-700 bg-gray-200 border-r border-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">免稅加班費</td>
+                                                {grandTotals.taxFreeOt.map((val, i) => <td key={i} className="p-3 text-right font-black text-gray-800">{val > 0 ? val.toLocaleString() : '-'}</td>)}
+                                                <td className="p-3 text-right font-black text-blue-800 bg-blue-200 border-l border-blue-300">{grandTotals.totalTaxFreeOt.toLocaleString()}</td>
+                                            </tr>
+                                            <tr className="bg-gray-100">
+                                                <td className="p-3 text-center font-black text-gray-700 bg-gray-200 border-r border-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">獎金</td>
+                                                {grandTotals.bonus.map((val, i) => <td key={i} className="p-3 text-right font-black text-gray-800">{val > 0 ? val.toLocaleString() : '-'}</td>)}
+                                                <td className="p-3 text-right font-black text-blue-800 bg-blue-200 border-l border-blue-300">{grandTotals.totalBonus.toLocaleString()}</td>
+                                            </tr>
+                                        </>
+                                    )}
+
+                                    {yearlyData.length === 0 && (
+                                        <tr><td colSpan={16} className="py-20 text-center text-gray-400 font-bold">該年度目前尚無任何薪資紀錄</td></tr>
+                                    )}
+                                </tbody>
+                            </table>
+                        </div>
+                    </div>
+                );
+            })()}
+
           {/* 🚀 薪資編輯小視窗 */}
                     {isMonthlyEditModalOpen && (
                         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsMonthlyEditModalOpen(false)}>
@@ -1111,7 +1198,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 
                               <form onSubmit={handleSaveMonthlyData} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
                                     
-                                    {/* ✨ 如果是由「新增按鈕」開啟，強制要求先選擇員工 */}
                                     {isAddingNewMonthly && (
                                         <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
                                             <label className="block text-sm font-bold text-blue-800 mb-2">請選擇要編輯的員工</label>
@@ -1129,17 +1215,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 className="w-full border border-blue-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white"
                                             >
                                               <option value="">-- 請選擇員工 --</option>
-                                              {/* ✨ 下拉選單也套用相同的過濾邏輯 */}
+                                                {/* 🛡️ 修復：下拉選單也套用相同的過濾邏輯 */}
                                                 {employees.filter(e => {
                                                     if (e.clientId !== String(selectedClient?.id)) return false;
-                                                    
                                                     const targetMonthStr = `${selectedYear}-${selectedMonth}`;
                                                     const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
                                                     const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
                                                     
                                                     if (startMonthStr && targetMonthStr < startMonthStr) return false;
                                                     if (endMonthStr && targetMonthStr > endMonthStr) return false;
-                                                    
                                                     return true;
                                                 }).map(emp => (
                                                     <option key={emp.id} value={emp.id}>{emp.name} ({emp.empNo})</option>
@@ -1148,10 +1232,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         </div>
                                     )}
 
-                                    {/* 只有選擇了員工，才會顯示下方的填寫欄位 */}
                                     {editingMonthlyEmp && (
                                         <>
-                                            {/* 區塊 1: 出勤時數變數 */}
                                             <div className="space-y-4">
                                                 <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-gray-500 rounded-full"></div>出勤變數輸入</h4>
                                                 <div className="grid grid-cols-4 gap-4">
@@ -1163,7 +1245,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">病假 (時)</label><input type="number" value={monthlyFormData.sickLeave || ''} onChange={e => handleMonthlyFormChange('sickLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">事假 (時)</label><input type="number" value={monthlyFormData.personalLeave || ''} onChange={e => handleMonthlyFormChange('personalLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
                                                     
-                                                    {/* ✨ 新增加班時數 */}
                                                     <div>
                                                         <label className="block text-xs font-bold text-blue-500 mb-1">特休換薪 (時)</label>
                                                         <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={editingMonthlyEmp.employmentType === 'part_time' ? '' : (monthlyFormData.annualLeave || '')} onChange={e => handleMonthlyFormChange('annualLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'part_time' ? '兼職無' : '0'} />
@@ -1176,14 +1257,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 </div>
                                             </div>
 
-                                            {/* 區塊 2: 應加金額 */}
                                             <div className="space-y-4">
                                                 <h4 className="font-bold text-blue-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>應加與免稅金額</h4>
                                                 <div className="grid grid-cols-4 gap-4">
-                                                    {/* ✨ 唯讀自動計算區 */}
                                                     <div><label className="block text-xs font-bold text-gray-500 mb-1">免稅加班費 (自動算)</label><input type="text" disabled value={monthlyFormData.taxFreeOt || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
                                                     
-                                                    {/* 手動輸入區 */}
                                                     <div>
                                                         <label className="block text-xs font-bold text-blue-500 mb-1">{editingMonthlyEmp.employmentType === 'full_time' ? '本薪' : '時薪'}</label>
                                                         <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={monthlyFormData.baseSalary || ''} onChange={e => handleMonthlyFormChange('baseSalary', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-800 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder="0" />
@@ -1196,15 +1274,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 </div>
                                             </div>
 
-                                            {/* 區塊 3: 應扣金額 */}
                                             <div className="space-y-4">
                                                 <h4 className="font-bold text-orange-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>應扣與代扣款項</h4>
                                                 <div className="grid grid-cols-4 gap-4">
-                                                    {/* ✨ 唯讀自動計算區 */}
                                                     <div><label className="block text-xs font-bold text-gray-500 mb-1">請假扣款 (自動算)</label><input type="text" disabled value={monthlyFormData.leaveDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
                                                     <div><label className="block text-xs font-bold text-gray-500 mb-1">遲到扣款 (自動算)</label><input type="text" disabled value={monthlyFormData.lateDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
                                                     
-                                                    {/* 手動輸入區 */}
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">結帳差額扣款</label><input type="number" value={monthlyFormData.dailyShortage || ''} onChange={e => handleMonthlyFormChange('dailyShortage', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">勞退自提 (6%)</label><input type="number" value={monthlyFormData.pensionSelf || ''} onChange={e => handleMonthlyFormChange('pensionSelf', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-orange-500 mb-1">預支款扣回</label><input type="number" value={monthlyFormData.advancePay || ''} onChange={e => handleMonthlyFormChange('advancePay', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold text-orange-600" placeholder="0" /></div>
@@ -1214,13 +1289,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 </div>
                                             </div>
                                         </>
-                                    )} {/* ✨ 這個完美的閉合括號回來了！ */}
-
-                                    {/* 隱藏的按鈕用來觸發 form submit */}
+                                    )}
                                     <button type="submit" id="submitMonthlyForm" className="hidden"></button>
                                 </form>
                                 
-                                {/* ✨ 即時預估實發金額與操作按鈕 */}
                                 <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
                                     <div className="flex flex-col">
                                         <span className="text-xs font-bold text-gray-500 mb-0.5">預估實發金額</span>
@@ -1232,7 +1304,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         }</span>
                                     </div>
                                   <div className="flex gap-3 w-1/2">
-                                        {/* ✨ 一鍵生成薪資單 (員工用，藍色無文字) */}
                                         <button type="button" className="px-4 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
                                             <CloudDownloadIcon className="w-6 h-6" />
                                         </button>
@@ -1243,15 +1314,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             </div>
                         </div>
                     )}
-          
-            {/* 📍 標籤三：年度薪資帳冊 (施工中) */}
-            {activeInnerTab === 'yearly' && (
-                <div className="bg-white border-2 border-dashed border-gray-200 rounded-3xl p-20 text-center flex flex-col items-center justify-center h-full">
-                    <div className="text-5xl mb-4 opacity-50">📖</div>
-                    <h3 className="text-xl font-bold text-gray-600 mb-2">年度薪資帳冊建置中</h3>
-                    <p className="text-gray-400">這裡將會自動匯總所有月份的數字，供年底報稅使用！</p>
-                </div>
-            )}
         </div>
 
         {/* 🚀 員工詳細資訊 (新增/編輯) Modal */}
@@ -1264,8 +1326,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                     </div>
                     
                     <form onSubmit={handleSaveEmp} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
-                        
-                        {/* 區塊 1: 核心資料 */}
                         <div className="space-y-4">
                             <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>核心資料</h4>
                             <div className="grid grid-cols-3 gap-4">
@@ -1286,7 +1346,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             </div>
                         </div>
 
-                        {/* 區塊 2: 隱私詳細資訊 */}
                         <div className="space-y-4">
                             <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-purple-500 rounded-full"></div>詳細個資 (點擊展開才可見)</h4>
                             <div className="grid grid-cols-3 gap-4">
@@ -1297,7 +1356,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             <div><label className="block text-xs font-bold text-gray-500 mb-1">戶籍地址</label><input type="text" value={editingEmp.address || ''} onChange={e => setEditingEmp({...editingEmp, address: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm" /></div>
                         </div>
 
-                        {/* 區塊 3: 預設薪資設定 */}
                         <div className="space-y-4 bg-orange-50 p-4 rounded-2xl border border-orange-100">
                             <h4 className="font-bold text-orange-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>預設薪資設定</h4>
                             <p className="text-xs text-orange-600 mb-2">此數值將自動帶入每月的薪資結算表單中，勞健保數值將於結算時手動輸入。</p>
@@ -1315,7 +1373,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             </div>
                         </div>
 
-                      {/* 區塊 4: 勞健保設定 */}
                         <div className="space-y-4 bg-blue-50 p-4 rounded-2xl border border-blue-100 mt-4">
                             <h4 className="font-bold text-blue-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>勞健保設定</h4>
                             <div className="flex items-center gap-6">
@@ -1336,7 +1393,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             </div>
                         </div>
 
-                        {/* 隱藏的按鈕用來觸發 form submit */}
                         <button type="submit" id="submitEmpForm" className="hidden"></button>
                     </form>
                     
@@ -1354,9 +1410,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     );
   }
 
-  // 🔺 第一層：薪資客戶牆 (Client Wall) - 保持原本的結構不變
+  // 🔺 第一層：薪資客戶牆 (Client Wall)
   return (
-    // ... [此處與你上一版的 PayrollView 相同，完全保留以確保客戶牆正常運作]
     <div className="h-full flex flex-col animate-fade-in">
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">💰 客戶薪資計算</h2>
