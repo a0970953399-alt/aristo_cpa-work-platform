@@ -1223,8 +1223,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           {/* 🚀 薪資編輯小視窗 (整合月份切換器) */}
                     {isMonthlyEditModalOpen && (
                         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsMonthlyEditModalOpen(false)}>
-                            <div className="bg-white rounded-2xl shadow-2xl w-full max-w-2xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
-                                <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
+                          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>                                <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
                                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
                                         {isAddingNewMonthly ? '新增薪資紀錄' : `編輯薪資結算 - ${editingMonthlyEmp?.name}`}
                                         {!isAddingNewMonthly && <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded text-sm">{selectedYear} 年</span>}
