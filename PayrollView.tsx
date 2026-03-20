@@ -31,6 +31,18 @@ const CloudDownloadIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const FullscreenIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M3.75 3.75v4.5m0-4.5h4.5m-4.5 0L9 9M3.75 20.25v-4.5m0 4.5h4.5m-4.5 0L9 15M20.25 3.75h-4.5m4.5 0v4.5m0-4.5L15 9m5.25 11.25h-4.5m4.5 0v-4.5m0 4.5L15 15" />
+  </svg>
+);
+
+const ExitFullscreenIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M9 9V4.5M9 9H4.5M9 9L3.75 3.75M9 15v4.5M9 15H4.5M9 15l-5.25 5.25M15 9h4.5M15 9V4.5M15 9l5.25-5.25M15 15h4.5M15 15v4.5m0-4.5l5.25 5.25" />
+  </svg>
+);
+
 export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
@@ -63,6 +75,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [monthlyFormData, setMonthlyFormData] = useState<any>({});
   const [isAddingNewMonthly, setIsAddingNewMonthly] = useState(false);
   const [editModalMode, setEditModalMode] = useState<'monthly' | 'yearly'>('monthly'); // ✨ 區分是從哪個頁面打開的
+
+  const [isFullscreen, setIsFullscreen] = useState(false); // ✨ 控制年度表格全螢幕
   
   // ✨ 新增：彈出視窗專用的月份狀態
   const [editModalMonth, setEditModalMonth] = useState(selectedMonth);
@@ -624,6 +638,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                           </button>
                       </div>
                   )}
+
+                {/* ✨ 新增：年度薪資帳冊專屬的「全螢幕放大」按鈕 */}
+                  {activeInnerTab === 'yearly' && (
+                      <div className="flex items-center gap-2 animate-fade-in">
+                          <button onClick={() => setIsFullscreen(true)} className="p-2.5 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl shadow-sm hover:bg-gray-50 active:scale-95 flex items-center justify-center transition-colors">
+                              <FullscreenIcon className="w-5 h-5" />
+                          </button>
+                      </div>
+                  )}
               </div>
           </div>
         </div>
@@ -1098,9 +1121,25 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                     return <span className="font-bold text-teal-700 bg-teal-50 px-2 py-1 rounded-lg border border-teal-200 shadow-sm whitespace-nowrap">{val}</span>;
                 };
 
-                return (
-                    <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden animate-fade-in">
-                        <div className="flex-1 overflow-auto custom-scrollbar relative">
+        return (
+                    <div className={isFullscreen 
+                        ? "fixed inset-0 z-[120] bg-gray-100 p-4 sm:p-6 flex flex-col animate-fade-in" 
+                        : "flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden animate-fade-in"
+                    }>
+                        
+                        {/* ✨ 全螢幕模式專屬的上方標題列與縮小按鈕 */}
+                        {isFullscreen && (
+                            <div className="flex items-center justify-between mb-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-200 shrink-0">
+                                <h2 className="text-xl font-black text-gray-800 flex items-center gap-2">
+                                    📖 {selectedClient.name} - {selectedYear}年度薪資帳冊
+                                </h2>
+                                <button onClick={() => setIsFullscreen(false)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                                    <ExitFullscreenIcon className="w-6 h-6 text-gray-600" />
+                                </button>
+                            </div>
+                        )}
+
+                        <div className={`flex-1 overflow-auto custom-scrollbar relative ${isFullscreen ? 'bg-white rounded-2xl shadow-lg border border-gray-200' : ''}`}>
                             <table className="w-full text-left text-sm border-separate border-spacing-0 whitespace-nowrap [&_td]:border-b [&_td]:border-gray-100 [&_th]:border-b [&_th]:border-gray-200">
                                 <thead className="sticky top-0 z-30 shadow-sm bg-gray-50">
                                     <tr className="text-xs font-bold text-gray-500">
