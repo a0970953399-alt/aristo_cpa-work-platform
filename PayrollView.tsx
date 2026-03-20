@@ -1225,10 +1225,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           {/* 🚀 薪資編輯小視窗 (整合月份切換器) */}
                     {isMonthlyEditModalOpen && (
                         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsMonthlyEditModalOpen(false)}>
-                          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>                                <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
+                          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>                                
+                            {/* ✨ 視窗標題列 (在年度模式時移除底線，讓月份標籤無縫接軌) */}
+                                <div className={`p-5 ${(!isAddingNewMonthly && editModalMode === 'yearly') ? 'pb-3 border-none' : 'border-b'} bg-gray-50 flex justify-between items-center`}>
                                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
                                         {isAddingNewMonthly ? '新增薪資紀錄' : `編輯薪資結算 - ${editingMonthlyEmp?.name}`}
-                                      {!isAddingNewMonthly && <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded text-sm">{selectedYear} 年 {editModalMode === 'monthly' ? `${selectedMonth} 月` : ''}</span>}                                        {editingMonthlyEmp && (
+                                        {!isAddingNewMonthly && <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded text-sm">{selectedYear} 年 {editModalMode === 'monthly' ? `${selectedMonth} 月` : ''}</span>}
+                                        {editingMonthlyEmp && (
                                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${editingMonthlyEmp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                 {editingMonthlyEmp.employmentType === 'full_time' ? '正職' : '兼職'}
                                             </span>
@@ -1237,25 +1240,25 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     <button onClick={() => setIsMonthlyEditModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl font-black">✕</button>
                                 </div>
                                 
-                            {/* ✨ 魔法月份切換器 (只有在「年度帳冊」模式下才顯示) */}
-                            {!isAddingNewMonthly && editModalMode === 'yearly' && (
-                                    <div className="px-6 pt-4 pb-0 bg-white border-b flex gap-1 overflow-x-auto custom-scrollbar shadow-sm z-10">
+                                {/* ✨ 月份切換器 (移除滾動條、縮小上距、優化底色視覺) */}
+                                {!isAddingNewMonthly && editModalMode === 'yearly' && (
+                                    <div className="px-6 pt-0 pb-0 bg-gray-50 border-b flex gap-1 flex-wrap sm:flex-nowrap overflow-hidden shadow-sm z-10">
                                         {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => (
                                             <button
                                                 key={m}
                                                 type="button"
                                                 onClick={() => handleModalMonthSwitch(m)}
-                                                className={`px-4 py-2 rounded-t-lg font-bold transition-colors border-b-2 whitespace-nowrap ${
+                                                className={`px-4 py-2.5 rounded-t-lg font-bold transition-colors border-b-2 whitespace-nowrap ${
                                                     editModalMonth === m
-                                                    ? 'border-blue-600 text-blue-700 bg-blue-50/50'
-                                                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-50'
+                                                    ? 'border-blue-600 text-blue-700 bg-white shadow-sm'
+                                                    : 'border-transparent text-gray-500 hover:text-gray-800 hover:bg-gray-200/50'
                                                 }`}
                                             >
                                                 {Number(m)} 月
                                             </button>
                                         ))}
                                     </div>
-                                )}
+                                )})}
                                 
                               <form onSubmit={handleSaveMonthlyData} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
                                     
