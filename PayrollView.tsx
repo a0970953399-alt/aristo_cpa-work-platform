@@ -1296,7 +1296,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     {editingMonthlyEmp && (
                                         <>
                                             <div className="space-y-4">
-                                                <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-gray-500 rounded-full"></div>出勤變數輸入</h4>
+                                                <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-gray-500 rounded-full"></div>出勤時數</h4>
                                                 <div className="grid grid-cols-4 gap-4">
                                                     <div>
                                                         <label className="block text-xs font-bold text-gray-500 mb-1">出勤時數</label>
