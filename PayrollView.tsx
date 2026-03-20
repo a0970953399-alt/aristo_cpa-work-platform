@@ -597,29 +597,32 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                   <button onClick={() => setActiveInnerTab('yearly')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'yearly' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>📖 年度薪資帳冊</button>
               </div>
 
-              <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={empFileInputRef} onChange={handleImportEmpExcel} />
+            <input type="file" accept=".xlsx, .xls, .csv" className="hidden" ref={empFileInputRef} onChange={handleImportEmpExcel} />
 
-              {activeInnerTab === 'employees' && (
-                  <div className="flex items-center gap-2">
-                      <button onClick={() => empFileInputRef.current?.click()} title="匯入 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
-                          <ExcelFileIcon className="w-5 h-5" />
-                      </button>
-                      <button onClick={handleOpenAddEmp} title="新增員工" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
-                          <PlusIcon className="w-5 h-5" />
-                      </button>
-                  </div>
-              )}
+              {/* ✨ 將按鈕區塊包裝在固定寬度 (88px) 內，防止標籤頁因按鈕消失而偏移 */}
+              <div className="w-[88px] flex justify-end">
+                  {activeInnerTab === 'employees' && (
+                      <div className="flex items-center gap-2 animate-fade-in">
+                          <button onClick={() => empFileInputRef.current?.click()} title="匯入 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
+                              <ExcelFileIcon className="w-5 h-5" />
+                          </button>
+                          <button onClick={handleOpenAddEmp} title="新增員工" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 active:scale-95 transition-all flex items-center justify-center">
+                              <PlusIcon className="w-5 h-5" />
+                          </button>
+                      </div>
+                  )}
 
-              {activeInnerTab === 'monthly' && (
-                  <div className="flex items-center gap-2">
-                      <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
-                          <ExcelFileIcon className="w-5 h-5" />
-                      </button>
-                    <button onClick={handleExportEmployerExcel} className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
-                      <CloudDownloadIcon className="w-5 h-5" />
-                    </button>
-                  </div>
-              )}
+                  {activeInnerTab === 'monthly' && (
+                      <div className="flex items-center gap-2 animate-fade-in">
+                          <button title="匯入出勤 Excel" className="p-2.5 bg-white border border-green-200 text-green-600 font-bold rounded-xl shadow-sm hover:bg-green-50 active:scale-95 flex items-center justify-center transition-colors">
+                              <ExcelFileIcon className="w-5 h-5" />
+                          </button>
+                          <button onClick={handleExportEmployerExcel} className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
+                              <CloudDownloadIcon className="w-5 h-5" />
+                          </button>
+                      </div>
+                  )}
+              </div>
           </div>
         </div>
 
