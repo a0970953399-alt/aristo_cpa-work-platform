@@ -1144,7 +1144,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                         loadFormDataForMonth(emp, firstActiveMonth);
                                                         setIsAddingNewMonthly(false);
                                                         setIsMonthlyEditModalOpen(true);
-                                                    }} className={`p-3 text-center ...
                                                     }} className={`p-3 text-center border-r-2 border-gray-200 border-b-2 border-b-gray-300 sticky left-[60px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer group/name hover:bg-blue-50 transition-colors ${stickyBg}`}>
                                                         <div className="flex flex-col items-center">
                                                             <span className="font-black text-gray-800 group-hover/name:text-blue-600 transition-colors">{emp.name}</span>
