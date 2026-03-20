@@ -1356,7 +1356,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 
                                 <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
                                     <div className="flex flex-col">
-                                        <span className="text-xs font-bold text-gray-500 mb-0.5">預估實發金額 ({selectedYear}年{editModalMonth}月)</span>
+                                        <span className="text-xs font-bold text-gray-500 mb-0.5">實發金額 ({selectedYear}年{editModalMonth}月)</span>
                                         <span className="text-2xl font-black text-green-600">${
                                             (((monthlyFormData.baseSalary||0) + (monthlyFormData.fullAttendance||0) + (monthlyFormData.positionAllowance||0) + (monthlyFormData.performanceBonus||0) + (monthlyFormData.taxableOt||0)) - 
                                             ((monthlyFormData.leaveDeduction||0) + (monthlyFormData.dailyShortage||0) + (monthlyFormData.lateDeduction||0) + (monthlyFormData.pensionSelf||0)) + 
