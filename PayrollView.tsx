@@ -1321,7 +1321,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             <div className="space-y-4">
                                                 <h4 className="font-bold text-blue-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>應加與免稅金額</h4>
                                                 <div className="grid grid-cols-4 gap-4">
-                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">免稅加班費 (自動算)</label><input type="text" disabled value={monthlyFormData.taxFreeOt || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
+                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">免稅加班費</label><input type="text" disabled value={monthlyFormData.taxFreeOt || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
                                                     
                                                     <div>
                                                         <label className="block text-xs font-bold text-blue-500 mb-1">{editingMonthlyEmp.employmentType === 'full_time' ? '本薪' : '時薪'}</label>
