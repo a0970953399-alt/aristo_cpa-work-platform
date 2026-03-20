@@ -68,8 +68,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
   // ✨ 新增：年度帳冊的反白選取狀態
   const [yearlyHighlightEmpId, setYearlyHighlightEmpId] = useState<string | null>(null);
-  const [yearlyHighlightCell, setYearlyHighlightCell] = useState<{empId: string, rowType: string, month: string} | null>(null);
-
+  
   useEffect(() => {
       const loadMonthlyData = async () => {
           if (activeInnerTab === 'monthly' && selectedClient) {
@@ -1119,19 +1118,17 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         const bgBase = isEmpHighlighted ? "bg-yellow-50/60" : "bg-white group-hover:bg-blue-50/20";
                                         const stickyBg = isEmpHighlighted ? "bg-yellow-50" : "bg-white group-hover:bg-blue-50/20";
 
-                                        // ✨ 取得特定格子 class
-                                        const getCellClass = (rowType: string, month: string, isActive: boolean) => {
-                                            const isHighlighted = yearlyHighlightCell?.empId === emp.id && yearlyHighlightCell?.rowType === rowType && yearlyHighlightCell?.month === month;
-                                            if (isHighlighted) return "p-3 text-right cursor-pointer ring-inset ring-2 ring-blue-500 bg-blue-100/80 shadow-md font-black text-blue-800 relative z-10 transition-all scale-105 rounded-sm";
+                                        // ✨ 取得特定格子 class (已移除單格反白功能)
+                                        const getCellClass = (isActive: boolean) => {
                                             if (!isActive) return `p-3 text-right ${isEmpHighlighted ? 'bg-yellow-50/30' : 'bg-gray-50'}`;
-                                            return `p-3 text-right cursor-pointer font-medium text-gray-700 transition-colors ${isEmpHighlighted ? 'hover:bg-yellow-200/50' : 'hover:bg-blue-100/50'}`;
+                                            return `p-3 text-right font-medium text-gray-700 transition-colors ${isEmpHighlighted ? 'bg-yellow-100/50' : ''}`;
                                         };
 
                                         return (
                                             <React.Fragment key={emp.id}>
-                                                <tr className={`${bgBase} transition-colors group`}>
-                                                    {/* 序號 - 點擊反白整區 */}
-                                                    <td rowSpan={5} onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-mono text-gray-500 border-r border-gray-100 border-b-2 border-b-gray-300 sticky left-0 z-20 cursor-pointer ${stickyBg}`}>{emp.empNo || String(index + 1).padStart(3, '0')}</td>
+                                              <tr className={`${bgBase} transition-colors group`}>
+                                                    {/* 序號 - 點擊反白/取消反白整區 */}
+                                                    <td rowSpan={5} onClick={() => setYearlyHighlightEmpId(yearlyHighlightEmpId === emp.id ? null : emp.id)} className={`p-3 text-center font-mono text-gray-500 border-r border-gray-100 border-b-2 border-b-gray-300 sticky left-0 z-20 cursor-pointer hover:bg-yellow-100 transition-colors ${stickyBg}`}>{emp.empNo || String(index + 1).padStart(3, '0')}</td>
                                                     
                                                     {/* 姓名 - 點擊開啟編輯視窗 */}
                                                     <td rowSpan={5} onClick={() => {
@@ -1141,42 +1138,41 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                         loadFormDataForMonth(emp, firstActiveMonth);
                                                         setIsAddingNewMonthly(false);
                                                         setIsMonthlyEditModalOpen(true);
-                                                    }} className={`p-3 text-center border-r-2 border-gray-200 border-b-2 border-b-gray-300 sticky left-[60px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer group/name ${stickyBg}`}>
+                                                    }} className={`p-3 text-center border-r-2 border-gray-200 border-b-2 border-b-gray-300 sticky left-[60px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer group/name hover:bg-blue-50 transition-colors ${stickyBg}`}>
                                                         <div className="flex flex-col items-center">
                                                             <span className="font-black text-gray-800 group-hover/name:text-blue-600 transition-colors">{emp.name}</span>
                                                             <span className={`px-2 py-0.5 mt-1 rounded-md text-[10px] font-bold ${emp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                                 {emp.employmentType === 'full_time' ? '正職' : '兼職'}
                                                             </span>
-                                                            <span className={`mt-2 text-[10px] bg-blue-50 text-blue-600 px-2 py-1 rounded transition-opacity font-bold ${isEmpHighlighted ? 'opacity-100' : 'opacity-0 group-hover/name:opacity-100'}`}>✏️ 編輯明細</span>
                                                         </div>
                                                     </td>
 
                                                     {/* Row 1: 薪資總額 */}
-                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>薪資總額</td>
-                                                    {empMonths.map((m, i) => <td key={i} onClick={() => m.isActive && setYearlyHighlightCell({empId: emp.id, rowType: 'salary', month: m.month})} className={getCellClass('salary', m.month, m.isActive)}>{renderVal(m.salary, m.isActive)}</td>)}
+                                                    <td className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>薪資總額</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={getCellClass(m.isActive)}>{renderVal(m.salary, m.isActive)}</td>)}
                                                     <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalSalary > 0 ? empTotalSalary.toLocaleString() : '-'}</td>
                                                 </tr>
                                                 {/* Row 2: 伙食費 */}
                                                 <tr className={`${bgBase} transition-colors group`}>
-                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>伙食費</td>
-                                                    {empMonths.map((m, i) => <td key={i} onClick={() => m.isActive && setYearlyHighlightCell({empId: emp.id, rowType: 'food', month: m.month})} className={getCellClass('food', m.month, m.isActive)}>{renderVal(m.food, m.isActive)}</td>)}
+                                                    <td className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>伙食費</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={getCellClass(m.isActive)}>{renderVal(m.food, m.isActive)}</td>)}
                                                     <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalFood > 0 ? empTotalFood.toLocaleString() : '-'}</td>
                                                 </tr>
                                                 {/* Row 3: 免稅加班費 */}
                                                 <tr className={`${bgBase} transition-colors group`}>
-                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>免稅加班費</td>
-                                                    {empMonths.map((m, i) => <td key={i} onClick={() => m.isActive && setYearlyHighlightCell({empId: emp.id, rowType: 'taxFreeOt', month: m.month})} className={getCellClass('taxFreeOt', m.month, m.isActive)}>{renderVal(m.taxFreeOt, m.isActive)}</td>)}
+                                                    <td className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>免稅加班費</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={getCellClass(m.isActive)}>{renderVal(m.taxFreeOt, m.isActive)}</td>)}
                                                     <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalTaxFreeOt > 0 ? empTotalTaxFreeOt.toLocaleString() : '-'}</td>
                                                 </tr>
                                                 {/* Row 4: 獎金 */}
                                                 <tr className={`${bgBase} transition-colors group`}>
-                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>獎金</td>
-                                                    {empMonths.map((m, i) => <td key={i} onClick={() => m.isActive && setYearlyHighlightCell({empId: emp.id, rowType: 'bonus', month: m.month})} className={getCellClass('bonus', m.month, m.isActive)}>{renderVal(m.bonus, m.isActive)}</td>)}
+                                                    <td className={`p-3 text-center font-bold text-gray-600 border-r border-gray-100 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isEmpHighlighted ? 'bg-yellow-100' : 'bg-gray-50'}`}>獎金</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={getCellClass(m.isActive)}>{renderVal(m.bonus, m.isActive)}</td>)}
                                                     <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalBonus > 0 ? empTotalBonus.toLocaleString() : '-'}</td>
                                                 </tr>
                                                 {/* Row 5: 健保投保金額 */}
                                                 <tr className={`${bgBase} transition-colors group`}>
-                                                    <td onClick={() => { setYearlyHighlightEmpId(emp.id); setYearlyHighlightCell(null); }} className={`p-3 text-center font-bold text-teal-700 border-r border-teal-200 border-b-2 border-b-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer ${isEmpHighlighted ? 'bg-teal-100/80' : 'bg-teal-50'}`}>健保投保金額</td>
+                                                    <td className={`p-3 text-center font-bold text-teal-700 border-r border-teal-200 border-b-2 border-b-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] ${isEmpHighlighted ? 'bg-teal-100/80' : 'bg-teal-50'}`}>健保投保金額</td>
                                                     {empMonths.map((m, i) => <td key={i} className={`p-3 text-center border-b-2 border-b-gray-300 ${m.isActive ? (isEmpHighlighted ? 'bg-yellow-50/30' : '') : 'bg-gray-50'}`}>{renderInsuranceVal(m.insurance, m.isActive)}</td>)}
                                                     <td className="p-3 text-center font-black text-gray-400 bg-gray-50 border-l border-gray-200 border-b-2 border-b-gray-300">-</td>
                                                 </tr>
