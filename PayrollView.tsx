@@ -1017,8 +1017,16 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                         if (startMonthStr && targetMonthStr < startMonthStr) isActive = false;
                         if (endMonthStr && targetMonthStr > endMonthStr) isActive = false;
 
-                        // ✨ 防呆：如果在職，即使當月沒資料也顯示投保級距；如果不在職，就直接填 0 不顯示。
-                        const insurance = isActive ? (emp.insuranceBracket || 0) : 0;
+                        // ✨ 防呆與格式化：如果在職，將數字與勞健保勾選狀態組合成字串
+                        let insurance: string | number = 0;
+                        if (isActive && emp.insuranceBracket) {
+                            const types = [];
+                            if (emp.hasLaborIns ?? true) types.push("勞");
+                            if (emp.hasHealthIns ?? true) types.push("健");
+                            insurance = types.length > 0 
+                                ? `${emp.insuranceBracket.toLocaleString()} (${types.join("")})` 
+                                : emp.insuranceBracket.toLocaleString();
+                        }
 
                         if (!isActive || !record) {
                             return { salary: 0, food: 0, taxFreeOt: 0, bonus: 0, insurance, isActive };
@@ -1078,6 +1086,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                     return <span className="font-medium text-gray-700">{val.toLocaleString()}</span>;
                 };
 
+                // ✨ 新增：專門用來渲染勞健保的函數 (加上藍綠色標籤)
+                const renderInsuranceVal = (val: number | string, isActive: boolean) => {
+                    if (!isActive) return <span className="text-transparent">-</span>;
+                    if (val === 0 || val === "0" || val === "") return <span className="text-gray-300">-</span>;
+                    return <span className="font-bold text-teal-700 bg-teal-50 px-2 py-1 rounded-lg border border-teal-200 shadow-sm whitespace-nowrap">{val}</span>;
+                };
+
                 return (
                     <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden animate-fade-in">
                         <div className="flex-1 overflow-auto custom-scrollbar relative">
@@ -1133,10 +1148,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     {empMonths.map((m, i) => <td key={i} className={`p-3 text-right ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.bonus, m.isActive)}</td>)}
                                                     <td className="p-3 text-right font-black text-blue-700 bg-blue-50/50 border-l border-blue-100">{empTotalBonus > 0 ? empTotalBonus.toLocaleString() : '-'}</td>
                                                 </tr>
-                                                {/* Row 5: 健保投保金額 */}
-                                                <tr className="hover:bg-blue-50/30 transition-colors bg-white group">
-                                                    <td className="p-3 text-center font-bold text-teal-600 bg-gray-50 border-r border-gray-100 border-b-2 border-b-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">健保投保金額</td>
-                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-right border-b-2 border-b-gray-300 ${m.isActive ? '' : 'bg-gray-50'}`}>{renderVal(m.insurance, m.isActive)}</td>)}
+                                              {/* Row 5: 健保投保金額 */}
+                                                <tr className="hover:bg-teal-50/40 transition-colors bg-white group">
+                                                    <td className="p-3 text-center font-black text-teal-800 bg-teal-50 border-r border-teal-200 border-b-2 border-b-gray-300 sticky left-[160px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">健保投保金額</td>
+                                                    {empMonths.map((m, i) => <td key={i} className={`p-3 text-center border-b-2 border-b-gray-300 ${m.isActive ? '' : 'bg-gray-50'}`}>{renderInsuranceVal(m.insurance, m.isActive)}</td>)}
                                                     <td className="p-3 text-center font-black text-gray-400 bg-gray-50 border-l border-gray-200 border-b-2 border-b-gray-300">-</td>
                                                 </tr>
                                             </React.Fragment>
