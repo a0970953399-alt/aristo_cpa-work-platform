@@ -5,6 +5,10 @@ import type { ClientTask, TaskStatusType, HistoryEntry, ClientProfile, User, Cal
 import { INITIAL_TASKS, DEFAULT_YEAR, USERS as DEFAULT_USERS, DUMMY_CLIENTS, INSTRUCTIONS } from './constants';
 import { StockClientConfig, StockTarget, StockTransaction } from './types';
 
+// --- 在檔案最上方的 import 區塊加入這兩行 ---
+import { db } from './firebase'; 
+import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from "firebase/firestore";
+
 const DB_NAME = 'ShuoyeTaskDB';
 const STORE_NAME = 'file_handles';
 const KEY_NAME = 'db_file_handle';
