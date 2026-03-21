@@ -12,8 +12,8 @@ interface Props {
 export const AdminNotification: React.FC<Props> = ({ currentUser }) => {
   const [notifications, setNotifications] = useState<Notification[]>([]);
 
-  // ✨ 改成：只要是主管或老闆，都可以收到打卡通知並進行審核
-  const isSupervisor = currentUser.role === UserRole.SUPERVISOR || currentUser.role === UserRole.BOSS;
+  // ✨ 修改 2：改成純粹依賴角色權限來判斷是否為主管
+  const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
 
   useEffect(() => {
     if (!isSupervisor) return;
