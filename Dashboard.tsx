@@ -1,5 +1,5 @@
 // src/Dashboard.tsx
-
+import { DataMigration } from './DataMigration';
 import { ClientMasterView } from './ClientMasterView'; 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
 import { InvoiceGenerator } from './InvoiceGenerator';
