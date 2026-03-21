@@ -610,17 +610,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                             <ChatBubbleIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">留言板</span>
                         </button>
-                        {dbConnected ? (
-                            <button onClick={() => { loadData(); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-green-50 rounded-xl text-gray-600 hover:text-green-600 transition-colors">
-                                <RefreshSvg className="w-6 h-6" />
-                                <span className="text-xs font-bold">重新整理</span>
-                            </button>
-                        ) : (
-                            <button onClick={handleConnectDB} className="flex flex-col items-center justify-center gap-1 p-3 bg-blue-50 hover:bg-blue-100 border border-blue-200 rounded-xl text-blue-600 hover:text-blue-700 transition-colors shadow-sm">
-                                <FolderIcon className="w-6 h-6 animate-pulse" />
-                                <span className="text-xs font-bold">連結資料庫</span>
-                            </button>
-                        )}
+
+                        {/* 🔴 這裡！原本的 dbConnected 判斷式已經刪掉，換成我們的搬家按鈕 */}
+                        <DataMigration />
+                        
                         <button onClick={() => { setIsGalleryOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-yellow-50 rounded-xl text-gray-600 hover:text-yellow-600 transition-colors">
                             <LightBulbIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">懶人包</span>
