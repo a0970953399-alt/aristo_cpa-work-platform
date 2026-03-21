@@ -550,205 +550,155 @@ export const TaskService = {
       return this.fetchCashRecords();
   },
 
+// ==========================================
+  // ☁️ Firebase 雲端版：作業指導書 (Instructions)
+  // ==========================================
   async fetchInstructions(): Promise<Instruction[]> {
-      const data = await this.loadFullData();
-      // ✨ 拿掉 INSTRUCTIONS 預設值，如果是空的就乖乖回傳空陣列
-      return data.instructions || [];
+      const snapshot = await getDocs(collection(db, "instructions"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Instruction));
   },
 
   async addInstruction(instruction: Instruction): Promise<Instruction[]> {
-      const data = await this.loadFullData();
-      if (!data.instructions) data.instructions = []; // ✨ 改為空陣列
-      data.instructions.push(instruction);
-      await this.saveFullData(data);
-      return data.instructions;
+      await setDoc(doc(db, "instructions", String(instruction.id)), instruction);
+      return this.fetchInstructions();
   },
 
   async updateInstruction(updated: Instruction): Promise<Instruction[]> {
-      const data = await this.loadFullData();
-      if (!data.instructions) data.instructions = []; // ✨ 改為空陣列
-      const idx = data.instructions.findIndex(i => i.id === updated.id);
-      if (idx !== -1) {
-          data.instructions[idx] = updated;
-          await this.saveFullData(data);
+      await setDoc(doc(db, "instructions", String(updated.id)), updated, { merge: true });
+      return this.fetchInstructions();
+  },
+
+  async deleteInstruction(id: string): Promise<Instruction[]> {
+      await deleteDoc(doc(db, "instructions", String(id)));
+      return this.fetchInstructions();
+  },
+
+  // ==========================================
+  // ☁️ Firebase 雲端版：股票進銷存系統 (Stock Inventory)
+  // ==========================================
+  async fetchStockClients(): Promise<StockClientConfig[]> {
+      const snapshot = await getDocs(collection(db, "stockClients"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StockClientConfig));
+  },
+
+  async addStockClient(config: StockClientConfig): Promise<StockClientConfig[]> {
+      await setDoc(doc(db, "stockClients", String(config.id)), config);
+      return this.fetchStockClients();
+  },
+
+  async deleteStockClient(id: string): Promise<StockClientConfig[]> {
+      await deleteDoc(doc(db, "stockClients", String(id)));
+      return this.fetchStockClients();
+  },
+
+  async fetchStockTargets(): Promise<StockTarget[]> {
+      const snapshot = await getDocs(collection(db, "stockTargets"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StockTarget));
+  },
+
+  async addStockTarget(target: StockTarget): Promise<StockTarget[]> {
+      await setDoc(doc(db, "stockTargets", String(target.id)), target);
+      return this.fetchStockTargets();
+  },
+
+  async deleteStockTarget(id: string): Promise<StockTarget[]> {
+      await deleteDoc(doc(db, "stockTargets", String(id)));
+      return this.fetchStockTargets();
+  },
+    
+  async fetchStockTransactions(): Promise<StockTransaction[]> {
+      const snapshot = await getDocs(collection(db, "stockTransactions"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StockTransaction));
+  },
+
+  async addStockTransaction(tx: StockTransaction): Promise<StockTransaction[]> {
+      await setDoc(doc(db, "stockTransactions", String(tx.id)), tx);
+      return this.fetchStockTransactions();
+  },
+
+  async updateStockTransaction(updatedTx: StockTransaction): Promise<StockTransaction[]> {
+      await setDoc(doc(db, "stockTransactions", String(updatedTx.id)), updatedTx, { merge: true });
+      return this.fetchStockTransactions();
+  },
+
+  async deleteStockTransaction(id: string): Promise<StockTransaction[]> {
+      await deleteDoc(doc(db, "stockTransactions", String(id)));
+      return this.fetchStockTransactions();
+  },
+
+  // ==========================================
+  // ☁️ Firebase 雲端版：薪資計算系統 (Payroll) & 員工名單
+  // ==========================================
+  async fetchPayrollClients(): Promise<import('./types').PayrollClientConfig[]> {
+      const snapshot = await getDocs(collection(db, "payrollClients"));
+      // 注意：PayrollClientConfig 是用 clientId 當主鍵
+      return snapshot.docs.map(d => ({ ...d.data(), clientId: d.id } as import('./types').PayrollClientConfig));
+  },
+    
+  async savePayrollClients(payrollClients: import('./types').PayrollClientConfig[]): Promise<void> {
+      for (const client of payrollClients) {
+          await setDoc(doc(db, "payrollClients", String(client.clientId)), client);
       }
-      return data.instructions;
+  },
+    
+  async addPayrollClient(client: import('./types').PayrollClientConfig): Promise<import('./types').PayrollClientConfig[]> {
+      await setDoc(doc(db, "payrollClients", String(client.clientId)), client);
+      return this.fetchPayrollClients();
+  },
+    
+  async deletePayrollClient(clientId: string): Promise<import('./types').PayrollClientConfig[]> {
+      await deleteDoc(doc(db, "payrollClients", String(clientId)));
+      return this.fetchPayrollClients();
   },
 
-async deleteInstruction(id: string): Promise<Instruction[]> {
-      const data = await this.loadFullData();
-      if (!data.instructions) data.instructions = [];
-      data.instructions = data.instructions.filter(i => i.id !== id);
-      await this.saveFullData(data);
-      return data.instructions;
+  async fetchPayrollRecords(): Promise<import('./types').PayrollRecord[]> {
+      const snapshot = await getDocs(collection(db, "payrollRecords"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as import('./types').PayrollRecord));
+  },
+    
+  async savePayrollRecords(payrollRecords: import('./types').PayrollRecord[]): Promise<void> {
+      for (const record of payrollRecords) {
+          await setDoc(doc(db, "payrollRecords", String(record.id)), record);
+      }
   },
 
-    // ==========================================
-    // 📊 股票進銷存系統 (Stock Inventory) - 本地讀寫版
-    // ==========================================
+  // ✨ 員工名單 API (Employee)
+  async fetchEmployees(): Promise<import('./types').Employee[]> {
+      const snapshot = await getDocs(collection(db, "employees"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as import('./types').Employee));
+  },
 
-    // 1. 取得已開通的客戶名單
-    async fetchStockClients(): Promise<StockClientConfig[]> {
-        const data = await this.loadFullData();
-        return data.stockClients || [];
-    },
+  async saveEmployees(employees: import('./types').Employee[]): Promise<void> {
+      for (const emp of employees) {
+          await setDoc(doc(db, "employees", String(emp.id)), emp);
+      }
+  },
 
-    // 2. 開通新客戶 (新增)
-    async addStockClient(config: StockClientConfig): Promise<StockClientConfig[]> {
-        const data = await this.loadFullData();
-        if (!data.stockClients) data.stockClients = [];
-        data.stockClients.push(config);
-        await this.saveFullData(data);
-        return data.stockClients;
-    },
+  async addEmployee(employee: import('./types').Employee): Promise<import('./types').Employee[]> {
+      await setDoc(doc(db, "employees", String(employee.id)), employee);
+      return this.fetchEmployees();
+  },
 
-    // 3. 關閉客戶 (刪除)
-    async deleteStockClient(id: string): Promise<StockClientConfig[]> {
-        const data = await this.loadFullData();
-        if (!data.stockClients) return [];
-        data.stockClients = data.stockClients.filter(c => c.id !== id);
-        await this.saveFullData(data);
-        return data.stockClients;
-    },
+  async updateEmployee(updated: import('./types').Employee): Promise<import('./types').Employee[]> {
+      await setDoc(doc(db, "employees", String(updated.id)), updated, { merge: true });
+      return this.fetchEmployees();
+  },
 
-    // 4. 取得所有股票標的
-    async fetchStockTargets(): Promise<StockTarget[]> {
-        const data = await this.loadFullData();
-        return data.stockTargets || [];
-    },
+  async deleteEmployee(id: string): Promise<import('./types').Employee[]> {
+      await deleteDoc(doc(db, "employees", String(id)));
+      return this.fetchEmployees();
+  },
 
-    // 5. 新增股票標的
-    async addStockTarget(target: StockTarget): Promise<StockTarget[]> {
-        const data = await this.loadFullData();
-        if (!data.stockTargets) data.stockTargets = [];
-        data.stockTargets.push(target);
-        await this.saveFullData(data);
-        return data.stockTargets;
-    },
+  // ✨ 每月薪資結算 API (Monthly Salary)
+  async fetchMonthlySalaries(): Promise<import('./types').MonthlySalaryRecord[]> {
+      const snapshot = await getDocs(collection(db, "monthlySalaries"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as import('./types').MonthlySalaryRecord));
+  },
 
-    // 6. 刪除股票標的
-    async deleteStockTarget(id: string): Promise<StockTarget[]> {
-        const data = await this.loadFullData();
-        if (!data.stockTargets) return [];
-        data.stockTargets = data.stockTargets.filter(t => t.id !== id);
-        await this.saveFullData(data);
-        return data.stockTargets;
-    },
-    
-    // 7. 取得交易紀錄 (為第三層準備)
-    async fetchStockTransactions(): Promise<StockTransaction[]> {
-        const data = await this.loadFullData();
-        return data.stockTransactions || [];
-    },
+  async saveMonthlySalaries(monthlySalaries: import('./types').MonthlySalaryRecord[]): Promise<void> {
+      for (const record of monthlySalaries) {
+          await setDoc(doc(db, "monthlySalaries", String(record.id)), record);
+      }
+  }
 
-    // 8. ✨ 新增交易紀錄 (你缺的就是這個！)
-    async addStockTransaction(tx: StockTransaction): Promise<StockTransaction[]> {
-        const data = await this.loadFullData();
-        if (!data.stockTransactions) data.stockTransactions = [];
-        data.stockTransactions.push(tx);
-        await this.saveFullData(data);
-        return data.stockTransactions;
-    },
-
-    // ✨ 8.5 更新交易紀錄 (這次要補上的)
-    async updateStockTransaction(updatedTx: StockTransaction): Promise<StockTransaction[]> {
-        const data = await this.loadFullData();
-        if (!data.stockTransactions) return [];
-        const idx = data.stockTransactions.findIndex(t => t.id === updatedTx.id);
-        if (idx !== -1) {
-            data.stockTransactions[idx] = updatedTx;
-            await this.saveFullData(data);
-        }
-        return data.stockTransactions;
-    },
-
-    // 9. 刪除交易紀錄
-    async deleteStockTransaction(id: string): Promise<StockTransaction[]> {
-        const data = await this.loadFullData();
-        if (!data.stockTransactions) return [];
-        data.stockTransactions = data.stockTransactions.filter(tx => tx.id !== id);
-        await this.saveFullData(data);
-        return data.stockTransactions;
-    },
-
-    // ==========================================
-    // ✨ 薪資計算系統 (Payroll) API
-    // ==========================================
-    
-    async fetchPayrollClients(): Promise<import('./types').PayrollClientConfig[]> {
-        const data = await this.loadFullData();
-        return data.payrollClients || [];
-    },
-    
-    async savePayrollClients(payrollClients: import('./types').PayrollClientConfig[]): Promise<void> {
-        const data = await this.loadFullData();
-        await this.saveFullData({ ...data, payrollClients });
-    },
-    
-    async addPayrollClient(client: import('./types').PayrollClientConfig): Promise<import('./types').PayrollClientConfig[]> {
-        const clients = await this.fetchPayrollClients();
-        clients.push(client);
-        await this.savePayrollClients(clients);
-        return clients;
-    },
-    
-    async deletePayrollClient(clientId: string): Promise<import('./types').PayrollClientConfig[]> {
-        const clients = await this.fetchPayrollClients();
-        const updated = clients.filter(c => c.clientId !== clientId);
-        await this.savePayrollClients(updated);
-        return updated;
-    },
-
-    async fetchPayrollRecords(): Promise<import('./types').PayrollRecord[]> {
-        const data = await this.loadFullData();
-        return data.payrollRecords || [];
-    },
-    
-    async savePayrollRecords(payrollRecords: import('./types').PayrollRecord[]): Promise<void> {
-        const data = await this.loadFullData();
-        await this.saveFullData({ ...data, payrollRecords });
-    },
-
-    // ==========================================
-    // ✨ 員工名單 API (Employee)
-    // ==========================================
-    async fetchEmployees(): Promise<import('./types').Employee[]> {
-        const data = await this.loadFullData();
-        return data.employees || [];
-    },
-    async saveEmployees(employees: import('./types').Employee[]): Promise<void> {
-        const data = await this.loadFullData();
-        await this.saveFullData({ ...data, employees });
-    },
-    async addEmployee(employee: import('./types').Employee): Promise<import('./types').Employee[]> {
-        const emps = await this.fetchEmployees();
-        emps.push(employee);
-        await this.saveEmployees(emps);
-        return emps;
-    },
-    async updateEmployee(updated: import('./types').Employee): Promise<import('./types').Employee[]> {
-        const emps = await this.fetchEmployees();
-        const idx = emps.findIndex(e => e.id === updated.id);
-        if (idx !== -1) emps[idx] = updated;
-        await this.saveEmployees(emps);
-        return emps;
-    },
-    async deleteEmployee(id: string): Promise<import('./types').Employee[]> {
-        const emps = await this.fetchEmployees();
-        const updated = emps.filter(e => e.id !== id);
-        await this.saveEmployees(updated);
-        return updated;
-    },
-    // ==========================================
-    // ✨ 每月薪資 API (Monthly Salary)
-    // ==========================================
-    async fetchMonthlySalaries(): Promise<import('./types').MonthlySalaryRecord[]> {
-        const data = await this.loadFullData();
-        return data.monthlySalaries || [];
-    },
-    async saveMonthlySalaries(monthlySalaries: import('./types').MonthlySalaryRecord[]): Promise<void> {
-        const data = await this.loadFullData();
-        await this.saveFullData({ ...data, monthlySalaries });
-    }
-
-} // ✅ TaskService 結尾
+}; // ✅ TaskService 結尾
