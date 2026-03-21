@@ -12,7 +12,8 @@ interface TimesheetViewProps {
 }
 
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
-    const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
+    // ✨ 改成：主管或老闆都可以修改別人的工時
+    const isSupervisor = currentUser.role === UserRole.SUPERVISOR || currentUser.role === UserRole.BOSS;
     
     // 篩選狀態
     const [targetUserId, setTargetUserId] = useState<string>(isSupervisor ? 'ALL' : currentUser.id);
