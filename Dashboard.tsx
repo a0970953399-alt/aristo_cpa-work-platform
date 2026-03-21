@@ -151,10 +151,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   // --- Computed ---
   const dateStr = currentTime.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const timeStr = currentTime.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
-  // ✨ 更新：老闆與主管都擁有最高權限
-  const isSupervisor = currentUser.role === UserRole.SUPERVISOR || currentUser.role === UserRole.BOSS;
-  // ✨ 新增：過濾掉老闆的名單 (用於派發任務，不讓老闆出現在下拉選單)
-  const assignableUsers = users.filter(u => u.role !== UserRole.BOSS);
+  const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
   const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
 
   // -----------------------------------------------------------
@@ -573,20 +570,18 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 </button>
             )}
 
-              {/* 2. 上班打卡 (純圖示：時鐘，老闆隱藏) */}
-            {currentUser.role !== UserRole.BOSS && (
-                <button 
-                    onClick={() => isWorking ? setIsCheckOutModalOpen(true) : handleCheckIn()} 
-                    title={isWorking ? "工作中...點擊下班" : "上班打卡"}
-                    className={`flex items-center justify-center p-2.5 rounded-xl shadow-sm transition-all active:scale-95 border ${
-                        isWorking 
-                        ? 'bg-green-500 border-green-600 text-white hover:bg-green-600 animate-pulse' 
-                        : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
-                    }`}
-                >
-                    <ClockIcon className="w-5 h-5" />
-                </button>
-            )}
+            {/* 2. 上班打卡 (純圖示：時鐘) */}
+            <button 
+                onClick={() => isWorking ? setIsCheckOutModalOpen(true) : handleCheckIn()} 
+                title={isWorking ? "工作中...點擊下班" : "上班打卡"}
+                className={`flex items-center justify-center p-2.5 rounded-xl shadow-sm transition-all active:scale-95 border ${
+                    isWorking 
+                    ? 'bg-green-500 border-green-600 text-white hover:bg-green-600 animate-pulse' 
+                    : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
+                }`}
+            >
+                <ClockIcon className="w-5 h-5" />
+            </button>
 
             {/* 3. 視圖切換 (純圖示：群組/表格) */}
             {isSupervisor ? (
@@ -1151,7 +1146,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           <label className="block text-sm font-bold text-gray-700 mb-1">指派給</label>
                           <select value={modalAssigneeId} onChange={e => setModalAssigneeId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base">
                               <option value="">請選擇...</option>
-                              {assignableUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                           </select>
                       </div>
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">備註 (選填)</label><input type="text" value={modalNote} onChange={e => setModalNote(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="例如：需特別注意..." /></div>
@@ -1231,7 +1226,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
             <h2 className="text-xl font-bold mb-4 text-gray-800 flex items-center gap-2"><LightningIcon className="w-6 h-6 text-yellow-500"/> 臨時交辦事項</h2>
             <div className="space-y-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">指派對象</label><select className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 outline-none bg-white text-base" value={modalAssigneeId} onChange={(e) => setModalAssigneeId(e.target.value)}><option value="">請選擇人員...</option>{assignableUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">指派對象</label><select className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 outline-none bg-white text-base" value={modalAssigneeId} onChange={(e) => setModalAssigneeId(e.target.value)}><option value="">請選擇人員...</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">交辦內容</label><textarea className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 outline-none h-32 resize-none text-base" placeholder="請輸入具體工作內容..." value={modalNote} onChange={(e) => setModalNote(e.target.value)}></textarea></div>
               <div className="flex gap-3 mt-2">
                 <button onClick={() => setIsMiscModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 text-base">取消</button>
