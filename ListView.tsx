@@ -1,7 +1,7 @@
 // src/ListView.tsx
 
 import React, { useRef, useState, useEffect } from 'react';
-import { ClientTask, TaskStatusType, User, UserRole,} from './types';
+import { ClientTask, TaskStatusType, User } from './types';
 import { FunnelIcon, ChevronDownIcon, DocumentTextIcon } from './Icons'; // 記得引入 DocumentTextIcon
 import { TaskListItem } from './TaskListItem';
 
@@ -29,9 +29,6 @@ export const ListView: React.FC<ListViewProps> = ({
     
     const filterRef = useRef<HTMLDivElement>(null);
     const statusFilterRef = useRef<HTMLDivElement>(null);
-
-    // ✨ 新增：建立不包含老闆的名單 (用於按鈕與下拉選單)
-    const assignableUsers = users.filter(u => u.role !== UserRole.BOSS);
 
     useEffect(() => {
         function handleClickOutside(event: MouseEvent) {
@@ -107,26 +104,16 @@ export const ListView: React.FC<ListViewProps> = ({
                         </div>
 
                         {isSupervisor && (
-                    <div className="flex items-center gap-2 overflow-x-auto no-scrollbar pb-2 border-b border-gray-100">
-                        <span className="text-sm font-bold text-gray-500 whitespace-nowrap pl-1">人員篩選</span>
-                        <button 
-                            onClick={() => setViewTargetId('ALL')}
-                            className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold transition-all shadow-sm ${viewTargetId === 'ALL' ? 'bg-blue-600 text-white shadow-blue-200' : 'bg-white text-gray-600 border border-gray-200 hover:bg-gray-50'}`}
-                        >
-                            全所進度
-                        </button>
-                        {assignableUsers.map(u => (
-                            <button 
-                                key={u.id}
-                                onClick={() => setViewTargetId(u.id)}
-                                className={`whitespace-nowrap px-4 py-2 rounded-xl text-sm font-bold flex items-center gap-2 transition-all shadow-sm border ${viewTargetId === u.id ? 'bg-white border-blue-500 text-blue-600 shadow-blue-100' : 'bg-white border-gray-200 text-gray-600 hover:bg-gray-50'}`}
-                            >
-                                <img src={u.avatar} alt={u.name} className="w-5 h-5 rounded-full bg-gray-100" />
-                                {u.name}
-                            </button>
-                        ))}
-                    </div>
-                )}
+                            <div className="relative" ref={filterRef}>
+                                <button onClick={() => setIsFilterOpen(!isFilterOpen)} className="flex items-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-xl text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"><span>{viewTargetId === 'ALL' ? '👥 全員總覽' : users.find(u => u.id === viewTargetId)?.name}</span><ChevronDownIcon /></button>
+                                {isFilterOpen && <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
+                                    <button onClick={() => { setViewTargetId('ALL'); setIsFilterOpen(false); }} className="block w-full text-left px-4 py-3 hover:bg-gray-50 text-base font-medium border-b border-gray-100 last:border-0">👥 全員總覽</button>
+                                    {users.map(user => (
+                                        <button key={user.id} onClick={() => { setViewTargetId(user.id); setIsFilterOpen(false); }} className="block w-full text-left px-4 py-3 hover:bg-gray-50 text-base font-medium border-b border-gray-100 last:border-0">{user.name}</button>
+                                    ))}
+                                </div>}
+                            </div>
+                        )}
                     </div>
                 </div>
                 <div className="space-y-4">
