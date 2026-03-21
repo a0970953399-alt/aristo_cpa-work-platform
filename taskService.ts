@@ -1,288 +1,73 @@
-
-
 import { TabCategory } from './types';
 import type { ClientTask, TaskStatusType, HistoryEntry, ClientProfile, User, CalendarEvent, Client } from './types';
 import { INITIAL_TASKS, DEFAULT_YEAR, USERS as DEFAULT_USERS, DUMMY_CLIENTS, INSTRUCTIONS } from './constants';
 import { StockClientConfig, StockTarget, StockTransaction } from './types';
 
-// --- 在檔案最上方的 import 區塊加入這兩行 ---
 import { db } from './firebase'; 
 import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from "firebase/firestore";
 
-const DB_NAME = 'ShuoyeTaskDB';
-const STORE_NAME = 'file_handles';
-const KEY_NAME = 'db_file_handle';
-const LOCAL_STORAGE_KEY = 'shuoye_tasks_local_backup';
-const CLIENT_PROFILE_KEY = 'shuoye_client_profiles'; 
 const USERS_STORAGE_KEY = 'shuoye_users_v1';
 
-let useLocalStorage = false;
-let fileHandle: FileSystemFileHandle | null = null;
-
-// Cache variables to prevent unnecessary parsing
-let cachedData: DataStore | null = null;
-let lastFileModifiedTime: number = 0;
-
-interface DataStore {
-    tasks: ClientTask[];
-    events: CalendarEvent[];
-    clients?: Client[];
-    clientProfiles?: ClientProfile[];
-    checkIns?: CheckInRecord[];
-    messages?: Message[];
-    mailRecords?: MailRecord[];
-    cashRecords?: CashRecord[];
-    instructions?: Instruction[];
-
-    stockClients?: StockClientConfig[];
-    stockTargets?: StockTarget[];
-    stockTransactions?: StockTransaction[];
-    payrollClients?: import('./types').PayrollClientConfig[];
-    payrollRecords?: import('./types').PayrollRecord[];
-    employees?: import('./types').Employee[];
-    monthlySalaries?: import('./types').MonthlySalaryRecord[];
-}
-
-const initDB = (): Promise<IDBDatabase> => {
-  return new Promise((resolve, reject) => {
-    const request = indexedDB.open(DB_NAME, 1);
-    request.onerror = () => reject(request.error);
-    request.onsuccess = () => resolve(request.result);
-    request.onupgradeneeded = (event) => {
-      const db = (event.target as IDBOpenDBRequest).result;
-      if (!db.objectStoreNames.contains(STORE_NAME)) {
-        db.createObjectStore(STORE_NAME);
-      }
-    };
-  });
-};
-
-const storeHandle = async (handle: FileSystemFileHandle) => {
-  const db = await initDB();
-  return new Promise<void>((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readwrite');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.put(handle, KEY_NAME);
-    req.onsuccess = () => resolve();
-    req.onerror = () => reject(req.error);
-  });
-};
-
-const getStoredHandle = async (): Promise<FileSystemFileHandle | undefined> => {
-  const db = await initDB();
-  return new Promise((resolve, reject) => {
-    const tx = db.transaction(STORE_NAME, 'readonly');
-    const store = tx.objectStore(STORE_NAME);
-    const req = store.get(KEY_NAME);
-    req.onsuccess = () => resolve(req.result);
-    req.onerror = () => reject(req.error);
-  });
-};
-
-const normalizeData = (raw: any): DataStore => {
-    if (!raw) return { tasks: [], events: [], clients: [] };
-    if (Array.isArray(raw)) {
-        return { tasks: raw, events: [], clients: [] };
-    }
-    return {
-        tasks: Array.isArray(raw.tasks) ? raw.tasks : [],
-        events: Array.isArray(raw.events) ? raw.events : [],
-        clients: Array.isArray(raw.clients) ? raw.clients : undefined,
-        clientProfiles: Array.isArray(raw.clientProfiles) ? raw.clientProfiles : [],
-        checkIns: Array.isArray(raw.checkIns) ? raw.checkIns : [],
-        messages: Array.isArray(raw.messages) ? raw.messages : [],
-        mailRecords: Array.isArray(raw.mailRecords) ? raw.mailRecords : [],
-        cashRecords: Array.isArray(raw.cashRecords) ? raw.cashRecords : [],
-        instructions: Array.isArray(raw.instructions) ? raw.instructions : [],
-        stockClients: Array.isArray(raw.stockClients) ? raw.stockClients : [],
-        stockTargets: Array.isArray(raw.stockTargets) ? raw.stockTargets : [],
-        stockTransactions: Array.isArray(raw.stockTransactions) ? raw.stockTransactions : [],
-        payrollClients: Array.isArray(raw.payrollClients) ? raw.payrollClients : [],
-        payrollRecords: Array.isArray(raw.payrollRecords) ? raw.payrollRecords : [],
-        employees: Array.isArray(raw.employees) ? raw.employees : [],
-        monthlySalaries: Array.isArray(raw.monthlySalaries) ? raw.monthlySalaries : []
-
-
-
-
-    };
-};
-
 export const TaskService = {
+  // ==========================================
+  // 🚀 系統連線狀態 (Firebase 永遠在線，直接回傳 true)
+  // ==========================================
   isUsingLocalStorage(): boolean {
-    return useLocalStorage;
+    return false; // 告訴系統我們不再使用 LocalStorage
   },
-    
-    getUsers: (): User[] => {
+
+  async connectDatabase(): Promise<boolean> {
+    return true; // 假裝連接成功，不再跳出要求選擇檔案的視窗
+  },
+
+  async restoreConnection(triggerPrompt: boolean = false): Promise<'connected' | 'permission_needed' | 'failed'> {
+    return 'connected'; // 永遠告訴 UI「已連線」，讓使用者可以直接登入
+  },
+
+  isConnected(): boolean { 
+    return true; 
+  },
+
+  // 防呆：如果還有其他舊畫面呼叫 loadFullData，給它一個空殼避免當機
+  async loadFullData(): Promise<any> {
+      console.warn("系統已全面升級 Firebase，不再使用 loadFullData");
+      return { tasks: [], events: [], clients: [] };
+  },
+
+  async saveFullData(data: any): Promise<void> {
+      console.warn("系統已全面升級 Firebase，不再使用 saveFullData");
+  },
+
+  // ==========================================
+  // 👤 使用者名單管理 (維持存在瀏覽器快取，速度最快)
+  // ==========================================
+  getUsers: (): User[] => {
       const cached = localStorage.getItem(USERS_STORAGE_KEY);
       if (cached) {
           let parsedUsers: User[] = JSON.parse(cached);
-          
-          // ✨ B 方案防呆邏輯：檢查快取中是否缺少 constants.ts 裡定義的人（例如新加的 Brandon）
           let hasNewUser = false;
           
-          // 這裡的 DEFAULT_USERS 是從 constants.ts import 進來的 USERS
           DEFAULT_USERS.forEach(defaultUser => {
               const userExists = parsedUsers.find(u => u.id === defaultUser.id);
               if (!userExists) {
-                  // 發現快取裡沒有這個人 (例如 u0 的 Brandon)
-                  // 因為你想讓他排在第一位，所以我們用 unshift 把他插隊到陣列最前面
                   parsedUsers.unshift(defaultUser);
                   hasNewUser = true;
               }
           });
 
-          // 如果有發現新名單並加入，就立刻更新瀏覽器的快取
           if (hasNewUser) {
               localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(parsedUsers));
           }
-
           return parsedUsers;
       }
-        // 如果完全沒有快取（例如第一次使用），就直接寫入預設名單
-        localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
-        return DEFAULT_USERS;
-    },
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
+      return DEFAULT_USERS;
+  },
 
   saveUsers(users: User[]): void {
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
   },
-
-  async connectDatabase(): Promise<boolean> {
-    // Check if API is supported
-    if (typeof (window as any).showOpenFilePicker !== 'function') {
-      console.warn("FileSystem Access API not supported. Falling back to LocalStorage.");
-      useLocalStorage = true;
-      return true; // Return true so the app loads in "offline/local" mode
-    }
-
-    try {
-      const [handle] = await (window as any).showOpenFilePicker({
-        types: [{ description: 'JSON Database', accept: { 'application/json': ['.json'] } }],
-        multiple: false,
-      });
-      fileHandle = handle;
-      useLocalStorage = false;
-      cachedData = null; // Clear cache on new connection
-      lastFileModifiedTime = 0;
-      await storeHandle(handle);
-      return true;
-    } catch (error: any) {
-      if (error.name === 'AbortError') return false;
-      // Fallback if something else goes wrong
-      useLocalStorage = true;
-      fileHandle = null;
-      return true;
-    }
-  },
-
-  async restoreConnection(triggerPrompt: boolean = false): Promise<'connected' | 'permission_needed' | 'failed'> {
-    // If API not supported, assume connected via LocalStorage
-    if (typeof (window as any).showOpenFilePicker !== 'function') {
-        useLocalStorage = true;
-        return 'connected';
-    }
-
-    try {
-      const handle = await getStoredHandle();
-      if (!handle) return 'failed';
-      
-      const options = { mode: 'readwrite' as any };
-      // Check permission
-      let permissionState = await (handle as any).queryPermission(options);
-      
-      if (permissionState === 'granted') {
-        fileHandle = handle;
-        useLocalStorage = false;
-        return 'connected';
-      }
-      
-      if (triggerPrompt) {
-        const requestState = await (handle as any).requestPermission(options);
-        if (requestState === 'granted') {
-          fileHandle = handle;
-          useLocalStorage = false;
-          return 'connected';
-        }
-      }
-      return 'permission_needed';
-    } catch (error) { 
-        console.error("Restore connection failed:", error);
-        return 'failed'; 
-    }
-  },
-
-  isConnected(): boolean { return fileHandle !== null || useLocalStorage; },
-
-  async loadFullData(): Promise<DataStore> {
-      // 1. LocalStorage Mode
-      if (useLocalStorage) {
-          const stored = localStorage.getItem(LOCAL_STORAGE_KEY);
-          // Simple caching for local storage isn't strictly necessary but good for consistency
-          const parsed = stored ? normalizeData(JSON.parse(stored)) : { tasks: INITIAL_TASKS, events: [], clients: [] };
-          // For local storage, we can essentially always return the parsed data.
-          // In a real app, we might check if localStorage string changed, but it's fast enough.
-          cachedData = parsed;
-          return parsed;
-      }
-
-      // 2. File System Mode
-      if (!fileHandle) return { tasks: [], events: [], clients: [] };
-
-      try {
-          const file = await fileHandle.getFile();
-          
-          // CRITICAL OPTIMIZATION: Check last modified time
-          // If the file hasn't changed since we last read it, return the cached object.
-          // This prevents React from re-rendering because the object reference stays the same.
-          if (cachedData && file.lastModified === lastFileModifiedTime) {
-              return cachedData;
-          }
-
-          const text = await file.text();
-          const parsed = text.trim() ? normalizeData(JSON.parse(text)) : { tasks: INITIAL_TASKS, events: [], clients: [] };
-          
-          // Update cache
-          cachedData = parsed;
-          lastFileModifiedTime = file.lastModified;
-          
-          return parsed;
-      } catch (error) {
-          console.error("Load data failed:", error);
-          throw new Error("讀取檔案失敗");
-      }
-  },
-
-  async saveFullData(data: DataStore): Promise<void> {
-      // Update the cache immediately so the UI reflects changes before the next poll
-      // (Optimistic update for the local session)
-      cachedData = data; 
-      
-      if (useLocalStorage) {
-          localStorage.setItem(LOCAL_STORAGE_KEY, JSON.stringify(data, null, 2));
-          return;
-      }
-      
-      if (!fileHandle) throw new Error("尚未連線至資料庫檔案");
-      
-      try {
-          const writable = await fileHandle.createWritable();
-          await writable.write(JSON.stringify(data, null, 2));
-          await writable.close();
-          
-          // After writing, the file's lastModified time changes on disk.
-          // We need to update our tracker so the next poll doesn't think it's an external change.
-          // However, we can't easily predict the exact OS timestamp.
-          // So we reset the timestamp to 0 to force a re-read on the next poll to ensure consistency.
-          lastFileModifiedTime = 0; 
-      } catch (error) {
-          console.error("Save data failed:", error);
-          throw new Error("寫入失敗");
-      }
-  },
-
-  // --- API Methods ---
-
+ 
   // ==========================================
   // ☁️ Firebase 雲端版：工作任務 API (Tasks)
   // ==========================================
