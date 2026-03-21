@@ -420,194 +420,134 @@ export const TaskService = {
       await deleteDoc(doc(db, "events", String(eventId)));
       return this.fetchEvents();
   },
-    
-async fetchClients(): Promise<Client[]> {
-      const data = await this.loadFullData();
-      const clients = data.clients || DUMMY_CLIENTS;
-      
-      // 使用 [...clients] 建立副本，確保不會因為唯讀屬性而排序失敗
-      // 這裡強制依照 code (A01, A02...) 進行排序
-      return [...clients].sort((a, b) => {
+
+
+  // ==========================================
+  // ☁️ Firebase 雲端版：客戶資料 (Clients & Profiles)
+  // ==========================================
+  async fetchClients(): Promise<Client[]> {
+      const snapshot = await getDocs(collection(db, "clients"));
+      const clients = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Client));
+      // 依照代號 (A01, A02...) 排序
+      return clients.sort((a, b) => {
           const codeA = a.code || '';
           const codeB = b.code || '';
           return codeA.localeCompare(codeB, 'zh-Hant', { numeric: true });
       });
-},
-
-  async saveClients(clients: Client[]): Promise<void> {
-      // Use loadFullData to ensure we have the latest OTHER data (tasks, events)
-      // Note: If loadFullData hits cache, it's fast.
-      const currentData = await this.loadFullData(); 
-      await this.saveFullData({ ...currentData, clients });
   },
 
-  getClientProfile(clientId: string): ClientProfile {
-      // 1. 先從快取資料 (cachedData) 裡面找
-      if (cachedData && cachedData.clientProfiles) {
-          const found = cachedData.clientProfiles.find(p => p.clientId === clientId);
-          if (found) return found;
+  async saveClients(clients: Client[]): Promise<void> {
+      // 批次寫入客戶資料
+      for (const client of clients) {
+          await setDoc(doc(db, "clients", String(client.id)), client);
       }
-      // 2. 找不到就回傳空的預設值
+  },
+
+  async getClientProfile(clientId: string): Promise<ClientProfile> {
+      // 去 Firebase 拿這家客戶的專屬備註抽屜
+      const docSnap = await getDoc(doc(db, "clientProfiles", String(clientId)));
+      if (docSnap.exists()) {
+          return docSnap.data() as ClientProfile;
+      }
       return { clientId, specialNotes: "", accountingNotes: "", tags: [] };
   },
 
   async saveClientProfile(profile: ClientProfile): Promise<void> {
-      // 1. 讀取目前的完整資料
-      const currentData = await this.loadFullData();
-      
-      // 2. 確保陣列存在
-      if (!currentData.clientProfiles) {
-          currentData.clientProfiles = [];
-      }
-
-      // 3. 更新或新增這筆備註
-      const index = currentData.clientProfiles.findIndex(p => p.clientId === profile.clientId);
-      if (index >= 0) {
-          currentData.clientProfiles[index] = profile;
-      } else {
-          currentData.clientProfiles.push(profile);
-      }
-
-      // 4. ✨ 呼叫你原本就有的 saveFullData 寫入檔案
-      await this.saveFullData(currentData);
+      await setDoc(doc(db, "clientProfiles", String(profile.clientId)), profile, { merge: true });
   },
 
-// --- 打卡系統相關 API ---
-
+  // ==========================================
+  // ☁️ Firebase 雲端版：打卡系統 (CheckIns)
+  // ==========================================
   async fetchCheckIns(): Promise<CheckInRecord[]> {
-      const data = await this.loadFullData();
-      return data.checkIns || [];
+      const snapshot = await getDocs(collection(db, "checkIns"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CheckInRecord));
   },
 
   async addCheckIn(record: CheckInRecord): Promise<CheckInRecord[]> {
-      const currentData = await this.loadFullData();
-      if (!currentData.checkIns) currentData.checkIns = [];
-      
-      currentData.checkIns.push(record);
-      await this.saveFullData(currentData);
-      return currentData.checkIns;
+      await setDoc(doc(db, "checkIns", String(record.id)), record);
+      return this.fetchCheckIns();
   },
 
   async updateCheckIn(updatedRecord: CheckInRecord): Promise<CheckInRecord[]> {
-      const currentData = await this.loadFullData();
-      if (!currentData.checkIns) currentData.checkIns = [];
-      
-      const index = currentData.checkIns.findIndex(r => r.id === updatedRecord.id);
-      if (index >= 0) {
-          currentData.checkIns[index] = updatedRecord;
-      }
-      await this.saveFullData(currentData);
-      return currentData.checkIns;
+      await setDoc(doc(db, "checkIns", String(updatedRecord.id)), updatedRecord, { merge: true });
+      return this.fetchCheckIns();
   },
-  
-  // 刪除打卡紀錄 (主管補救用)
+
   async deleteCheckIn(recordId: string): Promise<CheckInRecord[]> {
-      const currentData = await this.loadFullData();
-      if (!currentData.checkIns) return [];
-      
-      currentData.checkIns = currentData.checkIns.filter(r => r.id !== recordId);
-      await this.saveFullData(currentData);
-      return currentData.checkIns;
-  },    
+      await deleteDoc(doc(db, "checkIns", String(recordId)));
+      return this.fetchCheckIns();
+  },
 
-// --- 留言板 API ---
-
+  // ==========================================
+  // ☁️ Firebase 雲端版：留言板 (Messages)
+  // ==========================================
   async fetchMessages(): Promise<Message[]> {
-      const data = await this.loadFullData();
-      return data.messages || [];
+      const snapshot = await getDocs(collection(db, "messages"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Message));
   },
 
   async addMessage(msg: Message): Promise<Message[]> {
-      const data = await this.loadFullData();
-      if (!data.messages) data.messages = [];
-      data.messages.push(msg);
-      await this.saveFullData(data);
-      return data.messages;
+      await setDoc(doc(db, "messages", String(msg.id)), msg);
+      return this.fetchMessages();
   },
 
   async deleteMessage(msgId: string): Promise<Message[]> {
-      const data = await this.loadFullData();
-      if (!data.messages) return [];
-      data.messages = data.messages.filter(m => m.id !== msgId);
-      await this.saveFullData(data);
-      return data.messages;
+      await deleteDoc(doc(db, "messages", String(msgId)));
+      return this.fetchMessages();
   },
 
-// --- 📦 收發信件 API ---
-
+  // ==========================================
+  // ☁️ Firebase 雲端版：收發信件 (MailRecords)
+  // ==========================================
   async fetchMailRecords(): Promise<MailRecord[]> {
-      const data = await this.loadFullData();
-      return data.mailRecords || [];
+      const snapshot = await getDocs(collection(db, "mailRecords"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MailRecord));
   },
 
   async addMailRecord(record: MailRecord): Promise<MailRecord[]> {
-      const data = await this.loadFullData();
-      if (!data.mailRecords) data.mailRecords = [];
-      data.mailRecords.push(record);
-      await this.saveFullData(data);
-      return data.mailRecords;
+      await setDoc(doc(db, "mailRecords", String(record.id)), record);
+      return this.fetchMailRecords();
   },
 
-  // 批次匯入用
   async addMailRecordsBatch(records: MailRecord[]): Promise<MailRecord[]> {
-      const data = await this.loadFullData();
-      if (!data.mailRecords) data.mailRecords = [];
-      data.mailRecords = [...data.mailRecords, ...records]; // 追加模式
-      await this.saveFullData(data);
-      return data.mailRecords;
+      for (const record of records) {
+          await setDoc(doc(db, "mailRecords", String(record.id)), record);
+      }
+      return this.fetchMailRecords();
   },
 
   async updateMailRecord(updated: MailRecord): Promise<MailRecord[]> {
-      const data = await this.loadFullData();
-      if (!data.mailRecords) return [];
-      const idx = data.mailRecords.findIndex(r => r.id === updated.id);
-      if (idx !== -1) {
-          data.mailRecords[idx] = updated;
-          await this.saveFullData(data);
-      }
-      return data.mailRecords;
+      await setDoc(doc(db, "mailRecords", String(updated.id)), updated, { merge: true });
+      return this.fetchMailRecords();
   },
 
   async deleteMailRecord(id: string): Promise<MailRecord[]> {
-      const data = await this.loadFullData();
-      if (!data.mailRecords) return [];
-      data.mailRecords = data.mailRecords.filter(r => r.id !== id);
-      await this.saveFullData(data);
-      return data.mailRecords;
-},
+      await deleteDoc(doc(db, "mailRecords", String(id)));
+      return this.fetchMailRecords();
+  },
 
-// --- 💰 零用金/代墊款 API ---
-
+  // ==========================================
+  // ☁️ Firebase 雲端版：零用金 (CashRecords)
+  // ==========================================
   async fetchCashRecords(): Promise<CashRecord[]> {
-      const data = await this.loadFullData();
-      return data.cashRecords || [];
+      const snapshot = await getDocs(collection(db, "cashRecords"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CashRecord));
   },
 
   async addCashRecord(record: CashRecord): Promise<CashRecord[]> {
-      const data = await this.loadFullData();
-      if (!data.cashRecords) data.cashRecords = [];
-      data.cashRecords.push(record);
-      await this.saveFullData(data);
-      return data.cashRecords;
+      await setDoc(doc(db, "cashRecords", String(record.id)), record);
+      return this.fetchCashRecords();
   },
 
   async updateCashRecord(updated: CashRecord): Promise<CashRecord[]> {
-      const data = await this.loadFullData();
-      if (!data.cashRecords) return [];
-      const idx = data.cashRecords.findIndex(r => r.id === updated.id);
-      if (idx !== -1) {
-          data.cashRecords[idx] = updated;
-          await this.saveFullData(data);
-      }
-      return data.cashRecords;
+      await setDoc(doc(db, "cashRecords", String(updated.id)), updated, { merge: true });
+      return this.fetchCashRecords();
   },
 
   async deleteCashRecord(id: string): Promise<CashRecord[]> {
-      const data = await this.loadFullData();
-      if (!data.cashRecords) return [];
-      data.cashRecords = data.cashRecords.filter(r => r.id !== id);
-      await this.saveFullData(data);
-      return data.cashRecords;
+      await deleteDoc(doc(db, "cashRecords", String(id)));
+      return this.fetchCashRecords();
   },
 
   async fetchInstructions(): Promise<Instruction[]> {
@@ -641,7 +581,7 @@ async deleteInstruction(id: string): Promise<Instruction[]> {
       data.instructions = data.instructions.filter(i => i.id !== id);
       await this.saveFullData(data);
       return data.instructions;
-  }, // ✨ 關鍵 1：我幫你補上這裡的逗號了！
+  },
 
     // ==========================================
     // 📊 股票進銷存系統 (Stock Inventory) - 本地讀寫版
