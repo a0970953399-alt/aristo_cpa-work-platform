@@ -22,10 +22,12 @@ export const ClientDrawer: React.FC<ClientDrawerProps> = ({ client, isOpen, onCl
 
     useEffect(() => {
         if (isOpen) {
-            const data = TaskService.getClientProfile(client.id);
-            setProfile(data);
-            setEditingSpecial(false);
-            setEditingAccounting(false);
+            // ✨ 改為非同步等待 Firebase 回傳資料
+            TaskService.getClientProfile(client.id).then(data => {
+                setProfile(data);
+                setEditingSpecial(false);
+                setEditingAccounting(false);
+            });
         }
     }, [isOpen, client.id]);
 
