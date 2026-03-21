@@ -283,6 +283,144 @@ export const TaskService = {
 
   // --- API Methods ---
 
+  // ==========================================
+  // ☁️ Firebase 雲端版：工作任務 API (Tasks)
+  // ==========================================
+
+  async fetchTasks(): Promise<ClientTask[]> {
+      const snapshot = await getDocs(collection(db, "tasks"));
+      const tasks = snapshot.docs.map(d => {
+          const t = d.data();
+          
+          // 🛡️ 防呆機制：保留你原本的「舊資料清洗邏輯」，以防未來匯入舊資料時格式跑版
+          let cat = t.category;
+          if (cat === '入帳') cat = TabCategory.ACCOUNTING;
+          if (cat === '所得/扣繳') cat = TabCategory.INCOME_TAX;
+
+          return {
+              ...t,
+              id: d.id, // 改用 Firebase 的雲端 ID
+              status: (t.status === 'completed' || t.status === 'pending') ? (t.status === 'completed' ? 'done' : 'todo') : t.status || 'todo',
+              workItem: t.workItem || '',
+              category: cat,
+              year: t.year || DEFAULT_YEAR,
+              isNA: t.isNA || false,
+              isMisc: t.isMisc || false,
+              assigneeId: t.assigneeId || '',
+              assigneeName: t.assigneeName || '',
+              completionDate: t.completionDate || '',
+              history: t.history || []
+          } as ClientTask;
+      });
+      return tasks;
+  },
+
+  async addTask(task: ClientTask): Promise<ClientTask[]> {
+      const { id, ...data } = task; // 把本機的隨機 id 抽掉，準備存入 Firebase
+      
+      const historyEntry: HistoryEntry = {
+          timestamp: new Date().toISOString(),
+          userName: task.lastUpdatedBy,
+          action: task.isMisc ? "初始派案 (臨時)" : "初始派案",
+          details: task.isNA ? "標記為 N/A" : `指派給: ${task.assigneeName || '無'}`
+      };
+
+      // ✨ 直接寫入雲端 (使用自訂 ID 確保未來關聯性不變)
+      await setDoc(doc(db, "tasks", String(id)), {
+          ...data,
+          history: [historyEntry]
+      });
+      
+      return this.fetchTasks();
+  },
+
+  async deleteTask(taskId: string): Promise<ClientTask[]> {
+      // ✨ 雲端刪除指令：直接指定 ID 刪除，不影響其他任務！
+      await deleteDoc(doc(db, "tasks", String(taskId)));
+      return this.fetchTasks();
+  },
+
+  async updateTaskStatus(taskId: string, status: TaskStatusType, user: string, completionDate?: string): Promise<ClientTask[]> {
+      const ref = doc(db, "tasks", String(taskId));
+      const docSnap = await getDoc(ref);
+      
+      if (docSnap.exists()) {
+          const taskData = docSnap.data() as ClientTask;
+          const historyEntry: HistoryEntry = {
+              timestamp: new Date().toISOString(),
+              userName: user,
+              action: `更改狀態至 ${status}`,
+              details: completionDate ? `完成日期: ${completionDate}` : undefined
+          };
+          
+          // ✨ 雲端局部更新：merge: true 代表只更新有變動的欄位，超級省流量！
+          await setDoc(ref, {
+              status: status,
+              completionDate: completionDate !== undefined ? completionDate : taskData.completionDate,
+              lastUpdatedBy: user,
+              lastUpdatedAt: new Date().toISOString(),
+              history: [historyEntry, ...(taskData.history || [])].slice(0, 20)
+          }, { merge: true });
+      }
+      return this.fetchTasks();
+  },
+
+  async updateTaskNote(taskId: string, note: string, user: string): Promise<ClientTask[]> {
+      const ref = doc(db, "tasks", String(taskId));
+      const docSnap = await getDoc(ref);
+      
+      if (docSnap.exists()) {
+          const taskData = docSnap.data() as ClientTask;
+          const historyEntry: HistoryEntry = {
+              timestamp: new Date().toISOString(),
+              userName: user,
+              action: "更新備註",
+              details: note.substring(0, 20) + (note.length > 20 ? "..." : "")
+          };
+          
+          await setDoc(ref, {
+              note: note,
+              lastUpdatedBy: user,
+              lastUpdatedAt: new Date().toISOString(),
+              history: [historyEntry, ...(taskData.history || [])].slice(0, 20)
+          }, { merge: true });
+      }
+      return this.fetchTasks();
+  },
+  // ==========================================
+
+  // ==========================================
+  // ☁️ Firebase 雲端版：行事曆/排班 API (Events)
+  // ==========================================
+
+  async fetchEvents(): Promise<CalendarEvent[]> {
+      // 1. 去 Firebase 找 "events" 這個抽屜
+      const snapshot = await getDocs(collection(db, "events"));
+      return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CalendarEvent));
+  },
+
+  async addEvent(event: CalendarEvent): Promise<CalendarEvent[]> {
+      const { id, ...data } = event;
+      
+      // 2. 寫入單筆行事曆事件
+      await setDoc(doc(db, "events", String(id)), data);
+      return this.fetchEvents();
+  },
+
+  async updateEvent(updatedEvent: CalendarEvent): Promise<CalendarEvent[]> {
+      const { id, ...data } = updatedEvent;
+      
+      // 3. 雲端局部更新事件 (例如把請假改成排班，或修改備註)
+      await setDoc(doc(db, "events", String(id)), data, { merge: true });
+      return this.fetchEvents();
+  },
+
+  async deleteEvent(eventId: string): Promise<CalendarEvent[]> {
+      // 4. 精準刪除單一事件
+      await deleteDoc(doc(db, "events", String(eventId)));
+      return this.fetchEvents();
+  },
+    
 async fetchClients(): Promise<Client[]> {
       const data = await this.loadFullData();
       const clients = data.clients || DUMMY_CLIENTS;
@@ -301,70 +439,6 @@ async fetchClients(): Promise<Client[]> {
       // Note: If loadFullData hits cache, it's fast.
       const currentData = await this.loadFullData(); 
       await this.saveFullData({ ...currentData, clients });
-  },
-
-  async fetchTasks(): Promise<ClientTask[]> {
-      const data = await this.loadFullData();
-      const rawTasks = data.tasks;
-      // We map here to ensure data integrity, but if data.tasks is essentially the same,
-      // we might want to memoize this too. For now, rely on loadFullData caching.
-      return rawTasks.map((t: any) => {
-          let cat = t.category;
-          // Legacy support
-          if (cat === '入帳') cat = TabCategory.ACCOUNTING;
-          if (cat === '所得/扣繳') cat = TabCategory.INCOME_TAX;
-
-          return {
-              ...t,
-              id: String(t.id),
-              status: (t.status === 'completed' || t.status === 'pending') ? (t.status === 'completed' ? 'done' : 'todo') : t.status || 'todo',
-              workItem: t.workItem || '',
-              category: cat,
-              year: t.year || DEFAULT_YEAR,
-              isNA: t.isNA || false,
-              isMisc: t.isMisc || false,
-              assigneeId: t.assigneeId || '',
-              assigneeName: t.assigneeName || '',
-              completionDate: t.completionDate || '',
-              history: t.history || []
-          };
-      });
-  },
-
-  async saveTasks(tasks: ClientTask[]): Promise<void> {
-      const currentData = await this.loadFullData();
-      await this.saveFullData({ ...currentData, tasks });
-  },
-
-  async fetchEvents(): Promise<CalendarEvent[]> {
-      const data = await this.loadFullData();
-      return data.events || [];
-  },
-
-  async saveEvents(events: CalendarEvent[]): Promise<void> {
-      const currentData = await this.loadFullData();
-      await this.saveFullData({ ...currentData, events });
-  },
-
-  async addEvent(event: CalendarEvent): Promise<CalendarEvent[]> {
-      const events = await this.fetchEvents();
-      const newEvents = [...events, event];
-      await this.saveEvents(newEvents);
-      return newEvents;
-  },
-
-  async updateEvent(updatedEvent: CalendarEvent): Promise<CalendarEvent[]> {
-      const events = await this.fetchEvents();
-      const newEvents = events.map(e => e.id === updatedEvent.id ? updatedEvent : e);
-      await this.saveEvents(newEvents);
-      return newEvents;
-  },
-
-  async deleteEvent(eventId: string): Promise<CalendarEvent[]> {
-      const events = await this.fetchEvents();
-      const newEvents = events.filter(e => e.id !== eventId);
-      await this.saveEvents(newEvents);
-      return newEvents;
   },
 
   getClientProfile(clientId: string): ClientProfile {
@@ -396,90 +470,6 @@ async fetchClients(): Promise<Client[]> {
 
       // 4. ✨ 呼叫你原本就有的 saveFullData 寫入檔案
       await this.saveFullData(currentData);
-  },
-
-  async addTask(task: ClientTask): Promise<ClientTask[]> {
-    const currentTasks = await this.fetchTasks();
-    let existingIndex = -1;
-    if (!task.isMisc) {
-        existingIndex = currentTasks.findIndex(t => t.clientId === task.clientId && t.category === task.category && t.workItem === task.workItem && t.year === task.year);
-    } else {
-        existingIndex = currentTasks.findIndex(t => t.id === task.id);
-    }
-
-    const historyEntry: HistoryEntry = {
-        timestamp: new Date().toISOString(),
-        userName: task.lastUpdatedBy,
-        action: existingIndex >= 0 ? "更新派案/備註" : "初始派案",
-        details: task.isNA ? "標記為 N/A" : `指派給: ${task.assigneeName || '無'}`
-    };
-
-    let newTasks;
-    if (existingIndex >= 0) {
-        newTasks = [...currentTasks];
-        const oldHistory = newTasks[existingIndex].history || [];
-        newTasks[existingIndex] = { ...task, history: [historyEntry, ...oldHistory].slice(0, 20) };
-    } else {
-        newTasks = [{ ...task, history: [historyEntry] }, ...currentTasks];
-    }
-    await this.saveTasks(newTasks);
-    return newTasks;
-  },
-
-  async deleteTask(taskId: string): Promise<ClientTask[]> {
-    const currentTasks = await this.fetchTasks();
-    const newTasks = currentTasks.filter(t => String(t.id) !== String(taskId));
-    await this.saveTasks(newTasks);
-    return newTasks;
-  },
-
-  async updateTaskStatus(taskId: string, status: TaskStatusType, user: string, completionDate?: string): Promise<ClientTask[]> {
-    const currentTasks = await this.fetchTasks();
-    const newTasks = currentTasks.map(t => {
-      if (String(t.id) === String(taskId)) {
-        const historyEntry: HistoryEntry = {
-            timestamp: new Date().toISOString(),
-            userName: user,
-            action: `更改狀態至 ${status}`,
-            details: completionDate ? `完成日期: ${completionDate}` : undefined
-        };
-        return {
-          ...t,
-          status: status,
-          completionDate: completionDate !== undefined ? completionDate : t.completionDate,
-          lastUpdatedBy: user,
-          lastUpdatedAt: new Date().toISOString(),
-          history: [historyEntry, ...(t.history || [])].slice(0, 20)
-        };
-      }
-      return t;
-    });
-    await this.saveTasks(newTasks);
-    return newTasks;
-  },
-
-  async updateTaskNote(taskId: string, note: string, user: string): Promise<ClientTask[]> {
-    const currentTasks = await this.fetchTasks();
-    const newTasks = currentTasks.map(t => {
-      if (String(t.id) === String(taskId)) {
-        const historyEntry: HistoryEntry = {
-            timestamp: new Date().toISOString(),
-            userName: user,
-            action: "更新備註",
-            details: note.substring(0, 20) + (note.length > 20 ? "..." : "")
-        };
-        return {
-          ...t,
-          note: note,
-          lastUpdatedBy: user,
-          lastUpdatedAt: new Date().toISOString(),
-          history: [historyEntry, ...(t.history || [])].slice(0, 20)
-        };
-      }
-      return t;
-    });
-    await this.saveTasks(newTasks);
-    return newTasks;
   },
 
 // --- 打卡系統相關 API ---
