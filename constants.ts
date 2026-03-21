@@ -9,7 +9,7 @@ export const USERS: User[] = [
   {
     id: 'u0', // 給老闆一個獨立的 ID
     name: "Brandon",
-    role: UserRole.BOSS, // 賦予主管權限
+    role: UserRole.SUPERVISOR, // 賦予主管權限
     avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Brandon&backgroundColor=ffd5dc&radius=50', // 隨機生成一個專屬頭像
     pin: DEFAULT_PIN
   },
