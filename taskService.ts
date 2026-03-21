@@ -28,44 +28,70 @@ export const TaskService = {
     return true; 
   },
 
-  // 防呆：如果還有其他舊畫面呼叫 loadFullData，給它一個空殼避免當機
+  // 防呆：系統啟動時會呼叫這個，我們剛好用來同步頭貼！
   async loadFullData(): Promise<any> {
       console.warn("系統已全面升級 Firebase，不再使用 loadFullData");
+      
+      // ✨ 系統啟動時，偷偷去雲端把同事們的新頭貼抓下來！
+      await this.syncUsersFromCloud(); 
+      
       return { tasks: [], events: [], clients: [] };
   },
-
+  
   async saveFullData(data: any): Promise<void> {
       console.warn("系統已全面升級 Firebase，不再使用 saveFullData");
   },
 
   // ==========================================
-  // 👤 使用者名單管理 (維持存在瀏覽器快取，速度最快)
+  // 👤 使用者名單與頭貼管理 (混合雲端同步版)
   // ==========================================
   getUsers: (): User[] => {
+      // 1. 維持瞬間讀取本機快取，確保登入畫面秒開不白屏
       const cached = localStorage.getItem(USERS_STORAGE_KEY);
       if (cached) {
-          let parsedUsers: User[] = JSON.parse(cached);
+          const parsedUsers: User[] = JSON.parse(cached);
+          // 防呆：確保預設名單(如新主管)一定存在
           let hasNewUser = false;
-          
           DEFAULT_USERS.forEach(defaultUser => {
-              const userExists = parsedUsers.find(u => u.id === defaultUser.id);
-              if (!userExists) {
+              if (!parsedUsers.find(u => u.id === defaultUser.id)) {
                   parsedUsers.unshift(defaultUser);
                   hasNewUser = true;
               }
           });
-
-          if (hasNewUser) {
-              localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(parsedUsers));
-          }
+          if (hasNewUser) localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(parsedUsers));
           return parsedUsers;
       }
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(DEFAULT_USERS));
       return DEFAULT_USERS;
   },
 
-  saveUsers(users: User[]): void {
+  async saveUsers(users: User[]): Promise<void> {
+      // 2. 自己換完頭貼，立刻存入自己的電腦
       localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+      
+      // 3. ✨ 同時把新頭貼上傳到 Firebase 的 "users" 抽屜，讓全世界看到！
+      for (const user of users) {
+          await setDoc(doc(db, "users", String(user.id)), user);
+      }
+  },
+
+  async syncUsersFromCloud(): Promise<void> {
+      // 4. 去 Firebase 抓大家最新的頭貼下來
+      const snapshot = await getDocs(collection(db, "users"));
+      if (!snapshot.empty) {
+          const cloudUsers = snapshot.docs.map(d => d.data() as User);
+          
+          // 把雲端抓下來的名單與本機合併更新
+          let finalUsers = [...cloudUsers];
+          DEFAULT_USERS.forEach(defaultUser => {
+              if (!finalUsers.find(u => u.id === defaultUser.id)) {
+                  finalUsers.unshift(defaultUser);
+              }
+          });
+          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(finalUsers));
+      } else {
+          // 如果 Firebase 裡面還沒有名單，就把預設名單推上去建立檔案
+          await this.saveUsers(DEFAULT_USERS);
+      }
   },
  
   // ==========================================
