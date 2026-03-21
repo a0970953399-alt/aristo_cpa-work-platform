@@ -1,7 +1,7 @@
 // src/ListView.tsx
 
 import React, { useRef, useState, useEffect } from 'react';
-import { ClientTask, TaskStatusType, User } from './types';
+import { ClientTask, TaskStatusType, User, UserRole,} from './types';
 import { FunnelIcon, ChevronDownIcon, DocumentTextIcon } from './Icons'; // 記得引入 DocumentTextIcon
 import { TaskListItem } from './TaskListItem';
 
