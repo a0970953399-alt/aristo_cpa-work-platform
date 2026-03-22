@@ -325,6 +325,69 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         }
     };
 
+    // ✨ 魔法快捷 1：日期自動補點 (輸入 1150320 離開後變 115.03.20)
+    const handleDateBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        const val = e.target.value.trim();
+        // 檢查是否剛好是 7 個數字
+        if (/^\d{7}$/.test(val)) {
+            e.target.value = `${val.substring(0, 3)}.${val.substring(3, 5)}.${val.substring(5, 7)}`;
+        }
+    };
+
+    // ✨ 魔法快捷 2：收據金額自動扣繳與同步帶入
+    const handleAmountBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        const val = e.target.value.trim();
+        if (!val) return;
+
+        let finalAmount = 0;
+        let formattedDisplay = '';
+
+        if (val.endsWith('-')) {
+            // 情況 A：有打減號，自動計算 10% 扣繳
+            const numStr = val.slice(0, -1).replace(/\D/g, '');
+            if (numStr) {
+                const baseAmount = parseInt(numStr, 10);
+                const tax = Math.round(baseAmount * 0.1);
+                finalAmount = baseAmount - tax; // 實際收款金額
+                formattedDisplay = `${baseAmount.toLocaleString('en-US')} - ${tax.toLocaleString('en-US')}`;
+            }
+        } else {
+            // 情況 B：一般金額，純加上千分位逗號
+            const numStr = val.replace(/\D/g, '');
+            if (numStr) {
+                const baseAmount = parseInt(numStr, 10);
+                finalAmount = baseAmount;
+                formattedDisplay = baseAmount.toLocaleString('en-US');
+            }
+        }
+
+        // 1. 更新自己（收據金額的顯示格式）
+        if (formattedDisplay) e.target.value = formattedDisplay;
+
+        // 2. 自動尋找同一列右邊的「收款金額」，並把算好的 finalAmount 帶進去
+        if (finalAmount > 0) {
+            const tr = e.target.closest('tr');
+            if (tr) {
+                // 利用專屬 class 尋找右邊的目標輸入框
+                const targetInput = tr.querySelector('.collection-amount') as HTMLInputElement;
+                // 防呆：如果右邊本來沒寫字，才幫他自動填入，避免覆蓋手動修改的數字
+                if (targetInput && !targetInput.value) { 
+                    targetInput.value = finalAmount.toLocaleString('en-US');
+                }
+            }
+        }
+    };
+
+    // ✨ 魔法快捷 3：一般千分位格式化 (給右邊收款金額手動修改時用)
+    const handleCurrencyBlur = (e: React.FocusEvent<HTMLInputElement>) => {
+        const numStr = e.target.value.replace(/\D/g, '');
+        if (numStr) {
+            e.target.value = parseInt(numStr, 10).toLocaleString('en-US');
+        } else {
+            e.target.value = '';
+        }
+    };
+
     return (
         <div className="fixed inset-0 bg-gray-100 z-[100] overflow-hidden flex flex-col animate-fade-in">
           {/* --- 統一合併後的頂部操作列 --- */}
@@ -544,21 +607,23 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                     <th className="px-2 py-2 w-28 border-b border-blue-700 text-center">簽收</th>
                                                 </tr>
                                             </thead>
-                                            <tbody className="divide-y divide-gray-100">
+                                          <tbody className="divide-y divide-gray-100">
                                                 {[1, 2, 3, 4, 5, 6, 7].map((num) => (
                                                     <tr key={num} className="hover:bg-blue-100/30 transition-colors group">
                                                         {/* 期別 */}
                                                         <td className="px-2 py-2 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{num}</td>
                                                         
-                                                        {/* ✨ 修改：拆分成三個獨立的 td */}
+                                                        {/* ✨ [開立收據情形] 開立日期 (綁定日期魔法) */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="M/D" />
+                                                            <input type="text" onBlur={handleDateBlur} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="7碼數字" />
                                                         </td>
+                                                        {/* [開立收據情形] 收據號碼 */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
                                                             <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="號碼" />
                                                         </td>
+                                                        {/* ✨ [開立收據情形] 收據金額 (綁定減號魔法與同步帶入) */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <input type="text" className="w-full font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
+                                                            <input type="text" onBlur={handleAmountBlur} className="w-full font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$ (扣繳加-)" />
                                                         </td>
                                                         
                                                         {/* [開立收據情形] 核准 (一鍵蓋章) */}
@@ -573,14 +638,14 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                             </div>
                                                         </td>
 
-                                                        {/* [收款情形] 送款日 */}
+                                                        {/* ✨ [收款情形] 送款日 (綁定日期魔法) */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="M/D" />
+                                                            <input type="text" onBlur={handleDateBlur} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="7碼數字" />
                                                         </td>
 
-                                                        {/* [收款情形] 金額(收款) */}
+                                                        {/* ✨ [收款情形] 金額(收款) (加上 collection-amount 讓左邊可以找到它，並綁定純千分位格式) */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <input type="text" className="w-full font-bold text-green-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
+                                                            <input type="text" onBlur={handleCurrencyBlur} className="collection-amount w-full font-bold text-green-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
                                                         </td>
 
                                                         {/* [收款情形] 簽收 (一鍵蓋章) */}
