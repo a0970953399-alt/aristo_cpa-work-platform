@@ -519,21 +519,25 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                     </div>
                                 )}
 
-                            {/* 🔵 分頁內容 B：收費追蹤 (雙層表頭、緊湊排版無捲動條) */}
+                            {/* 🔵 分頁內容 B：收費追蹤 (拆分收據細項欄位) */}
                                 {activeTab === 'payment' && (
                                     <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
-                                        {/* 把 min-w 縮小到 700px，確保多數螢幕都能一頁看完 */}
-                                        <table className="w-full min-w-[700px] text-left text-sm">
+                                        <table className="w-full min-w-[800px] text-left text-sm">
                                             <thead className="bg-blue-600 text-white font-bold">
                                                 {/* 第一層：大群組分類 */}
                                                 <tr>
                                                     <th rowSpan={2} className="px-2 py-3 w-12 text-center border-r border-b border-blue-700 align-middle">期別</th>
-                                                    <th colSpan={2} className="px-2 py-2 text-center border-r border-b border-blue-700">開立收據情形</th>
+                                                    {/* ✨ 修改：因為底下拆成 4 欄了，所以 colSpan 改為 4 */}
+                                                    <th colSpan={4} className="px-2 py-2 text-center border-r border-b border-blue-700">開立收據情形</th>
                                                     <th colSpan={3} className="px-2 py-2 text-center border-b border-blue-700">收款情形</th>
                                                 </tr>
                                                 {/* 第二層：實際欄位名稱 */}
                                                 <tr>
-                                                    <th className="px-2 py-2 border-r border-b border-blue-700 text-center">日期 / 號碼 / 金額</th>
+                                                    {/* ✨ 修改：拆分成三個獨立表頭 */}
+                                                    <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">開立日期</th>
+                                                    <th className="px-2 py-2 w-24 border-r border-b border-blue-700 text-center">收據號碼</th>
+                                                    <th className="px-2 py-2 w-24 border-r border-b border-blue-700 text-center">收據金額</th>
+                                                    
                                                     <th className="px-2 py-2 w-28 border-r border-b border-blue-700 text-center">核准</th>
                                                     <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">送款日</th>
                                                     <th className="px-2 py-2 w-28 border-r border-b border-blue-700 text-center">金額 (收款)</th>
@@ -546,14 +550,15 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                         {/* 期別 */}
                                                         <td className="px-2 py-2 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{num}</td>
                                                         
-                                                        {/* [開立收據情形] 日期/號碼/金額 */}
+                                                        {/* ✨ 修改：拆分成三個獨立的 td */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <div className="flex justify-center gap-2">
-                                                                {/* 縮小輸入框寬度，減少空白 */}
-                                                                <input type="text" className="w-12 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="M/D" />
-                                                                <input type="text" className="w-16 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="號碼" />
-                                                                <input type="text" className="w-20 font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
-                                                            </div>
+                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="M/D" />
+                                                        </td>
+                                                        <td className="px-2 py-2 border-r border-gray-100">
+                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="號碼" />
+                                                        </td>
+                                                        <td className="px-2 py-2 border-r border-gray-100">
+                                                            <input type="text" className="w-full font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
                                                         </td>
                                                         
                                                         {/* [開立收據情形] 核准 (一鍵蓋章) */}
