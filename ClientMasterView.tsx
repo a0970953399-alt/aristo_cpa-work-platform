@@ -473,18 +473,16 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                 收款情形
                               </button>
                             </div>
-                            {/* 🟢 分頁內容 A：工作紀錄 (統一尺寸、配色與空白輸入) */}
+                            {/* 🟢 分頁內容 A：工作紀錄 (移除經副理、客戶確認) */}
                                 {activeTab === 'work' && (
                                     <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
-                                        <table className="min-w-[1000px] w-full text-left text-sm">
+                                        <table className="min-w-[800px] w-full text-left text-sm">
                                             <thead className="bg-blue-600 text-white font-bold border-b border-blue-700">
                                                 <tr>
                                                     <th className="px-4 py-3 w-32 text-center border-r border-blue-700">期間</th>
                                                     <th className="px-4 py-3 border-r border-blue-700">Incharge</th>
                                                     <th className="px-4 py-3 border-r border-blue-700">完成日期</th>
-                                                    <th className="px-4 py-3 border-r border-blue-700">經副理</th>
-                                                    <th className="px-4 py-3 border-r border-blue-700">會計師</th>
-                                                    <th className="px-4 py-3 text-center w-24">客戶確認</th>
+                                                    <th className="px-4 py-3">會計師</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
@@ -497,14 +495,8 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                         <td className="px-4 py-2 border-r border-gray-100">
                                                             <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="M/D" />
                                                         </td>
-                                                        <td className="px-4 py-2 border-r border-gray-100">
+                                                        <td className="px-4 py-2">
                                                             <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="核章..." />
-                                                        </td>
-                                                        <td className="px-4 py-2 border-r border-gray-100">
-                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="核章..." />
-                                                        </td>
-                                                        <td className="px-4 py-2 text-center">
-                                                            <input type="checkbox" className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" />
                                                         </td>
                                                     </tr>
                                                 ))}
