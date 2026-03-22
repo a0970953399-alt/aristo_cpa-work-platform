@@ -582,38 +582,36 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                     </div>
                                 )}
 
-                            {/* 🔵 分頁內容 B：收費追蹤 (拆分收據細項欄位) */}
+                            {/* 🔵 分頁內容 B：收費追蹤 (優化金額欄位寬度) */}
                                 {activeTab === 'payment' && (
                                     <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
-                                        <table className="w-full min-w-[800px] text-left text-sm">
+                                        {/* ✨ 整體最小寬度稍微放寬至 900px，避免小螢幕過度擠壓 */}
+                                        <table className="w-full min-w-[900px] text-left text-sm">
                                             <thead className="bg-blue-600 text-white font-bold">
-                                                {/* 第一層：大群組分類 */}
                                                 <tr>
                                                     <th rowSpan={2} className="px-2 py-3 w-12 text-center border-r border-b border-blue-700 align-middle">期別</th>
-                                                    {/* ✨ 修改：因為底下拆成 4 欄了，所以 colSpan 改為 4 */}
                                                     <th colSpan={4} className="px-2 py-2 text-center border-r border-b border-blue-700">開立收據情形</th>
                                                     <th colSpan={3} className="px-2 py-2 text-center border-b border-blue-700">收款情形</th>
                                                 </tr>
-                                                {/* 第二層：實際欄位名稱 */}
                                                 <tr>
-                                                    {/* ✨ 修改：拆分成三個獨立表頭 */}
                                                     <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">開立日期</th>
                                                     <th className="px-2 py-2 w-24 border-r border-b border-blue-700 text-center">收據號碼</th>
-                                                    <th className="px-2 py-2 w-24 border-r border-b border-blue-700 text-center">收據金額</th>
+                                                    {/* 🌟 關鍵修改：大幅加寬收據金額，讓 40,000 - 4,000 完美塞入 */}
+                                                    <th className="px-2 py-2 w-36 border-r border-b border-blue-700 text-center">收據金額</th>
                                                     
-                                                    <th className="px-2 py-2 w-28 border-r border-b border-blue-700 text-center">核准</th>
+                                                    {/* 🌟 稍微縮減核准與簽收的寬度，因為一鍵蓋章的字數不多 */}
+                                                    <th className="px-2 py-2 w-24 border-r border-b border-blue-700 text-center">核准</th>
                                                     <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">送款日</th>
                                                     <th className="px-2 py-2 w-28 border-r border-b border-blue-700 text-center">金額 (收款)</th>
-                                                    <th className="px-2 py-2 w-28 border-b border-blue-700 text-center">簽收</th>
+                                                    <th className="px-2 py-2 w-24 border-b border-blue-700 text-center">簽收</th>
                                                 </tr>
                                             </thead>
-                                          <tbody className="divide-y divide-gray-100">
+                                            <tbody className="divide-y divide-gray-100">
                                                 {[1, 2, 3, 4, 5, 6, 7].map((num) => (
                                                     <tr key={num} className="hover:bg-blue-100/30 transition-colors group">
-                                                        {/* 期別 */}
                                                         <td className="px-2 py-2 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{num}</td>
                                                         
-                                                        {/* ✨ [開立收據情形] 開立日期 (綁定日期魔法) */}
+                                                        {/* [開立收據情形] 開立日期 */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
                                                             <input type="text" onBlur={handleDateBlur} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="7碼數字" />
                                                         </td>
@@ -621,12 +619,13 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                         <td className="px-2 py-2 border-r border-gray-100">
                                                             <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="號碼" />
                                                         </td>
-                                                        {/* ✨ [開立收據情形] 收據金額 (綁定減號魔法與同步帶入) */}
+                                                        {/* [開立收據情形] 收據金額 */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
+                                                            {/* 🌟 確保這裡也是 w-full，讓它完全撐滿我們剛剛加寬的 w-36 */}
                                                             <input type="text" onBlur={handleAmountBlur} className="w-full font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$ (扣繳加-)" />
                                                         </td>
                                                         
-                                                        {/* [開立收據情形] 核准 (一鍵蓋章) */}
+                                                        {/* [開立收據情形] 核准 */}
                                                         <td className="px-2 py-2 border-r border-gray-100 relative cursor-pointer" 
                                                             onClick={(e) => {
                                                                 const target = e.currentTarget.querySelector('input');
@@ -638,17 +637,17 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                             </div>
                                                         </td>
 
-                                                        {/* ✨ [收款情形] 送款日 (綁定日期魔法) */}
+                                                        {/* [收款情形] 送款日 */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
                                                             <input type="text" onBlur={handleDateBlur} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="7碼數字" />
                                                         </td>
 
-                                                        {/* ✨ [收款情形] 金額(收款) (加上 collection-amount 讓左邊可以找到它，並綁定純千分位格式) */}
+                                                        {/* [收款情形] 金額(收款) */}
                                                         <td className="px-2 py-2 border-r border-gray-100">
                                                             <input type="text" onBlur={handleCurrencyBlur} className="collection-amount w-full font-bold text-green-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
                                                         </td>
 
-                                                        {/* [收款情形] 簽收 (一鍵蓋章) */}
+                                                        {/* [收款情形] 簽收 */}
                                                         <td className="px-2 py-2 relative cursor-pointer"
                                                             onClick={(e) => {
                                                                 const target = e.currentTarget.querySelector('input');
