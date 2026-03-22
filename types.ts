@@ -55,38 +55,50 @@ export interface CalendarEvent {
     createdAt: string;
 }
 
-export interface Client {
-    id: string;
-    code: string;
-    name: string;
+// ✨ 單筆工作紀錄的結構 (對應 8 個期間)
+export interface WorkRecord {
+    period: string;      // 期間 (例如：'1-2月', '扣繳申報')
+    incharge: string;    // Incharge 簽章 (姓名 + 日期)
+    cpa: string;         // 會計師 簽章 (姓名 + 日期)
 }
 
+// ✨ 單筆收費與收款紀錄的結構 (對應 7 期)
+export interface PaymentRecord {
+    period: number;           // 期別 (1 ~ 7)
+    receiptDate: string;      // 開立日期 (例如：115.03.20)
+    receiptNo: string;        // 收據號碼
+    receiptAmount: string;    // 收據金額 (例如：30,000 - 3,000)
+    approvedBy: string;       // 核准 簽章
+    paymentDate: string;      // 送款日
+    collectionAmount: string; // 收款金額 (例如：27,000)
+    signedBy: string;         // 簽收 簽章
+}
+
+// 📂 客戶總資料結構
 export interface Client {
-    id: string;
-    code: string; // 客戶編號 (原本就有的)
-    name: string; // 顯示用的簡稱
+    id: number;              // ⚠️ 修正為 number，配合 Date.now() 的格式
+    code: string;            // 客戶編號
+    name: string;            // 顯示用的簡稱
     
-    // --- 補上這兩個漏掉的標頭欄位 ---
-    year?: string; // 記帳年度 (如: 114)
-    workNo?: string; // 記帳工作 (如: 114B044)
-    
-    // --- 下面是原本已經加好的 ---
-    fullName?: string; // 公司全名
-    taxId?: string; // 統一編號
-    taxFileNo?: string; // 稅籍編號
-    owner?: string; // 負責人
-    contact?: string; // 聯絡人
-    phone?: string; // 聯絡電話
-    fax?: string; // 傳真
-    email?: string; // E-mail
-    regAddress?: string; // 登記地址
+    year?: string;           // 記帳年度 (如: 114)
+    workNo?: string;         // 記帳工作 (如: 114B044)
+    fullName?: string;       // 公司全名
+    taxId?: string;          // 統一編號
+    taxFileNo?: string;      // 稅籍編號
+    owner?: string;          // 負責人
+    contact?: string;        // 聯絡人
+    phone?: string;          // 聯絡電話
+    fax?: string;            // 傳真
+    email?: string;          // E-mail
+    regAddress?: string;     // 登記地址
     contactAddress?: string; // 聯絡地址
-    cpa?: string; // 負責會計師
-    period?: string; // 委任期限
-    feeMonthly?: string; // 委任公費
+    cpa?: string;            // 負責會計師
+    period?: string;         // 委任期限
+    feeMonthly?: string;     // 委任公費
     feeWithholding?: string; // 各類扣繳
-    feeTax?: string; // 結算申報
-    fee22_1?: string; // 22-1申報
+    feeTax?: string;         // 結算申報
+    fee22_1?: string;        // 22-1申報
+    
     chkAccount?: boolean; 
     chkInvoice?: boolean; 
     chkVat?: boolean; 
@@ -95,6 +107,10 @@ export interface Client {
     boxReview?: boolean; 
     boxAudit?: boolean; 
     boxCpa?: boolean; 
+    
+    // ✨ 這次擴充的兩大陣列欄位
+    workRecords?: WorkRecord[];
+    paymentRecords?: PaymentRecord[];
 }
 
 export interface Instruction {
