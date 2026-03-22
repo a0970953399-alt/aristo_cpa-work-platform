@@ -519,61 +519,74 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                     </div>
                                 )}
 
-                            {/* 🔵 分頁內容 B：收費追蹤 (移除票據、新增核准、改用一鍵蓋章) */}
+                            {/* 🔵 分頁內容 B：收費追蹤 (雙層表頭、緊湊排版無捲動條) */}
                                 {activeTab === 'payment' && (
                                     <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
-                                        <table className="min-w-[900px] w-full text-left text-sm">
-                                            <thead className="bg-blue-600 text-white font-bold border-b border-blue-700">
+                                        {/* 把 min-w 縮小到 700px，確保多數螢幕都能一頁看完 */}
+                                        <table className="w-full min-w-[700px] text-left text-sm">
+                                            <thead className="bg-blue-600 text-white font-bold">
+                                                {/* 第一層：大群組分類 */}
                                                 <tr>
-                                                    <th className="px-4 py-3 w-16 text-center border-r border-blue-700">期別</th>
-                                                    <th className="px-4 py-3 border-r border-blue-700">收據日期 / 號碼 / 金額</th>
-                                                    <th className="px-4 py-3 w-32 border-r border-blue-700">核准</th>
-                                                    <th className="px-4 py-3 w-24 border-r border-blue-700 text-center">送款日</th>
-                                                    <th className="px-4 py-3 w-32 border-r border-blue-700">金額 (收款)</th>
-                                                    <th className="px-4 py-3 w-32">簽收</th>
+                                                    <th rowSpan={2} className="px-2 py-3 w-12 text-center border-r border-b border-blue-700 align-middle">期別</th>
+                                                    <th colSpan={2} className="px-2 py-2 text-center border-r border-b border-blue-700">開立收據情形</th>
+                                                    <th colSpan={3} className="px-2 py-2 text-center border-b border-blue-700">收款情形</th>
+                                                </tr>
+                                                {/* 第二層：實際欄位名稱 */}
+                                                <tr>
+                                                    <th className="px-2 py-2 border-r border-b border-blue-700 text-center">日期 / 號碼 / 金額</th>
+                                                    <th className="px-2 py-2 w-28 border-r border-b border-blue-700 text-center">核准</th>
+                                                    <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">送款日</th>
+                                                    <th className="px-2 py-2 w-28 border-r border-b border-blue-700 text-center">金額 (收款)</th>
+                                                    <th className="px-2 py-2 w-28 border-b border-blue-700 text-center">簽收</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
                                                 {[1, 2, 3, 4, 5, 6, 7].map((num) => (
                                                     <tr key={num} className="hover:bg-blue-100/30 transition-colors group">
-                                                        <td className="px-4 py-3 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{num}</td>
-                                                        <td className="px-4 py-2 border-r border-gray-100">
-                                                            <div className="flex gap-2">
-                                                                <input type="text" className="w-16 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="M/D" />
-                                                                <input type="text" className="w-24 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-blue-800" placeholder="號碼" />
-                                                                <input type="text" className="w-24 font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
+                                                        {/* 期別 */}
+                                                        <td className="px-2 py-2 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{num}</td>
+                                                        
+                                                        {/* [開立收據情形] 日期/號碼/金額 */}
+                                                        <td className="px-2 py-2 border-r border-gray-100">
+                                                            <div className="flex justify-center gap-2">
+                                                                {/* 縮小輸入框寬度，減少空白 */}
+                                                                <input type="text" className="w-12 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="M/D" />
+                                                                <input type="text" className="w-16 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="號碼" />
+                                                                <input type="text" className="w-20 font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
                                                             </div>
                                                         </td>
                                                         
-                                                        {/* ✨ 核准 蓋章區 */}
-                                                        <td className="px-4 py-2 border-r border-gray-100 relative cursor-pointer" 
+                                                        {/* [開立收據情形] 核准 (一鍵蓋章) */}
+                                                        <td className="px-2 py-2 border-r border-gray-100 relative cursor-pointer" 
                                                             onClick={(e) => {
                                                                 const target = e.currentTarget.querySelector('input');
                                                                 if(target && !target.value) target.value = `主管 ${new Date().getMonth()+1}/${new Date().getDate()}`;
                                                             }}>
                                                             <div className="flex items-center justify-between">
-                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊核准..." />
-                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>
+                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300 text-center" placeholder="點擊核准" />
+                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">✕</button>
                                                             </div>
                                                         </td>
 
-                                                        <td className="px-4 py-2 border-r border-gray-100">
+                                                        {/* [收款情形] 送款日 */}
+                                                        <td className="px-2 py-2 border-r border-gray-100">
                                                             <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="M/D" />
                                                         </td>
 
-                                                        <td className="px-4 py-2 border-r border-gray-100">
+                                                        {/* [收款情形] 金額(收款) */}
+                                                        <td className="px-2 py-2 border-r border-gray-100">
                                                             <input type="text" className="w-full font-bold text-green-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
                                                         </td>
 
-                                                        {/* ✨ 簽收 蓋章區 */}
-                                                        <td className="px-4 py-2 relative cursor-pointer"
+                                                        {/* [收款情形] 簽收 (一鍵蓋章) */}
+                                                        <td className="px-2 py-2 relative cursor-pointer"
                                                             onClick={(e) => {
                                                                 const target = e.currentTarget.querySelector('input');
                                                                 if(target && !target.value) target.value = `簽收人 ${new Date().getMonth()+1}/${new Date().getDate()}`;
                                                             }}>
                                                             <div className="flex items-center justify-between">
-                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽收..." />
-                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>
+                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300 text-center" placeholder="點擊簽收" />
+                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">✕</button>
                                                             </div>
                                                         </td>
                                                     </tr>
