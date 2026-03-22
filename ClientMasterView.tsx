@@ -595,7 +595,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                 </tr>
                                                 <tr>
                                                     <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">開立日期</th>
-                                                    <th className="px-2 py-2 w-24 border-r border-b border-blue-700 text-center">收據號碼</th>
+                                                    <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">收據號碼</th>
                                                     {/* 🌟 關鍵修改：大幅加寬收據金額，讓 40,000 - 4,000 完美塞入 */}
                                                     <th className="px-2 py-2 w-28 border-r border-b border-blue-700 text-center">收據金額</th>
                                                     
