@@ -1313,7 +1313,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       {/* Client Master Modal */}
         {isClientMasterOpen && (
         <ClientMasterView 
-            clients={clients} 
+            clients={clients}
+            currentUser={currentUser}
             onClose={() => setIsClientMasterOpen(false)} 
             onUpdate={loadData} 
             />
