@@ -602,7 +602,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                     {/* 🌟 稍微縮減核准與簽收的寬度，因為一鍵蓋章的字數不多 */}
                                                     <th className="px-2 py-2 w-24 border-r border-b border-blue-700 text-center">核准</th>
                                                     <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">送款日</th>
-                                                    <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">金額 (收款)</th>
+                                                    <th className="px-2 py-2 w-18 border-r border-b border-blue-700 text-center">收款金額</th>
                                                     <th className="px-2 py-2 w-24 border-b border-blue-700 text-center">簽收</th>
                                                 </tr>
                                             </thead>
