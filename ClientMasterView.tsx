@@ -56,9 +56,6 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
-    // ✨ 新增這行：用來觸發隱藏的 Excel 檔案上傳框
-    const fileInputRef = useRef<HTMLInputElement>(null);
-
   const handleChange = (field: keyof Client, value: any) => {
         if (selectedClient) {
             setSelectedClient({ ...selectedClient, [field]: value });
