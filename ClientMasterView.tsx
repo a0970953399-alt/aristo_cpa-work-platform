@@ -56,6 +56,24 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
     
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    // ✨ 階段二新增 1：定義預設的 8 個工作期間
+    const DEFAULT_WORK_PERIODS = ['1-2月', '3-4月', '5-6月', '7-8月', '9-10月', '11-12月', '扣繳申報', '年終申報'];
+
+    // ✨ 階段二新增 2：包裝點擊客戶的邏輯，自動補齊舊客戶缺失的陣列
+    const handleSelectClient = (client: Client) => {
+        const clientData = { ...client };
+        if (!clientData.workRecords || clientData.workRecords.length === 0) {
+            clientData.workRecords = DEFAULT_WORK_PERIODS.map(p => ({ period: p, incharge: '', cpa: '' }));
+        }
+        if (!clientData.paymentRecords || clientData.paymentRecords.length === 0) {
+            clientData.paymentRecords = Array.from({ length: 7 }, (_, i) => ({
+                period: i + 1, receiptDate: '', receiptNo: '', receiptAmount: '',
+                approvedBy: '', paymentDate: '', collectionAmount: '', signedBy: ''
+            }));
+        }
+        setSelectedClient(clientData);
+    };
+
   const handleChange = (field: keyof Client, value: any) => {
         if (selectedClient) {
             setSelectedClient({ ...selectedClient, [field]: value });
@@ -75,20 +93,21 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         handleChange(field, formatted);
     };
 
-    // 🆕 新增客戶邏輯
+    // 🆕 修改：新增客戶時，直接幫他鋪好空白的工作紀錄與收費表
     const handleAddClient = () => {
         const newClient: Partial<Client> = {
-            id: Date.now() + Math.random(), // 賦予新ID
-            name: '',
-            code: '',
-            year: '',
-            workNo: '',
-            // 預設將勾選項目設為 false
+            id: Date.now(), 
+            name: '', code: '', year: '', workNo: '',
             chkAccount: false, chkInvoice: false, chkVat: false, chkWithholding: false, chkHealth: false,
-            boxReview: false, boxAudit: false, boxCpa: false
+            boxReview: false, boxAudit: false, boxCpa: false,
+            workRecords: DEFAULT_WORK_PERIODS.map(p => ({ period: p, incharge: '', cpa: '' })),
+            paymentRecords: Array.from({ length: 7 }, (_, i) => ({
+                period: i + 1, receiptDate: '', receiptNo: '', receiptAmount: '',
+                approvedBy: '', paymentDate: '', collectionAmount: '', signedBy: ''
+            }))
         };
         setSelectedClient(newClient as Client);
-        setIsDeleteMode(false); // 確保新增時關閉刪除模式
+        setIsDeleteMode(false);
     };
 
     // 🆕 刪除客戶邏輯 (通用的刪除功能)
@@ -325,34 +344,44 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         }
     };
 
-    // ✨ 魔法快捷 1：日期自動補點 (輸入 1150320 離開後變 115.03.20)
-    const handleDateBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-        const val = e.target.value.trim();
-        // 檢查是否剛好是 7 個數字
+    // ✨ 階段二新增 3：專門用來更新陣列特定欄位的函數
+    const handleWorkRecordChange = (index: number, field: keyof WorkRecord, value: string) => {
+        if (!selectedClient || !selectedClient.workRecords) return;
+        const newRecords = [...selectedClient.workRecords];
+        newRecords[index] = { ...newRecords[index], [field]: value };
+        setSelectedClient({ ...selectedClient, workRecords: newRecords });
+    };
+
+    const handlePaymentRecordChange = (index: number, field: keyof PaymentRecord, value: string) => {
+        if (!selectedClient || !selectedClient.paymentRecords) return;
+        const newRecords = [...selectedClient.paymentRecords];
+        newRecords[index] = { ...newRecords[index], [field]: value };
+        setSelectedClient({ ...selectedClient, paymentRecords: newRecords });
+    };
+
+    // ✨ 魔法快捷 1：日期自動補點 (寫入狀態版)
+    const handleDateBlur = (index: number, field: keyof PaymentRecord, val: string) => {
         if (/^\d{7}$/.test(val)) {
-            e.target.value = `${val.substring(0, 3)}.${val.substring(3, 5)}.${val.substring(5, 7)}`;
+            const formatted = `${val.substring(0, 3)}.${val.substring(3, 5)}.${val.substring(5, 7)}`;
+            handlePaymentRecordChange(index, field, formatted);
         }
     };
 
-    // ✨ 魔法快捷 2：收據金額自動扣繳與同步帶入
-    const handleAmountBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-        const val = e.target.value.trim();
+    // ✨ 魔法快捷 2：收據金額自動扣繳與同步帶入 (寫入狀態版)
+    const handleAmountBlur = (index: number, val: string) => {
         if (!val) return;
-
         let finalAmount = 0;
-        let formattedDisplay = '';
+        let formattedDisplay = val;
 
         if (val.endsWith('-')) {
-            // 情況 A：有打減號，自動計算 10% 扣繳
             const numStr = val.slice(0, -1).replace(/\D/g, '');
             if (numStr) {
                 const baseAmount = parseInt(numStr, 10);
                 const tax = Math.round(baseAmount * 0.1);
-                finalAmount = baseAmount - tax; // 實際收款金額
+                finalAmount = baseAmount - tax;
                 formattedDisplay = `${baseAmount.toLocaleString('en-US')} - ${tax.toLocaleString('en-US')}`;
             }
         } else {
-            // 情況 B：一般金額，純加上千分位逗號
             const numStr = val.replace(/\D/g, '');
             if (numStr) {
                 const baseAmount = parseInt(numStr, 10);
@@ -361,30 +390,21 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
             }
         }
 
-        // 1. 更新自己（收據金額的顯示格式）
-        if (formattedDisplay) e.target.value = formattedDisplay;
+        handlePaymentRecordChange(index, 'receiptAmount', formattedDisplay);
 
-        // 2. 自動尋找同一列右邊的「收款金額」，並把算好的 finalAmount 帶進去
         if (finalAmount > 0) {
-            const tr = e.target.closest('tr');
-            if (tr) {
-                // 利用專屬 class 尋找右邊的目標輸入框
-                const targetInput = tr.querySelector('.collection-amount') as HTMLInputElement;
-                // 防呆：如果右邊本來沒寫字，才幫他自動填入，避免覆蓋手動修改的數字
-                if (targetInput && !targetInput.value) { 
-                    targetInput.value = finalAmount.toLocaleString('en-US');
-                }
+            const currentCollection = selectedClient?.paymentRecords?.[index].collectionAmount;
+            if (!currentCollection) {
+                handlePaymentRecordChange(index, 'collectionAmount', finalAmount.toLocaleString('en-US'));
             }
         }
     };
 
-    // ✨ 魔法快捷 3：一般千分位格式化 (給右邊收款金額手動修改時用)
-    const handleCurrencyBlur = (e: React.FocusEvent<HTMLInputElement>) => {
-        const numStr = e.target.value.replace(/\D/g, '');
+    // ✨ 魔法快捷 3：一般千分位格式化 (寫入狀態版)
+    const handleCurrencyBlur = (index: number, val: string) => {
+        const numStr = val.replace(/\D/g, '');
         if (numStr) {
-            e.target.value = parseInt(numStr, 10).toLocaleString('en-US');
-        } else {
-            e.target.value = '';
+            handlePaymentRecordChange(index, 'collectionAmount', parseInt(numStr, 10).toLocaleString('en-US'));
         }
     };
 
@@ -429,7 +449,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                         <div 
                             key={client.id} 
                             /* 🆕 根據是否在「刪除模式」來決定點擊行為 */
-                            onClick={() => isDeleteMode ? handleDeleteClient(client.id, client.name) : setSelectedClient(client)}
+                            onClick={() => isDeleteMode ? handleDeleteClient(client.id, client.name) : handleSelectClient(client)}
                             className={`bg-white rounded-2xl shadow-sm transition-all cursor-pointer aspect-square flex flex-col items-center justify-center p-4 border relative group overflow-hidden ${isDeleteMode ? 'border-red-400 hover:bg-red-50 hover:shadow-red-200' : 'border-gray-100 hover:shadow-xl'}`}
                         >
                             {/* 狀態燈號 */}
@@ -536,7 +556,8 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                 收款情形
                               </button>
                             </div>
-                            {/* 🟢 分頁內容 A：工作紀錄 (三欄式 + 一鍵蓋章 UI) */}
+                            
+                            {/* 🟢 分頁內容 A：工作紀錄 (動態綁定資料庫) */}
                                 {activeTab === 'work' && (
                                     <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
                                         <table className="min-w-[600px] w-full text-left text-sm">
@@ -548,31 +569,25 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
-                                                {['1-2月', '3-4月', '5-6月', '7-8月', '9-10月', '11-12月', '扣繳申報', '年終申報'].map((period) => (
-                                                    <tr key={period} className="hover:bg-blue-100/30 transition-colors group">
-                                                        <td className="px-4 py-3 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{period}</td>
+                                                {selectedClient.workRecords?.map((row, index) => (
+                                                    <tr key={row.period} className="hover:bg-blue-100/30 transition-colors group">
+                                                        <td className="px-4 py-3 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{row.period}</td>
                                                         
                                                         {/* Incharge 蓋章區 */}
                                                         <td className="px-4 py-2 border-r border-gray-100 relative cursor-pointer" 
-                                                            onClick={(e) => {
-                                                                const target = e.currentTarget.querySelector('input');
-                                                                if(target && !target.value) target.value = `測試員 ${new Date().getMonth()+1}/${new Date().getDate()}`;
-                                                            }}>
+                                                            onClick={() => { if(!row.incharge) handleWorkRecordChange(index, 'incharge', `測試員 ${new Date().getMonth()+1}/${new Date().getDate()}`); }}>
                                                             <div className="flex items-center justify-between">
-                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
-                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>
+                                                                <input type="text" readOnly value={row.incharge} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
+                                                                {row.incharge && <button onClick={(e) => { e.stopPropagation(); handleWorkRecordChange(index, 'incharge', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>}
                                                             </div>
                                                         </td>
 
                                                         {/* 會計師 蓋章區 */}
                                                         <td className="px-4 py-2 relative cursor-pointer"
-                                                            onClick={(e) => {
-                                                                const target = e.currentTarget.querySelector('input');
-                                                                if(target && !target.value) target.value = `會計師 ${new Date().getMonth()+1}/${new Date().getDate()}`;
-                                                            }}>
+                                                            onClick={() => { if(!row.cpa) handleWorkRecordChange(index, 'cpa', `會計師 ${new Date().getMonth()+1}/${new Date().getDate()}`); }}>
                                                             <div className="flex items-center justify-between">
-                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
-                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>
+                                                                <input type="text" readOnly value={row.cpa} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
+                                                                {row.cpa && <button onClick={(e) => { e.stopPropagation(); handleWorkRecordChange(index, 'cpa', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>}
                                                             </div>
                                                         </td>
                                                     </tr>
@@ -582,10 +597,9 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                     </div>
                                 )}
 
-                            {/* 🔵 分頁內容 B：收費追蹤 (消除滾動條，完美自適應) */}
+                                {/* 🔵 分頁內容 B：收費追蹤 (動態綁定資料庫) */}
                                 {activeTab === 'payment' && (
                                     <div className="overflow-hidden border border-gray-200 rounded-xl shadow-sm">
-                                        {/* ✨ 關鍵 1：移除 min-w，改為單純的 w-full */}
                                         <table className="w-full text-left text-sm">
                                             <thead className="bg-blue-600 text-white font-bold">
                                                 <tr>
@@ -594,59 +608,53 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                     <th colSpan={3} className="px-2 py-2 text-center border-b border-blue-700">收款情形</th>
                                                 </tr>
                                                 <tr>
-                                                    {/* ✨ 關鍵 2：改用百分比分配寬度，確保總和剛好填滿 */}
                                                     <th className="px-2 py-2 w-[12%] border-r border-b border-blue-700 text-center">開立日期</th>
                                                     <th className="px-2 py-2 w-[15%] border-r border-b border-blue-700 text-center">收據號碼</th>
                                                     <th className="px-2 py-2 w-[21%] border-r border-b border-blue-700 text-center">收據金額</th>
                                                     <th className="px-2 py-2 w-[13%] border-r border-b border-blue-700 text-center">核准</th>
-                                                    
                                                     <th className="px-2 py-2 w-[12%] border-r border-b border-blue-700 text-center">送款日</th>
                                                     <th className="px-2 py-2 w-[14%] border-r border-b border-blue-700 text-center">收款金額</th>
                                                     <th className="px-2 py-2 w-[13%] border-b border-blue-700 text-center">簽收</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
-                                                {[1, 2, 3, 4, 5, 6, 7].map((num) => (
-                                                    <tr key={num} className="hover:bg-blue-100/30 transition-colors group">
-                                                        <td className="px-1 py-2 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{num}</td>
+                                                {selectedClient.paymentRecords?.map((row, index) => (
+                                                    <tr key={row.period} className="hover:bg-blue-100/30 transition-colors group">
+                                                        <td className="px-1 py-2 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{row.period}</td>
                                                         
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <input type="text" onBlur={handleDateBlur} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="7碼數字" />
+                                                            <input type="text" value={row.receiptDate} onChange={(e) => handlePaymentRecordChange(index, 'receiptDate', e.target.value)} onBlur={(e) => handleDateBlur(index, 'receiptDate', e.target.value)} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="7碼數字" />
                                                         </td>
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="號碼" />
+                                                            <input type="text" value={row.receiptNo} onChange={(e) => handlePaymentRecordChange(index, 'receiptNo', e.target.value)} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="號碼" />
                                                         </td>
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <input type="text" onBlur={handleAmountBlur} className="w-full font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$ (扣繳加-)" />
+                                                            <input type="text" value={row.receiptAmount} onChange={(e) => handlePaymentRecordChange(index, 'receiptAmount', e.target.value)} onBlur={(e) => handleAmountBlur(index, e.target.value)} className="w-full font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$ (扣繳加-)" />
                                                         </td>
                                                         
+                                                        {/* 核准蓋章 */}
                                                         <td className="px-2 py-2 border-r border-gray-100 relative cursor-pointer" 
-                                                            onClick={(e) => {
-                                                                const target = e.currentTarget.querySelector('input');
-                                                                if(target && !target.value) target.value = `主管 ${new Date().getMonth()+1}/${new Date().getDate()}`;
-                                                            }}>
+                                                            onClick={() => { if(!row.approvedBy) handlePaymentRecordChange(index, 'approvedBy', `主管 ${new Date().getMonth()+1}/${new Date().getDate()}`); }}>
                                                             <div className="flex items-center justify-between">
-                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300 text-center text-xs sm:text-sm" placeholder="點擊核准" />
-                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">✕</button>
+                                                                <input type="text" readOnly value={row.approvedBy} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300 text-center text-xs sm:text-sm" placeholder="點擊核准" />
+                                                                {row.approvedBy && <button onClick={(e) => { e.stopPropagation(); handlePaymentRecordChange(index, 'approvedBy', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">✕</button>}
                                                             </div>
                                                         </td>
 
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <input type="text" onBlur={handleDateBlur} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="7碼數字" />
+                                                            <input type="text" value={row.paymentDate} onChange={(e) => handlePaymentRecordChange(index, 'paymentDate', e.target.value)} onBlur={(e) => handleDateBlur(index, 'paymentDate', e.target.value)} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="7碼數字" />
                                                         </td>
 
                                                         <td className="px-2 py-2 border-r border-gray-100">
-                                                            <input type="text" onBlur={handleCurrencyBlur} className="collection-amount w-full font-bold text-green-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
+                                                            <input type="text" value={row.collectionAmount} onChange={(e) => handlePaymentRecordChange(index, 'collectionAmount', e.target.value)} onBlur={(e) => handleCurrencyBlur(index, e.target.value)} className="w-full font-bold text-green-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
                                                         </td>
 
+                                                        {/* 簽收蓋章 */}
                                                         <td className="px-2 py-2 relative cursor-pointer"
-                                                            onClick={(e) => {
-                                                                const target = e.currentTarget.querySelector('input');
-                                                                if(target && !target.value) target.value = `簽收人 ${new Date().getMonth()+1}/${new Date().getDate()}`;
-                                                            }}>
+                                                            onClick={() => { if(!row.signedBy) handlePaymentRecordChange(index, 'signedBy', `簽收人 ${new Date().getMonth()+1}/${new Date().getDate()}`); }}>
                                                             <div className="flex items-center justify-between">
-                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300 text-center text-xs sm:text-sm" placeholder="點擊簽收" />
-                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">✕</button>
+                                                                <input type="text" readOnly value={row.signedBy} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300 text-center text-xs sm:text-sm" placeholder="點擊簽收" />
+                                                                {row.signedBy && <button onClick={(e) => { e.stopPropagation(); handlePaymentRecordChange(index, 'signedBy', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">✕</button>}
                                                             </div>
                                                         </td>
                                                     </tr>
