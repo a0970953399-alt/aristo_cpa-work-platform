@@ -42,11 +42,12 @@ const CloudArrowUpIcon = ({ className }: { className?: string }) => (
 
 interface ClientMasterViewProps {
     clients: Client[];
+    currentUser: { name: string };
     onClose: () => void;
     onUpdate: () => void;
 }
 
-export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onClose, onUpdate }) => {
+export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, currentUser, onClose, onUpdate }) => {
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [isSaving, setIsSaving] = useState(false);
     // 🆕 新增：控制總署牆面是否處於「刪除模式」
@@ -288,6 +289,14 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
             if (fileInputRef.current) fileInputRef.current.value = '';
         };
         reader.readAsBinaryString(file);
+    };
+
+    // ✨ 專屬簽名產生器：自動抓取登入者姓名 + 今天的 月/日
+    const generateSignature = () => {
+        // 防呆機制：如果沒抓到名字，預設顯示 '使用者'
+        const userName = currentUser?.name || '使用者'; 
+        const today = `${new Date().getMonth() + 1}/${new Date().getDate()}`;
+        return `${userName} ${today}`;
     };
   
     // ✨ 階段三：一鍵生成 Word (支援動態表格陣列匯出)
@@ -628,7 +637,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                         
                                                         {/* Incharge 蓋章區 */}
                                                         <td className="px-4 py-2 border-r border-gray-100 relative cursor-pointer" 
-                                                            onClick={() => { if(!row.incharge) handleWorkRecordChange(index, 'incharge', `測試員 ${new Date().getMonth()+1}/${new Date().getDate()}`); }}>
+                                                            onClick={() => { if(!row.incharge) handleWorkRecordChange(index, 'incharge', generateSignature()); }}
                                                             <div className="flex items-center justify-between">
                                                                 <input type="text" readOnly value={row.incharge} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
                                                                 {row.incharge && <button onClick={(e) => { e.stopPropagation(); handleWorkRecordChange(index, 'incharge', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>}
@@ -637,7 +646,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
 
                                                         {/* 會計師 蓋章區 */}
                                                         <td className="px-4 py-2 relative cursor-pointer"
-                                                            onClick={() => { if(!row.cpa) handleWorkRecordChange(index, 'cpa', `會計師 ${new Date().getMonth()+1}/${new Date().getDate()}`); }}>
+                                                            onClick={() => { if(!row.cpa) handleWorkRecordChange(index, 'cpa', generateSignature()); }}
                                                             <div className="flex items-center justify-between">
                                                                 <input type="text" readOnly value={row.cpa} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
                                                                 {row.cpa && <button onClick={(e) => { e.stopPropagation(); handleWorkRecordChange(index, 'cpa', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>}
@@ -687,7 +696,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                         
                                                         {/* 核准蓋章 */}
                                                         <td className="px-2 py-2 border-r border-gray-100 relative cursor-pointer" 
-                                                            onClick={() => { if(!row.approvedBy) handlePaymentRecordChange(index, 'approvedBy', `主管 ${new Date().getMonth()+1}/${new Date().getDate()}`); }}>
+                                                            onClick={() => { if(!row.approvedBy) handlePaymentRecordChange(index, 'approvedBy', generateSignature()); }}
                                                             <div className="flex items-center justify-between">
                                                                 <input type="text" readOnly value={row.approvedBy} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300 text-center text-xs sm:text-sm" placeholder="點擊核准" />
                                                                 {row.approvedBy && <button onClick={(e) => { e.stopPropagation(); handlePaymentRecordChange(index, 'approvedBy', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">✕</button>}
@@ -704,7 +713,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
 
                                                         {/* 簽收蓋章 */}
                                                         <td className="px-2 py-2 relative cursor-pointer"
-                                                            onClick={() => { if(!row.signedBy) handlePaymentRecordChange(index, 'signedBy', `簽收人 ${new Date().getMonth()+1}/${new Date().getDate()}`); }}>
+                                                            onClick={() => { if(!row.signedBy) handlePaymentRecordChange(index, 'signedBy', generateSignature()); }}
                                                             <div className="flex items-center justify-between">
                                                                 <input type="text" readOnly value={row.signedBy} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300 text-center text-xs sm:text-sm" placeholder="點擊簽收" />
                                                                 {row.signedBy && <button onClick={(e) => { e.stopPropagation(); handlePaymentRecordChange(index, 'signedBy', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-0.5">✕</button>}
