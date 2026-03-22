@@ -367,21 +367,42 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         }
     };
 
-    // ✨ 魔法快捷 2：收據金額自動扣繳與同步帶入 (寫入狀態版)
+    // ✨ 魔法快捷 2：收據金額自動扣繳與同步帶入 (完美修復版)
     const handleAmountBlur = (index: number, val: string) => {
-        if (!val) return;
+        if (!val.trim()) {
+            handlePaymentRecordChange(index, 'receiptAmount', '');
+            return;
+        }
+
         let finalAmount = 0;
-        let formattedDisplay = val;
+        let formattedDisplay = '';
 
         if (val.endsWith('-')) {
-            const numStr = val.slice(0, -1).replace(/\D/g, '');
-            if (numStr) {
-                const baseAmount = parseInt(numStr, 10);
+            // 情況 A：輸入「10000-」，自動觸發 10% 扣繳魔法
+            const baseStr = val.slice(0, -1).replace(/\D/g, '');
+            if (baseStr) {
+                const baseAmount = parseInt(baseStr, 10);
                 const tax = Math.round(baseAmount * 0.1);
                 finalAmount = baseAmount - tax;
                 formattedDisplay = `${baseAmount.toLocaleString('en-US')} - ${tax.toLocaleString('en-US')}`;
             }
+        } else if (val.includes('-')) {
+            // 情況 B：裡面已經有減號 (例如點擊原有的 "10,000 - 1,000"，或是手動打 "10000-500")
+            // ✨ 把它切成左右兩塊，就不會被無差別黏在一起了！
+            const parts = val.split('-');
+            const baseStr = parts[0].replace(/\D/g, '');
+            const taxStr = parts[1].replace(/\D/g, '');
+
+            if (baseStr) {
+                const baseAmount = parseInt(baseStr, 10);
+                const tax = taxStr ? parseInt(taxStr, 10) : 0; 
+                finalAmount = baseAmount - tax;
+                formattedDisplay = tax > 0 
+                    ? `${baseAmount.toLocaleString('en-US')} - ${tax.toLocaleString('en-US')}`
+                    : baseAmount.toLocaleString('en-US');
+            }
         } else {
+            // 情況 C：一般數字，沒扣繳
             const numStr = val.replace(/\D/g, '');
             if (numStr) {
                 const baseAmount = parseInt(numStr, 10);
@@ -390,13 +411,16 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
             }
         }
 
-        handlePaymentRecordChange(index, 'receiptAmount', formattedDisplay);
-
-        if (finalAmount > 0) {
-            const currentCollection = selectedClient?.paymentRecords?.[index].collectionAmount;
-            if (!currentCollection) {
-                handlePaymentRecordChange(index, 'collectionAmount', finalAmount.toLocaleString('en-US'));
-            }
+        // 🔥 解決 React 狀態非同步問題：將「收據金額」與「收款金額」打包成一次更新
+        if (selectedClient && selectedClient.paymentRecords) {
+            const newRecords = [...selectedClient.paymentRecords];
+            newRecords[index] = { 
+                ...newRecords[index], 
+                receiptAmount: formattedDisplay, // 把格式化好的美美數字存進去
+                // 只有成功算出數字時，才強制連動覆蓋右邊的收款金額
+                ...(formattedDisplay ? { collectionAmount: finalAmount.toLocaleString('en-US') } : {})
+            };
+            setSelectedClient({ ...selectedClient, paymentRecords: newRecords });
         }
     };
 
