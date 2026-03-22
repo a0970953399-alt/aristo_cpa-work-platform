@@ -453,112 +453,102 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                     </div>
                                 </div>
                             </div>
+                          
+                          {/* ========================================== */}
+                          {/* ✨ 新增：下半部工作紀錄與收費追蹤分頁 */}
+                          {/* ========================================== */}
+                          <div className="mt-8 border-t border-gray-200 pt-6">
+                            {/* 📋 標籤頁切換按鈕 */}
+                            <div className="flex gap-4 mb-6 border-b border-gray-100 pb-2">
+                              <button 
+                                onClick={() => setActiveTab('work')}
+                                className={`pb-2 px-4 font-bold text-sm transition-all ${activeTab === 'work' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                工作紀錄 (1-12月)
+                              </button>
+                              <button 
+                                onClick={() => setActiveTab('payment')}
+                                className={`pb-2 px-4 font-bold text-sm transition-all ${activeTab === 'payment' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
+                                >
+                                收款情形
+                              </button>
+                            </div>
+                            {/* 🟢 分頁內容 A：工作紀錄 (統一尺寸、配色與空白輸入) */}
+                                {activeTab === 'work' && (
+                                    <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
+                                        <table className="min-w-[1000px] w-full text-left text-sm">
+                                            <thead className="bg-blue-600 text-white font-bold border-b border-blue-700">
+                                                <tr>
+                                                    <th className="px-4 py-3 w-32 text-center border-r border-blue-700">期間</th>
+                                                    <th className="px-4 py-3 border-r border-blue-700">Incharge</th>
+                                                    <th className="px-4 py-3 border-r border-blue-700">完成日期</th>
+                                                    <th className="px-4 py-3 border-r border-blue-700">經副理</th>
+                                                    <th className="px-4 py-3 border-r border-blue-700">會計師</th>
+                                                    <th className="px-4 py-3 text-center w-24">客戶確認</th>
+                                                </tr>
+                                            </thead>
+                                            <tbody className="divide-y divide-gray-100">
+                                                {['1-2月', '3-4月', '5-6月', '7-8月', '9-10月', '11-12月', '扣繳申報', '年終申報'].map((period) => (
+                                                    <tr key={period} className="hover:bg-blue-100/30 transition-colors">
+                                                        <td className="px-4 py-3 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{period}</td>
+                                                        <td className="px-4 py-2 border-r border-gray-100">
+                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="簽章..." />
+                                                        </td>
+                                                        <td className="px-4 py-2 border-r border-gray-100">
+                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="M/D" />
+                                                        </td>
+                                                        <td className="px-4 py-2 border-r border-gray-100">
+                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="核章..." />
+                                                        </td>
+                                                        <td className="px-4 py-2 border-r border-gray-100">
+                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="核章..." />
+                                                        </td>
+                                                        <td className="px-4 py-2 text-center">
+                                                            <input type="checkbox" className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" />
+                                                        </td>
+                                                    </tr>
+                                                ))}
+                                            </tbody>
+                                        </table>
+                                    </div>
+                                )}
 
-{/* ========================================== */}
-{/* ✨ 新增：下半部工作紀錄與收費追蹤分頁 */}
-{/* ========================================== */}
-<div className="mt-8 border-t border-gray-200 pt-6">
-    {/* 📋 標籤頁切換按鈕 */}
-    <div className="flex gap-4 mb-6 border-b border-gray-100 pb-2">
-        <button 
-            onClick={() => setActiveTab('work')}
-            className={`pb-2 px-4 font-bold text-sm transition-all ${activeTab === 'work' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-        >
-            📊 工作紀錄 (1-12月)
-        </button>
-        <button 
-            onClick={() => setActiveTab('payment')}
-            className={`pb-2 px-4 font-bold text-sm transition-all ${activeTab === 'payment' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
-        >
-            💰 收費與收款追蹤
-        </button>
-    </div>
-
-    {/* 🔵 分頁內容 A：工作紀錄 (已套用藍色醒目樣式) */}
-    {activeTab === 'work' && (
-        <div className="overflow-hidden border border-gray-200 rounded-xl shadow-sm">
-            <table className="w-full text-left text-sm">
-                <thead className="bg-blue-600 text-white font-bold border-b border-blue-700">
-                    <tr>
-                        <th className="px-4 py-3 w-32 border-r border-blue-700">期間</th>
-                        <th className="px-4 py-3 border-r border-blue-700">Incharge</th>
-                        <th className="px-4 py-3 border-r border-blue-700">完成日期</th>
-                        <th className="px-4 py-3 border-r border-blue-700">經副理</th>
-                        <th className="px-4 py-3 border-r border-blue-700">會計師</th>
-                        <th className="px-4 py-3">客戶確認</th>
-                    </tr>
-                </thead>
-                <tbody className="divide-y divide-gray-100">
-                    {[
-                        { period: '1-2月', incharge: 'Brandon', date: '2023-00-13' },
-                        { period: '3-4月', incharge: '周榆', date: '2023-01-15', mgr: '副業', cpa: '會師' },
-                        { period: '4-5月', incharge: '周榆', date: '2023-01-26', mgr: '副榆', cpa: '會師' },
-                        { period: '5-6月', incharge: '周榆', date: '2023-00-19', mgr: '副業', cpa: '會師' },
-                        { period: '6-7月', incharge: '周榆', date: '2023-03-20', mgr: '經副理', cpa: '會師' },
-                        { period: '7-8月', incharge: '周榆', date: '2023-03-22', mgr: '副業', cpa: '會師' },
-                        { period: '8-9月', incharge: '周榆', date: '2023-03-23', mgr: '副業', cpa: '會師' },
-                        { period: '年終申報', date: '2023-06-18' },
-                    ].map((row, index) => (
-                        <tr key={row.period} className="hover:bg-blue-100/30 transition-colors">
-                            <td className="px-4 py-3 font-bold text-blue-900 bg-blue-50 border-r border-blue-100 text-center">{row.period}</td>
-                            <td className="px-4 py-2 border-r border-gray-100">
-                                <input type="text" defaultValue={row.incharge} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="..." />
-                            </td>
-                            <td className="px-4 py-2 border-r border-gray-100">
-                                <input type="text" defaultValue={row.date} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="M/D..." />
-                            </td>
-                            <td className="px-4 py-2 border-r border-gray-100">
-                                <input type="text" defaultValue={row.mgr} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="..." />
-                            </td>
-                            <td className="px-4 py-2 border-r border-gray-100">
-                                <input type="text" defaultValue={row.cpa} className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="..." />
-                            </td>
-                            <td className="px-4 py-2 text-center">
-                                <input type="checkbox" className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" />
-                            </td>
-                        </tr>
-                    ))}
-                </tbody>
-            </table>
-        </div>
-    )}
-
-                                {/* 🔵 分頁內容 B：收費追蹤 */}
+                                {/* 🔵 分頁內容 B：收費追蹤 (統一尺寸與配色) */}
                                 {activeTab === 'payment' && (
                                     <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
                                         <table className="min-w-[1000px] w-full text-left text-sm">
-                                            <thead className="bg-indigo-50 text-indigo-700 font-bold border-b border-indigo-100">
+                                            <thead className="bg-blue-600 text-white font-bold border-b border-blue-700">
                                                 <tr>
-                                                    <th className="px-4 py-3 w-16 text-center border-r border-indigo-100">期別</th>
-                                                    <th className="px-4 py-3 border-r border-indigo-100">收據日期 / 號碼 / 金額</th>
-                                                    <th className="px-4 py-3 border-r border-indigo-100">送款日 / 票據到期日 / 票據號碼</th>
-                                                    <th className="px-4 py-3 border-r border-indigo-100">金額 (收款)</th>
-                                                    <th className="px-4 py-3 text-center">簽收</th>
+                                                    <th className="px-4 py-3 w-32 text-center border-r border-blue-700">期別</th>
+                                                    <th className="px-4 py-3 border-r border-blue-700">收據日期 / 號碼 / 金額</th>
+                                                    <th className="px-4 py-3 border-r border-blue-700">送款日 / 票據到期日 / 票據號碼</th>
+                                                    <th className="px-4 py-3 border-r border-blue-700">金額 (收款)</th>
+                                                    <th className="px-4 py-3 text-center w-24">簽收</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
                                                 {[1, 2, 3, 4, 5, 6, 7].map((num) => (
-                                                    <tr key={num} className="hover:bg-indigo-50/20 transition-colors">
-                                                        <td className="px-4 py-3 font-bold text-center text-indigo-600 bg-indigo-50/30 border-r border-indigo-50">{num}</td>
+                                                    <tr key={num} className="hover:bg-blue-100/30 transition-colors">
+                                                        <td className="px-4 py-3 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{num}</td>
                                                         <td className="px-4 py-2 border-r border-gray-100">
                                                             <div className="flex gap-2">
-                                                                <input type="text" className="w-20 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-center" placeholder="M/D" />
-                                                                <input type="text" className="w-24 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none" placeholder="號碼" />
-                                                                <input type="text" className="w-24 font-bold text-blue-600 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-right" placeholder="$" />
+                                                                <input type="text" className="w-20 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="M/D" />
+                                                                <input type="text" className="w-24 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-blue-800" placeholder="號碼" />
+                                                                <input type="text" className="w-24 font-bold text-blue-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-2 border-r border-gray-100">
                                                             <div className="flex gap-3 font-mono">
-                                                                <input type="text" className="w-20 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-center" placeholder="送款日" />
-                                                                <input type="text" className="w-20 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-center" placeholder="到期日" />
-                                                                <input type="text" className="w-28 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none" placeholder="票號" />
+                                                                <input type="text" className="w-20 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="送款日" />
+                                                                <input type="text" className="w-20 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-center text-blue-800" placeholder="到期日" />
+                                                                <input type="text" className="w-28 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-blue-800" placeholder="票號" />
                                                             </div>
                                                         </td>
                                                         <td className="px-4 py-2 border-r border-gray-100">
-                                                            <input type="text" className="w-full font-bold text-green-600 bg-transparent border-b border-transparent focus:border-indigo-300 outline-none text-right" placeholder="$" />
+                                                            <input type="text" className="w-full font-bold text-green-600 bg-transparent border-b border-gray-200 focus:border-blue-400 outline-none text-right" placeholder="$" />
                                                         </td>
                                                         <td className="px-4 py-2 text-center">
-                                                            <input type="checkbox" className="w-4 h-4 rounded text-indigo-600 focus:ring-indigo-500 cursor-pointer" />
+                                                            <input type="checkbox" className="w-4 h-4 rounded text-blue-600 focus:ring-blue-500 cursor-pointer" />
                                                         </td>
                                                     </tr>
                                                 ))}
