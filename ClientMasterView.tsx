@@ -589,19 +589,19 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                         <table className="w-full min-w-[900px] text-left text-sm">
                                             <thead className="bg-blue-600 text-white font-bold">
                                                 <tr>
-                                                    <th rowSpan={2} className="px-2 py-3 w-8 text-center border-r border-b border-blue-700 align-middle">期別</th>
+                                                    <th rowSpan={2} className="px-2 py-3 w-4 text-center border-r border-b border-blue-700 align-middle">期別</th>
                                                     <th colSpan={4} className="px-2 py-2 text-center border-r border-b border-blue-700">開立收據情形</th>
                                                     <th colSpan={3} className="px-2 py-2 text-center border-b border-blue-700">收款情形</th>
                                                 </tr>
                                                 <tr>
-                                                    <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">開立日期</th>
-                                                    <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">收據號碼</th>
+                                                    <th className="px-2 py-2 w-16 border-r border-b border-blue-700 text-center">開立日期</th>
+                                                    <th className="px-2 py-2 w-16 border-r border-b border-blue-700 text-center">收據號碼</th>
                                                     {/* 🌟 關鍵修改：大幅加寬收據金額，讓 40,000 - 4,000 完美塞入 */}
-                                                    <th className="px-2 py-2 w-28 border-r border-b border-blue-700 text-center">收據金額</th>
+                                                    <th className="px-2 py-2 w-24 border-r border-b border-blue-700 text-center">收據金額</th>
                                                     
                                                     {/* 🌟 稍微縮減核准與簽收的寬度，因為一鍵蓋章的字數不多 */}
                                                     <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">核准</th>
-                                                    <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">送款日</th>
+                                                    <th className="px-2 py-2 w-16 border-r border-b border-blue-700 text-center">送款日</th>
                                                     <th className="px-2 py-2 w-16 border-r border-b border-blue-700 text-center">收款金額</th>
                                                     <th className="px-2 py-2 w-20 border-b border-blue-700 text-center">簽收</th>
                                                 </tr>
