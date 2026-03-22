@@ -464,7 +464,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                 onClick={() => setActiveTab('work')}
                                 className={`pb-2 px-4 font-bold text-sm transition-all ${activeTab === 'work' ? 'border-b-2 border-blue-600 text-blue-600' : 'text-gray-400 hover:text-gray-600'}`}
                                 >
-                                工作紀錄 (1-12月)
+                                工作紀錄
                               </button>
                               <button 
                                 onClick={() => setActiveTab('payment')}
@@ -473,30 +473,44 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                 收款情形
                               </button>
                             </div>
-                            {/* 🟢 分頁內容 A：工作紀錄 (移除經副理、客戶確認) */}
+                            {/* 🟢 分頁內容 A：工作紀錄 (三欄式 + 一鍵蓋章 UI) */}
                                 {activeTab === 'work' && (
                                     <div className="overflow-x-auto border border-gray-200 rounded-xl shadow-sm">
-                                        <table className="min-w-[800px] w-full text-left text-sm">
+                                        <table className="min-w-[600px] w-full text-left text-sm">
                                             <thead className="bg-blue-600 text-white font-bold border-b border-blue-700">
                                                 <tr>
                                                     <th className="px-4 py-3 w-32 text-center border-r border-blue-700">期間</th>
-                                                    <th className="px-4 py-3 border-r border-blue-700">Incharge</th>
-                                                    <th className="px-4 py-3 border-r border-blue-700">完成日期</th>
-                                                    <th className="px-4 py-3">會計師</th>
+                                                    <th className="px-4 py-3 border-r border-blue-700 w-[40%]">Incharge</th>
+                                                    <th className="px-4 py-3 w-[40%]">會計師</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
                                                 {['1-2月', '3-4月', '5-6月', '7-8月', '9-10月', '11-12月', '扣繳申報', '年終申報'].map((period) => (
-                                                    <tr key={period} className="hover:bg-blue-100/30 transition-colors">
+                                                    <tr key={period} className="hover:bg-blue-100/30 transition-colors group">
                                                         <td className="px-4 py-3 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{period}</td>
-                                                        <td className="px-4 py-2 border-r border-gray-100">
-                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="簽章..." />
+                                                        
+                                                        {/* Incharge 蓋章區 */}
+                                                        <td className="px-4 py-2 border-r border-gray-100 relative cursor-pointer" 
+                                                            onClick={(e) => {
+                                                                const target = e.currentTarget.querySelector('input');
+                                                                if(target && !target.value) target.value = `測試員 ${new Date().getMonth()+1}/${new Date().getDate()}`;
+                                                            }}>
+                                                            <div className="flex items-center justify-between">
+                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
+                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>
+                                                            </div>
                                                         </td>
-                                                        <td className="px-4 py-2 border-r border-gray-100">
-                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="M/D" />
-                                                        </td>
-                                                        <td className="px-4 py-2">
-                                                            <input type="text" className="w-full bg-transparent border-b border-gray-200 focus:border-blue-400 text-blue-800 outline-none py-1" placeholder="核章..." />
+
+                                                        {/* 會計師 蓋章區 */}
+                                                        <td className="px-4 py-2 relative cursor-pointer"
+                                                            onClick={(e) => {
+                                                                const target = e.currentTarget.querySelector('input');
+                                                                if(target && !target.value) target.value = `會計師 ${new Date().getMonth()+1}/${new Date().getDate()}`;
+                                                            }}>
+                                                            <div className="flex items-center justify-between">
+                                                                <input type="text" readOnly className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
+                                                                <button onClick={(e) => { e.stopPropagation(); const target = e.currentTarget.previousElementSibling as HTMLInputElement; target.value = ''; }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>
+                                                            </div>
                                                         </td>
                                                     </tr>
                                                 ))}
