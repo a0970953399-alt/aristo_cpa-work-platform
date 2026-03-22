@@ -589,7 +589,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                         <table className="w-full min-w-[900px] text-left text-sm">
                                             <thead className="bg-blue-600 text-white font-bold">
                                                 <tr>
-                                                    <th rowSpan={2} className="px-2 py-3 w-12 text-center border-r border-b border-blue-700 align-middle">期別</th>
+                                                    <th rowSpan={2} className="px-2 py-3 w-8 text-center border-r border-b border-blue-700 align-middle">期別</th>
                                                     <th colSpan={4} className="px-2 py-2 text-center border-r border-b border-blue-700">開立收據情形</th>
                                                     <th colSpan={3} className="px-2 py-2 text-center border-b border-blue-700">收款情形</th>
                                                 </tr>
@@ -600,10 +600,10 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                                                     <th className="px-2 py-2 w-28 border-r border-b border-blue-700 text-center">收據金額</th>
                                                     
                                                     {/* 🌟 稍微縮減核准與簽收的寬度，因為一鍵蓋章的字數不多 */}
-                                                    <th className="px-2 py-2 w-24 border-r border-b border-blue-700 text-center">核准</th>
+                                                    <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">核准</th>
                                                     <th className="px-2 py-2 w-20 border-r border-b border-blue-700 text-center">送款日</th>
                                                     <th className="px-2 py-2 w-16 border-r border-b border-blue-700 text-center">收款金額</th>
-                                                    <th className="px-2 py-2 w-24 border-b border-blue-700 text-center">簽收</th>
+                                                    <th className="px-2 py-2 w-20 border-b border-blue-700 text-center">簽收</th>
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
