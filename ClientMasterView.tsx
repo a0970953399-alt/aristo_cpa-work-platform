@@ -289,6 +289,8 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
         };
         reader.readAsBinaryString(file);
     };
+  
+    // ✨ 階段三：一鍵生成 Word (支援動態表格陣列匯出)
     const handleGenerateWord = () => {
         if (!selectedClient) return;
 
@@ -301,10 +303,12 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
             const zip = new PizZip(bytes.buffer);
             const doc = new Docxtemplater(zip, {
                 paragraphLoop: true,
-                linebreaks: true,
+                linebreaks: true, // 開啟換行支援，讓名字和日期可以完美上下疊放
                 delimiters: { start: "[[", end: "]]" },
             });
-            const data = {
+
+            // 1. 📂 準備基礎客戶資料 (上半部)
+            const data: any = {
                 year: selectedClient.year || '',
                 workNo: selectedClient.workNo || '',
                 clientCode: selectedClient.code || '',
@@ -333,6 +337,30 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
                 b2: selectedClient.boxAudit ? '■' : '□',
                 b3: selectedClient.boxCpa ? '■' : '□',
             };
+
+            // 2. 📊 動態塞入 8 筆工作紀錄變數 (w_inc_1, w_cpa_1...)
+            selectedClient.workRecords?.forEach((record, index) => {
+                const i = index + 1; // 讓 Index 從 1 開始算
+                if (i <= 8) {
+                    data[`w_inc_${i}`] = record.incharge || '';
+                    data[`w_cpa_${i}`] = record.cpa || '';
+                }
+            });
+
+            // 3. 💰 動態塞入 7 筆收費與收款紀錄變數 (p_date_1, p_no_1...)
+            selectedClient.paymentRecords?.forEach((record, index) => {
+                const i = index + 1; // 讓 Index 從 1 開始算
+                if (i <= 7) {
+                    data[`p_date_${i}`] = record.receiptDate || '';
+                    data[`p_no_${i}`] = record.receiptNo || '';
+                    data[`p_amt_${i}`] = record.receiptAmount || '';
+                    data[`p_ok_${i}`] = record.approvedBy || '';
+                    data[`p_sdate_${i}`] = record.paymentDate || '';
+                    data[`p_camt_${i}`] = record.collectionAmount || '';
+                    data[`p_sign_${i}`] = record.signedBy || '';
+                }
+            });
+
             doc.render(data);
             const out = doc.getZip().generate({
                 type: 'blob',
@@ -340,7 +368,8 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, onC
             });
             saveAs(out, `記帳工作單_${selectedClient.year || ''}_${selectedClient.name}.docx`);
         } catch (error: any) {
-            alert("❌ 生成失敗，請確認模版格式。");
+            console.error(error); // 幫助開發者在瀏覽器 F12 看到真實錯誤
+            alert("❌ 生成失敗，請確認模版格式或變數代號是否正確。");
         }
     };
 
