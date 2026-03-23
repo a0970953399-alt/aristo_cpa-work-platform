@@ -111,21 +111,22 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
         setIsDeleteMode(false);
     };
 
-    // 🆕 刪除客戶邏輯 (通用的刪除功能)
-    const handleDeleteClient = async (id: number, clientName: string) => {
-        if (window.confirm(`⚠️ 確定要刪除客戶【${clientName || '未命名'}】嗎？\n刪除後資料將無法復原！`)) {
+  const handleDeleteClient = async (id: number | string, name: string) => {
+        if (window.confirm(`⚠️ 確定要刪除客戶「${name}」嗎？\n此動作將同時從雲端移除，無法復原！`)) {
             try {
-                // 過濾掉被刪除的客戶
-                const updatedClients = clients.filter(c => c.id !== id);
-                await TaskService.saveClients(updatedClients);
+                // 呼叫我們剛剛在 taskService 寫好的雲端刪除 API
+                await TaskService.deleteClient(id);
+                
+                // 成功後，呼叫 onUpdate 通知外層的 Dashboard 重新抓取資料
                 onUpdate();
                 
-                // 如果目前正打開這位客戶的資料卡，就把它關掉
+                // 如果刪除的剛好是目前右邊正在查看的客戶，就把畫面清空
                 if (selectedClient?.id === id) {
                     setSelectedClient(null);
                 }
             } catch (error) {
-                alert('❌ 刪除失敗，請重試。');
+                console.error("刪除失敗:", error);
+                alert("刪除失敗，請確認網路連線！");
             }
         }
     };
