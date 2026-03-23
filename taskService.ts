@@ -157,17 +157,18 @@ export const TaskService = {
       const tasks = snapshot.docs.map(d => {
           const t = d.data();
           
-          // 🛡️ 防線 1：分類名稱智能對齊 (解決舊資料或不同命名的問題)
-          // 強制將舊的中文名稱轉換成系統的標準 TabCategory
-          let cat = t.category || '';
-          if (cat === '入帳' || cat === '記帳' || cat === '帳務' || cat === '帳務處理') {
-              cat = TabCategory.ACCOUNTING || 'accounting'; 
-          } else if (cat === '營業稅' || cat === '營業稅申報' || cat === '營業稅整理') {
-              cat = TabCategory.VAT || 'vat';
-          } else if (cat === '所得/扣繳' || cat === '各類扣繳' || cat === '扣繳申報') {
-              cat = TabCategory.INCOME_TAX || 'income_tax';
-          } else if (cat === '結算' || cat === '營所稅' || cat === '結算申報') {
-              cat = TabCategory.CORPORATE_TAX || 'corporate_tax';
+          // 🛡️ 防線 1：分類名稱智能對齊 (終極直球對決版)
+          // 拋棄英文變數，不管舊資料叫什麼，強制翻譯成畫面「唯一指定」的標準中文！
+          let cat = String(t.category || '').trim();
+          
+          if (cat === '入帳' || cat === '記帳' || cat === '帳務' || cat === '帳務處理' || cat === 'accounting' || cat === TabCategory.ACCOUNTING) {
+              cat = '帳務處理'; 
+          } else if (cat === '營業稅' || cat === '營業稅申報' || cat === '營業稅整理' || cat === 'vat' || cat === (TabCategory as any).VAT) {
+              cat = '營業稅整理'; // 👈 絕對鎖死這個名稱
+          } else if (cat === '所得/扣繳' || cat === '各類扣繳' || cat === '扣繳' || cat === '扣繳申報' || cat === 'income_tax' || cat === (TabCategory as any).INCOME_TAX) {
+              cat = '扣繳申報';
+          } else if (cat === '結算' || cat === '營所稅' || cat === '結算申報' || cat === 'corporate_tax' || cat === (TabCategory as any).CORPORATE_TAX) {
+              cat = '結算申報';
           }
 
           // 🛡️ 防線 2：確保狀態符合前端的燈號邏輯
@@ -179,14 +180,13 @@ export const TaskService = {
               ...t,
               id: String(d.id), 
               
-              // 🚨 致命關鍵防線 3：強制將 clientId 與 year 轉為「字串」！
-              // 防止前端在進行 === 判斷時，因為 Number !== String 而導致進度表空白
+              // 🚨 致命關鍵防線 3：強制將 clientId 與 year 轉為「字串」
               clientId: String(t.clientId || ''),
               year: String(t.year || DEFAULT_YEAR),
               
               status: finalStatus as TaskStatusType,
               workItem: String(t.workItem || ''),
-              category: cat,
+              category: cat,  // 這裡輸出的絕對會是完美的中文名稱
               isNA: Boolean(t.isNA),
               isMisc: Boolean(t.isMisc),
               assigneeId: String(t.assigneeId || ''),
@@ -197,7 +197,7 @@ export const TaskService = {
       });
       return tasks;
   },
-
+  
   async addTask(task: ClientTask): Promise<ClientTask[]> {
       const { id, ...data } = task; // 把本機的隨機 id 抽掉，準備存入 Firebase
       
