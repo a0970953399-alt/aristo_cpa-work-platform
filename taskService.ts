@@ -157,18 +157,18 @@ export const TaskService = {
       const tasks = snapshot.docs.map(d => {
           const t = d.data();
           
-          // 🛡️ 防線 1：分類名稱智能對齊 (終極直球對決版)
-          // 拋棄英文變數，不管舊資料叫什麼，強制翻譯成畫面「唯一指定」的標準中文！
+          // 🛡️ 防線 1：分類名稱智能對齊 (終極完美對齊版)
+          // 直接對齊 types.ts 裡面的 TabCategory，絕對不會再有一字之差！
           let cat = String(t.category || '').trim();
           
-          if (cat === '入帳' || cat === '記帳' || cat === '帳務' || cat === '帳務處理' || cat === 'accounting' || cat === TabCategory.ACCOUNTING) {
-              cat = '帳務處理'; 
-          } else if (cat === '營業稅' || cat === '營業稅申報' || cat === '營業稅整理' || cat === 'vat' || cat === (TabCategory as any).VAT) {
-              cat = '營業稅整理'; // 👈 絕對鎖死這個名稱
-          } else if (cat === '所得/扣繳' || cat === '各類扣繳' || cat === '扣繳' || cat === '扣繳申報' || cat === 'income_tax' || cat === (TabCategory as any).INCOME_TAX) {
-              cat = '扣繳申報';
-          } else if (cat === '結算' || cat === '營所稅' || cat === '結算申報' || cat === 'corporate_tax' || cat === (TabCategory as any).CORPORATE_TAX) {
-              cat = '結算申報';
+          if (['入帳', '記帳', '帳務', '帳務處理', 'accounting'].includes(cat) || cat === TabCategory.ACCOUNTING) {
+              cat = TabCategory.ACCOUNTING; // ➔ '帳務處理'
+          } else if (['營業稅', '營業稅申報', '營業稅整理', 'vat'].includes(cat) || cat === TabCategory.TAX) {
+              cat = TabCategory.TAX;        // ➔ '營業稅申報' (👈 就是這裡救回你的資料)
+          } else if (['所得/扣繳', '各類扣繳', '扣繳', '扣繳申報', '所得扣繳', 'income_tax'].includes(cat) || cat === TabCategory.INCOME_TAX) {
+              cat = TabCategory.INCOME_TAX; // ➔ '所得扣繳'
+          } else if (['結算', '營所稅', '結算申報', '年度申報', 'corporate_tax'].includes(cat) || cat === TabCategory.ANNUAL) {
+              cat = TabCategory.ANNUAL;     // ➔ '年度申報'
           }
 
           // 🛡️ 防線 2：確保狀態符合前端的燈號邏輯
@@ -186,7 +186,7 @@ export const TaskService = {
               
               status: finalStatus as TaskStatusType,
               workItem: String(t.workItem || ''),
-              category: cat,  // 這裡輸出的絕對會是完美的中文名稱
+              category: cat,  // 🌟 輸出與前端分頁 100% 吻合的標準名稱
               isNA: Boolean(t.isNA),
               isMisc: Boolean(t.isMisc),
               assigneeId: String(t.assigneeId || ''),
