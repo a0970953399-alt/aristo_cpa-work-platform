@@ -326,6 +326,17 @@ export const TaskService = {
       }
   },
 
+  // ✨ 補上遺漏的刪除客戶雲端指令
+  async deleteClient(clientId: string | number): Promise<Client[]> {
+      // 1. 刪除客戶主檔
+      await deleteDoc(doc(db, "clients", String(clientId)));
+      
+      // 2. (順手清理) 把該客戶的專屬備註設定檔也一併刪除，保持雲端資料庫乾淨
+      await deleteDoc(doc(db, "clientProfiles", String(clientId)));
+      
+      return this.fetchClients();
+  },
+
   async getClientProfile(clientId: string): Promise<ClientProfile> {
       // 去 Firebase 拿這家客戶的專屬備註抽屜
       const docSnap = await getDoc(doc(db, "clientProfiles", String(clientId)));
