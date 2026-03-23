@@ -157,23 +157,41 @@ export const TaskService = {
       const tasks = snapshot.docs.map(d => {
           const t = d.data();
           
-          // 🛡️ 防呆機制：保留你原本的「舊資料清洗邏輯」，以防未來匯入舊資料時格式跑版
-          let cat = t.category;
-          if (cat === '入帳') cat = TabCategory.ACCOUNTING;
-          if (cat === '所得/扣繳') cat = TabCategory.INCOME_TAX;
+          // 🛡️ 防線 1：分類名稱智能對齊 (解決舊資料或不同命名的問題)
+          // 強制將舊的中文名稱轉換成系統的標準 TabCategory
+          let cat = t.category || '';
+          if (cat === '入帳' || cat === '記帳' || cat === '帳務' || cat === '帳務處理') {
+              cat = TabCategory.ACCOUNTING || 'accounting'; 
+          } else if (cat === '營業稅' || cat === '營業稅申報' || cat === '營業稅整理') {
+              cat = TabCategory.VAT || 'vat';
+          } else if (cat === '所得/扣繳' || cat === '各類扣繳' || cat === '扣繳申報') {
+              cat = TabCategory.INCOME_TAX || 'income_tax';
+          } else if (cat === '結算' || cat === '營所稅' || cat === '結算申報') {
+              cat = TabCategory.CORPORATE_TAX || 'corporate_tax';
+          }
+
+          // 🛡️ 防線 2：確保狀態符合前端的燈號邏輯
+          let finalStatus = t.status || 'todo';
+          if (finalStatus === 'completed') finalStatus = 'done';
+          if (finalStatus === 'pending') finalStatus = 'todo';
 
           return {
               ...t,
-              id: d.id, // 改用 Firebase 的雲端 ID
-              status: (t.status === 'completed' || t.status === 'pending') ? (t.status === 'completed' ? 'done' : 'todo') : t.status || 'todo',
-              workItem: t.workItem || '',
+              id: String(d.id), 
+              
+              // 🚨 致命關鍵防線 3：強制將 clientId 與 year 轉為「字串」！
+              // 防止前端在進行 === 判斷時，因為 Number !== String 而導致進度表空白
+              clientId: String(t.clientId || ''),
+              year: String(t.year || DEFAULT_YEAR),
+              
+              status: finalStatus as TaskStatusType,
+              workItem: String(t.workItem || ''),
               category: cat,
-              year: t.year || DEFAULT_YEAR,
-              isNA: t.isNA || false,
-              isMisc: t.isMisc || false,
-              assigneeId: t.assigneeId || '',
-              assigneeName: t.assigneeName || '',
-              completionDate: t.completionDate || '',
+              isNA: Boolean(t.isNA),
+              isMisc: Boolean(t.isMisc),
+              assigneeId: String(t.assigneeId || ''),
+              assigneeName: String(t.assigneeName || ''),
+              completionDate: String(t.completionDate || ''),
               history: t.history || []
           } as ClientTask;
       });
