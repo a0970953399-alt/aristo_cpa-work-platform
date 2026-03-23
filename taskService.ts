@@ -39,35 +39,61 @@ export const TaskService = {
   },
   
   async saveFullData(data: any): Promise<void> {
-      console.log("🚀 開始將舊資料遷移至 Firebase...");
-      
-      // 1. 搬移客戶資料
-      if (data.clients && data.clients.length > 0) {
-          await this.saveClients(data.clients);
-      }
-      
-      // 2. 搬移工作任務
+      console.log("🚀 開始將舊資料全面遷移至 Firebase...");
+
+      // 1. 基礎核心資料
+      if (data.clients && data.clients.length > 0) { await this.saveClients(data.clients); }
       if (data.tasks && data.tasks.length > 0) {
-          for (const t of data.tasks) {
-              await setDoc(doc(db, "tasks", String(t.id)), t);
-          }
+          for (const t of data.tasks) { await setDoc(doc(db, "tasks", String(t.id)), t); }
+      }
+      if (data.events && data.events.length > 0) {
+          for (const e of data.events) { await setDoc(doc(db, "events", String(e.id)), e); }
+      }
+      if (data.checkIns && data.checkIns.length > 0) {
+          for (const c of data.checkIns) { await setDoc(doc(db, "checkIns", String(c.id)), c); }
+      }
+
+      // 2. 📝 你發現漏掉的行政與帳務資料！
+      if (data.mailRecords && data.mailRecords.length > 0) {
+          for (const m of data.mailRecords) { await setDoc(doc(db, "mailRecords", String(m.id)), m); }
+      }
+      if (data.cashRecords && data.cashRecords.length > 0) {
+          for (const c of data.cashRecords) { await setDoc(doc(db, "cashRecords", String(c.id)), c); }
+      }
+      if (data.messages && data.messages.length > 0) {
+          for (const m of data.messages) { await setDoc(doc(db, "messages", String(m.id)), m); }
+      }
+      if (data.instructions && data.instructions.length > 0) {
+          for (const i of data.instructions) { await setDoc(doc(db, "instructions", String(i.id)), i); }
+      }
+      if (data.clientProfiles && data.clientProfiles.length > 0) {
+          for (const p of data.clientProfiles) { await setDoc(doc(db, "clientProfiles", String(p.clientId)), p); }
       }
       
-      // 3. 搬移排班與行事曆
-      if (data.events && data.events.length > 0) {
-          for (const e of data.events) {
-              await setDoc(doc(db, "events", String(e.id)), e);
-          }
+      // 3. 💼 進階模組：股票與薪資系統
+      if (data.stockClients && data.stockClients.length > 0) {
+          for (const s of data.stockClients) { await setDoc(doc(db, "stockClients", String(s.id)), s); }
+      }
+      if (data.stockTargets && data.stockTargets.length > 0) {
+          for (const s of data.stockTargets) { await setDoc(doc(db, "stockTargets", String(s.id)), s); }
+      }
+      if (data.stockTransactions && data.stockTransactions.length > 0) {
+          for (const s of data.stockTransactions) { await setDoc(doc(db, "stockTransactions", String(s.id)), s); }
+      }
+      if (data.payrollClients && data.payrollClients.length > 0) {
+          for (const p of data.payrollClients) { await setDoc(doc(db, "payrollClients", String(p.clientId)), p); }
+      }
+      if (data.payrollRecords && data.payrollRecords.length > 0) {
+          for (const p of data.payrollRecords) { await setDoc(doc(db, "payrollRecords", String(p.id)), p); }
+      }
+      if (data.employees && data.employees.length > 0) {
+          for (const e of data.employees) { await setDoc(doc(db, "employees", String(e.id)), e); }
+      }
+      if (data.monthlySalaries && data.monthlySalaries.length > 0) {
+          for (const m of data.monthlySalaries) { await setDoc(doc(db, "monthlySalaries", String(m.id)), m); }
       }
 
-      // 4. (選填) 如果舊資料有打卡或留言，也可以加在這裡
-      if (data.checkIns && data.checkIns.length > 0) {
-          for (const c of data.checkIns) {
-              await setDoc(doc(db, "checkIns", String(c.id)), c);
-          }
-      }
-
-      alert("🎉 舊資料已成功升級並寫入 Firebase 雲端！請重新整理網頁。");
+      alert("🎉 舊資料已『全數』升級並寫入 Firebase 雲端！請重新整理網頁。");
   },
 
   // ==========================================
