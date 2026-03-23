@@ -39,7 +39,35 @@ export const TaskService = {
   },
   
   async saveFullData(data: any): Promise<void> {
-      console.warn("系統已全面升級 Firebase，不再使用 saveFullData");
+      console.log("🚀 開始將舊資料遷移至 Firebase...");
+      
+      // 1. 搬移客戶資料
+      if (data.clients && data.clients.length > 0) {
+          await this.saveClients(data.clients);
+      }
+      
+      // 2. 搬移工作任務
+      if (data.tasks && data.tasks.length > 0) {
+          for (const t of data.tasks) {
+              await setDoc(doc(db, "tasks", String(t.id)), t);
+          }
+      }
+      
+      // 3. 搬移排班與行事曆
+      if (data.events && data.events.length > 0) {
+          for (const e of data.events) {
+              await setDoc(doc(db, "events", String(e.id)), e);
+          }
+      }
+
+      // 4. (選填) 如果舊資料有打卡或留言，也可以加在這裡
+      if (data.checkIns && data.checkIns.length > 0) {
+          for (const c of data.checkIns) {
+              await setDoc(doc(db, "checkIns", String(c.id)), c);
+          }
+      }
+
+      alert("🎉 舊資料已成功升級並寫入 Firebase 雲端！請重新整理網頁。");
   },
 
   // ==========================================
