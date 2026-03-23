@@ -254,13 +254,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     }
   }, [tasks, activeTab, currentYear, clients]);
 
-  const startPolling = () => { 
+    const startPolling = () => { 
       if (pollingRef.current) return; 
       pollingRef.current = window.setInterval(async () => { 
-          if (TaskService.isConnected() && !hasOpenModal()) { 
-              try { await loadData(); } catch (e) { } 
-          } 
-      }, 3000); 
+          // 🛑 暫時將自動刷新關閉，阻止 Firebase 讀取暴增！
+          // if (TaskService.isConnected() && !hasOpenModal()) { 
+          //     try { await loadData(); } catch (e) { } 
+          // } 
+      }, 300000); // 改為 300000 (5分鐘) 甚至不執行
   };
   
   const hasOpenModal = () => {
