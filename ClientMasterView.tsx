@@ -294,10 +294,14 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
 
     // ✨ 專屬簽名產生器：自動抓取登入者姓名 + 今天的 月/日
     const generateSignature = () => {
-        // 防呆機制：如果沒抓到名字，預設顯示 '使用者'
-        const userName = currentUser?.name || '使用者'; 
+        const nameAbbreviations: Record<string, string> = {
+            'Brandon': 'BD',
+            '周榆': 'Yeu',
+        };
+        const userName = currentUser?.name || '使用者';
+        const abbr = nameAbbreviations[userName] || userName;
         const today = `${new Date().getMonth() + 1}/${new Date().getDate()}`;
-        return `${userName} ${today}`;
+        return `${abbr} ${today}`;
     };
   
     // ✨ 階段三：一鍵生成 Word (支援動態表格陣列匯出)
