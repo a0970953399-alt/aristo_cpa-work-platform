@@ -87,6 +87,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingRecord, setEditingRecord] = useState<CashRecord | null>(null);
     const [isProcessing, setIsProcessing] = useState(false);
+    const [modalError, setModalError] = useState<string | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
@@ -473,7 +474,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 <ExcelFileIcon className="w-5 h-5" />
                             </button>
                             
-                            <button onClick={() => { setEditingRecord(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
+                            <button onClick={() => { setEditingRecord(null); setModalError(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
                                 <PlusIcon className="w-5 h-5" />
                             </button>
                         </>
@@ -642,7 +643,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                         {isSupervisor && (
                                             <td className="p-3 text-center">
                                                 <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => { setEditingRecord(r); setIsModalOpen(true); }} className="p-1.5 bg-white border rounded hover:bg-blue-50 text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4"/></button>
+                                                    <button onClick={() => { setEditingRecord(r); setModalError(null); setIsModalOpen(true); }} className="p-1.5 bg-white border rounded hover:bg-blue-50 text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4"/></button>
                                                     <button onClick={() => handleDelete(r.id)} className="p-1.5 bg-white border rounded hover:bg-red-50 text-red-600 shadow-sm"><TrashIcon className="w-4 h-4"/></button>
                                                 </div>
                                             </td>
@@ -660,16 +661,23 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
             {/* 新增/編輯 Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => !isProcessing && setIsModalOpen(false)}>
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!isProcessing) { setIsModalOpen(false); setModalError(null); } }}>
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
-                        <form onSubmit={async (e) => {
+                        <form noValidate onSubmit={async (e) => {
                             e.preventDefault();
-                            setIsProcessing(true);
+                            setModalError(null);
                             const formData = new FormData(e.currentTarget);
-                            
+
+                            const dateVal = formData.get('date') as string;
+                            const amountVal = formData.get('amount') as string;
+                            if (!dateVal) { setModalError('請填寫日期'); return; }
+                            if (!amountVal || amountVal.trim() === '') { setModalError('請填寫金額'); return; }
+
+                            setIsProcessing(true);
+
                             let finalAccount: CashAccountType = viewMode === 'client_detail' ? 'shuoye' : (viewMode as CashAccountType);
                             let finalType: 'income' | 'expense' = 'expense';
-                            
+
                             if (viewMode === 'client_detail') {
                                 finalType = 'expense';
                             } else {
@@ -678,9 +686,9 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
                             const newRec: CashRecord = {
                                 id: editingRecord ? editingRecord.id : Date.now().toString(),
-                                date: formData.get('date') as string,
+                                date: dateVal,
                                 type: finalType,
-                                amount: Number(formData.get('amount')),
+                                amount: Number(amountVal),
                                 category: formData.get('category') as string || '',
                                 description: formData.get('description') as string || '',
                                 note: formData.get('note') as string || '',
@@ -697,13 +705,16 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 else await TaskService.addCashRecord(newRec);
                                 onUpdate();
                                 setIsModalOpen(false);
+                            } catch (err: unknown) {
+                                const msg = err instanceof Error ? err.message : String(err);
+                                setModalError(`儲存失敗：${msg}`);
                             } finally {
                                 setIsProcessing(false);
                             }
                         }}>
                             <div className={`p-4 border-b text-white flex justify-between items-center ${headerColor}`}>
                                 <h3 className="font-bold text-lg">{editingRecord ? '編輯' : '新增'} {viewMode === 'client_detail' ? '代墊款' : '紀錄'}</h3>
-                                <button type="button" onClick={() => setIsModalOpen(false)} className="hover:bg-white/20 rounded-full p-1" disabled={isProcessing}>✕</button>
+                                <button type="button" onClick={() => { setIsModalOpen(false); setModalError(null); }} className="hover:bg-white/20 rounded-full p-1" disabled={isProcessing}>✕</button>
                             </div>
                             
                             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
@@ -781,12 +792,17 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 )}
                             </div>
                             
-                            <div className="p-4 border-t bg-gray-50 flex justify-end gap-2">
-                                <button type="button" onClick={() => setIsModalOpen(false)} disabled={isProcessing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-bold">取消</button>
+                            <div className="p-4 border-t bg-gray-50 space-y-2">
+                                {modalError && (
+                                    <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{modalError}</div>
+                                )}
+                                <div className="flex justify-end gap-2">
+                                <button type="button" onClick={() => { setIsModalOpen(false); setModalError(null); }} disabled={isProcessing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-bold">取消</button>
                                 <button type="submit" disabled={isProcessing} className={`px-4 py-2 text-white rounded-lg font-bold ${headerColor} hover:opacity-90 disabled:opacity-50 flex items-center gap-2`}>
                                     {isProcessing && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                                     儲存
                                 </button>
+                                </div>
                             </div>
                         </form>
                     </div>
