@@ -430,12 +430,14 @@ export const TaskService = {
   },
 
   async addCashRecord(record: CashRecord): Promise<CashRecord[]> {
-      await setDoc(doc(db, "cashRecords", String(record.id)), record);
+      const clean = Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined));
+      await setDoc(doc(db, "cashRecords", String(record.id)), clean);
       return this.fetchCashRecords();
   },
 
   async updateCashRecord(updated: CashRecord): Promise<CashRecord[]> {
-      await setDoc(doc(db, "cashRecords", String(updated.id)), updated, { merge: true });
+      const clean = Object.fromEntries(Object.entries(updated).filter(([, v]) => v !== undefined));
+      await setDoc(doc(db, "cashRecords", String(updated.id)), clean, { merge: true });
       return this.fetchCashRecords();
   },
 
