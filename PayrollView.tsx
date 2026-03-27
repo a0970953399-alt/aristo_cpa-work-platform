@@ -46,6 +46,12 @@ const ExitFullscreenIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+const SendMailIcon = ({ className }: { className?: string }) => (
+  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
+    <path strokeLinecap="round" strokeLinejoin="round" d="M6 12 3.269 3.125A59.769 59.769 0 0 1 21.485 12 59.768 59.768 0 0 1 3.27 20.875L5.999 12Zm0 0h7.5" />
+  </svg>
+);
+
 export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
@@ -80,6 +86,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [editModalMode, setEditModalMode] = useState<'monthly' | 'yearly'>('monthly'); // ✨ 區分是從哪個頁面打開的
 
   const [isFullscreen, setIsFullscreen] = useState(false); // ✨ 控制年度表格全螢幕
+
+  const [isSendingBatch, setIsSendingBatch] = useState(false); // ✨ 控制一鍵發送的轉圈圈狀態
   
   // ✨ 新增：彈出視窗專用的月份狀態
   const [editModalMonth, setEditModalMonth] = useState(selectedMonth);
@@ -550,6 +558,121 @@ const htmlContent = `
           alert('寄信發生錯誤，請檢查網路連線或主控台資訊。');
       }
   };
+
+  // ✨ 一鍵批次寄送本月全體薪資單
+  const handleBatchSendEmails = async () => {
+      if (!selectedClient) return;
+
+      // 1. 篩選出本月有在職的員工
+      const currentMonthEmps = employees.filter(e => {
+          if (e.clientId !== String(selectedClient.id)) return false;
+          const targetMonthStr = `${selectedYear}-${selectedMonth}`;
+          const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
+          const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
+          if (startMonthStr && targetMonthStr < startMonthStr) return false;
+          if (endMonthStr && targetMonthStr > endMonthStr) return false;
+          return true;
+      });
+
+      if (currentMonthEmps.length === 0) {
+          alert('本月無在職員工可寄送！');
+          return;
+      }
+
+      // 2. 自動過濾出有信箱的員工
+      const validEmps = currentMonthEmps.filter(e => e.email && e.email.trim() !== '');
+      const invalidEmpsCount = currentMonthEmps.length - validEmps.length;
+
+      if (validEmps.length === 0) {
+          alert('❌ 本月所有員工都未設定 Email，無法寄送！');
+          return;
+      }
+
+      // 再次確認提示
+      let confirmMsg = `確定要一鍵寄送 ${validEmps.length} 封薪資單嗎？`;
+      if (invalidEmpsCount > 0) {
+          confirmMsg += `\n(⚠️ 提醒：有 ${invalidEmpsCount} 位員工未設定信箱，系統將自動跳過)`;
+      }
+
+      if (!window.confirm(confirmMsg)) return;
+
+      setIsSendingBatch(true);
+
+      try {
+          const companyName = selectedClient?.fullName || selectedClient?.name || '公司名稱未設定';
+          const companyPhone = selectedClient?.phone || '電話未提供';
+          const companyAddress = selectedClient?.contactAddress || selectedClient?.regAddress || '地址未提供';
+
+          // 3. 準備所有寄信任務 (打包成多個信件包裹)
+          const promises = validEmps.map(emp => {
+              const rowData = monthlyData[emp.id] || {};
+              const isFullTime = emp.employmentType === 'full_time';
+
+              const baseSalaryForCalc = rowData.baseSalary || 0;
+              const hourlyWageForCalc = baseSalaryForCalc / 240;
+              const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0)); 
+              const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2); 
+              const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0)); 
+              const realLeaveDeduction = realSickDeduction + realPersonalDeduction;
+
+              const foodAllowanceForCalc = rowData.foodAllowance || 0;
+              let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
+              if (isFullTime) {
+                  const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
+                  realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
+                  realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
+                  realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+              } else {
+                  const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+                  realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+              }
+              const realTaxFreeOt = realAnnualPay + realHolidayPay + realNormalPay;
+
+              const baseSalary = rowData.baseSalary || 0;
+              const foodAllowance = rowData.foodAllowance || 0;
+              const leaveDeduction = rowData.leaveDeduction ?? realLeaveDeduction;
+              const lateDeduction = rowData.lateDeduction ?? realLateDeduction;
+              const laborIns = rowData.laborIns || 0;
+              const healthIns = rowData.healthIns || 0;
+              
+              const totalOtPay = (rowData.taxableOt || 0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
+              const otherAdditions = (rowData.fullAttendance || 0) + (rowData.positionAllowance || 0) + (rowData.performanceBonus || 0);
+              const otherDeductions = (rowData.dailyShortage || 0) + (rowData.pensionSelf || 0) + (rowData.incomeTax || 0) + (rowData.advancePay || 0);
+
+              const netPay = (baseSalary + foodAllowance + totalOtPay + otherAdditions) - (leaveDeduction + lateDeduction + laborIns + healthIns + otherDeductions);
+
+              const remarksArr = [];
+              if (rowData.lateHours > 0) remarksArr.push(`遲到${rowData.lateHours}分鐘`);
+              if (rowData.sickLeave > 0) remarksArr.push(`病假${rowData.sickLeave}小時`);
+              if (rowData.personalLeave > 0) remarksArr.push(`事假${rowData.personalLeave}小時`);
+              if (rowData.normalOt > 0 || rowData.holidayOt > 0) remarksArr.push(`加班${(rowData.normalOt||0) + (rowData.holidayOt||0)}小時`);
+              const remarks = remarksArr.length > 0 ? remarksArr.join('，') + '。' : '無';
+
+              // 信箱專用 Table 排版
+              const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>薪資單 - ${emp.name}</title></head><body style="background-color: #e5e7eb; margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;"><table width="100%" bgcolor="#e5e7eb" cellpadding="0" cellspacing="0" border="0" style="padding: 40px 10px;"><tr><td align="center"><table width="100%" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="max-width: 800px; width: 100%; border-radius: 8px; border: 1px solid #d1d5db; overflow: hidden;"><tr><td style="padding: 30px 40px 20px 40px; border-bottom: 2px solid #1F2937;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="left" valign="bottom"><h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">薪資單</h1><h2 style="margin: 0 0 6px 0; color: #1F2937; font-size: 18px; font-weight: bold;">${companyName}</h2><div style="color: #4B5563; font-size: 13px; line-height: 1.6;"><div>📞 ${companyPhone}</div><div>📍 ${companyAddress}</div></div></td><td align="right" valign="bottom"><div style="color: #6B7280; font-size: 13px; margin-bottom: 4px;">發放月份</div><div style="color: #111827; font-size: 20px; font-weight: bold;">${selectedYear}-${selectedMonth}</div></td></tr></table></td></tr><tr><td style="padding: 15px 40px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb;"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; color: #4B5563;"><tr><td style="padding: 6px 0; width: 50%;"><strong>員工姓名：</strong><span style="color: #111827;">${emp.name}</span></td><td style="padding: 6px 0; width: 50%;"><strong>員工代號：</strong><span style="color: #111827;">${emp.empNo || '-'}</span></td></tr><tr><td style="padding: 6px 0;"><strong>身分證字號：</strong><span style="color: #111827;">${emp.idNumber || '-'}</span></td><td style="padding: 6px 0;"><strong>E-mail：</strong><span style="color: #111827;">${emp.email || '尚未設定'}</span></td></tr></table></td></tr><tr><td style="padding: 30px 40px;"><p style="text-align: right; font-size: 12px; color: #9CA3AF; margin: 0 0 10px 0;">單位：新台幣 (元)</p><table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; font-size: 14px; text-align: right; border-collapse: separate; border-spacing: 0;"><thead><tr style="background-color: #F9FAFB; color: #374151;"><th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">加項</th><th style="padding: 12px; border-bottom: 2px solid #E5E7EB; border-right: 1px dashed #D1D5DB; text-align: center; width: 25%;">金額</th><th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">減項</th><th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">金額</th></tr></thead><tbody><tr><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">本薪</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${baseSalary.toLocaleString()}</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">病事假扣薪</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${leaveDeduction.toLocaleString()}</td></tr><tr><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">伙食費</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${foodAllowance.toLocaleString()}</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">遲到扣薪</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${lateDeduction.toLocaleString()}</td></tr><tr><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">加班費</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${totalOtPay.toLocaleString()}</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">勞保自負額</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${laborIns.toLocaleString()}</td></tr><tr><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">其他加項</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${otherAdditions.toLocaleString()}</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">健保自負額</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${healthIns.toLocaleString()}</td></tr><tr><td style="padding: 12px; text-align: center;"></td><td style="padding: 12px; border-right: 1px dashed #D1D5DB;"></td><td style="padding: 12px; text-align: center; color: #4B5563;">其他減項</td><td style="padding: 12px; color: #B91C1C; font-weight: bold;">${otherDeductions.toLocaleString()}</td></tr></tbody></table></td></tr><tr><td style="padding: 25px 40px; background-color: #F8FAFC; border-top: 1px solid #E5E7EB;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="left" valign="top" style="width: 50%;"><p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.6;"><strong style="color: #111827;">其他備註：</strong><br/>${remarks || '無'}</p></td><td align="right" valign="bottom" style="width: 50%;"><span style="font-size: 16px; font-weight: bold; color: #374151;">實領金額：</span><span style="font-size: 28px; font-weight: 900; color: #15803D; border-bottom: 4px double #15803D; padding-bottom: 2px;">$ ${netPay.toLocaleString()}</span></td></tr></table></td></tr><tr><td align="center" style="background-color: #F3F4F6; padding: 16px; font-size: 12px; color: #9CA3AF; border-top: 1px solid #E5E7EB;">此信件為系統自動發送，請勿直接回覆。若對薪資結算有疑問，請洽會計部門。</td></tr></table></td></tr></table></body></html>`;
+
+              // 將每一封信放進發送陣列
+              return addDoc(collection(db, 'mail'), {
+                  to: [emp.email],
+                  message: {
+                      subject: `${companyName} - ${selectedYear}年${selectedMonth}月 薪資明細表 (${emp.name})`,
+                      html: htmlContent
+                  }
+              });
+          });
+
+          // 4. 一次將所有信件交給 Firebase
+          await Promise.all(promises);
+          
+          alert(`✅ 大成功！已將 ${validEmps.length} 封薪資單交給系統發送。郵差正在派件中！`);
+
+      } catch (error) {
+          console.error('一鍵寄信失敗:', error);
+          alert('寄信發生錯誤，請檢查網路連線或主控台資訊。');
+      } finally {
+          setIsSendingBatch(false); // 關閉轉圈圈
+      }
+  };
   
   const handleExportEmployerExcel = async () => {
       try {
@@ -998,8 +1121,24 @@ const htmlContent = `
 
                 {activeInnerTab === 'monthly' && (
                       <div className="flex items-center gap-2 animate-fade-in">
-                          {/* 僅保留匯出按鈕 */}
-                          <button onClick={handleExportEmployerExcel} className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
+                          {/* ✨ 新增：一鍵寄送按鈕 */}
+                          <button 
+                              onClick={handleBatchSendEmails} 
+                              disabled={isSendingBatch}
+                              title="一鍵寄送本月全體薪資單" 
+                              className={`p-2.5 font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center ${
+                                  isSendingBatch ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
+                              }`}
+                          >
+                              {isSendingBatch ? (
+                                  <svg className="animate-spin w-5 h-5 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24"><circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle><path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path></svg>
+                              ) : (
+                                  <SendMailIcon className="w-5 h-5" />
+                              )}
+                          </button>
+                          
+                          {/* 匯出 Excel 按鈕 */}
+                          <button onClick={handleExportEmployerExcel} title="匯出薪資總表" className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
                               <CloudDownloadIcon className="w-5 h-5" />
                           </button>
                       </div>
