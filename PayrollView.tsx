@@ -1824,6 +1824,7 @@ const htmlContent = `
                                                         setEditingMonthlyEmp(emp);
                                                         setEditModalMonth(selectedMonth);
                                                         loadFormDataForMonth(emp, selectedMonth);
+                                                        setEmailSendStatus('idle');
                                                     }
                                                 }} 
                                                 className="w-full border border-blue-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white"
