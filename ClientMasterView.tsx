@@ -361,13 +361,28 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
                 }
             });
 
-            // 3. 💰 動態塞入 7 筆收費與收款紀錄變數 (p_date_1, p_no_1...)
+          // 3. 💰 動態塞入 7 筆收費與收款紀錄變數 (新增自扣款提取功能)
             selectedClient.paymentRecords?.forEach((record, index) => {
                 const i = index + 1; // 讓 Index 從 1 開始算
                 if (i <= 7) {
+                    const receiptAmtStr = record.receiptAmount || '';
+                    let deductAmt = ''; // 預設自扣款為空
+                    let baseAmt = receiptAmtStr; // 預設收據總額為原始字串
+                    
+                    // ✨ 核心邏輯：偵測是否有減號，提取自扣款與收據總額
+                    if (receiptAmtStr.includes('-')) {
+                        const parts = receiptAmtStr.split('-');
+                        baseAmt = parts[0].trim();       // 取得前半段 (例: 10,000)
+                        if (parts.length > 1 && parts[1].trim()) {
+                            deductAmt = parts[1].trim(); // 取得後半段 (例: 1,000)
+                        }
+                    }
+
                     data[`p_date_${i}`] = record.receiptDate || '';
                     data[`p_no_${i}`] = record.receiptNo || '';
-                    data[`p_amt_${i}`] = record.receiptAmount || '';
+                    data[`p_amt_${i}`] = receiptAmtStr;     // 保留原汁原味的完整字串 (如: 10,000 - 1,000)
+                    data[`p_base_${i}`] = baseAmt;          // (額外贈送) 如果你 Word 只想顯示 10,000，可以用這個錨點
+                    data[`p_deduct_${i}`] = deductAmt;      // ✨ 新增的【自扣款】錨點 (如: 1,000)
                     data[`p_ok_${i}`] = record.approvedBy || '';
                     data[`p_sdate_${i}`] = record.paymentDate || '';
                     data[`p_camt_${i}`] = record.collectionAmount || '';
@@ -410,7 +425,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
         }
     };
 
-    // ✨ 魔法快捷 2：收據金額自動扣繳與同步帶入 (完美修復版)
+  // ✨ 魔法快捷 2：收據金額改為「自由輸入扣款」，並連動右側收款金額
     const handleAmountBlur = (index: number, val: string) => {
         if (!val.trim()) {
             handlePaymentRecordChange(index, 'receiptAmount', '');
@@ -420,47 +435,43 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
         let finalAmount = 0;
         let formattedDisplay = '';
 
-        if (val.endsWith('-')) {
-            // 情況 A：輸入「10000-」，自動觸發 10% 扣繳魔法
-            const baseStr = val.slice(0, -1).replace(/\D/g, '');
-            if (baseStr) {
-                const baseAmount = parseInt(baseStr, 10);
-                const tax = Math.round(baseAmount * 0.1);
-                finalAmount = baseAmount - tax;
-                formattedDisplay = `${baseAmount.toLocaleString('en-US')} - ${tax.toLocaleString('en-US')}`;
-            }
-        } else if (val.includes('-')) {
-            // 情況 B：裡面已經有減號 (例如點擊原有的 "10,000 - 1,000"，或是手動打 "10000-500")
-            // ✨ 把它切成左右兩塊，就不會被無差別黏在一起了！
+        if (val.includes('-')) {
+            // 情況：使用者輸入了減號 (例如 "10000-500" 或 "10000-")
             const parts = val.split('-');
             const baseStr = parts[0].replace(/\D/g, '');
-            const taxStr = parts[1].replace(/\D/g, '');
+            const deductStr = parts[1].replace(/\D/g, ''); // 減號後面的數字 (自由輸入的自扣款)
 
             if (baseStr) {
                 const baseAmount = parseInt(baseStr, 10);
-                const tax = taxStr ? parseInt(taxStr, 10) : 0; 
-                finalAmount = baseAmount - tax;
-                formattedDisplay = tax > 0 
-                    ? `${baseAmount.toLocaleString('en-US')} - ${tax.toLocaleString('en-US')}`
-                    : baseAmount.toLocaleString('en-US');
+                const deductAmount = deductStr ? parseInt(deductStr, 10) : 0; 
+                finalAmount = baseAmount - deductAmount;
+                
+                // 格式化顯示，如果有扣款數字就顯示出來
+                formattedDisplay = deductAmount > 0 
+                    ? `${baseAmount.toLocaleString('en-US')} - ${deductAmount.toLocaleString('en-US')}`
+                    : `${baseAmount.toLocaleString('en-US')} -`; // 如果只打了減號還沒打數字，保留減號
+            } else {
+                formattedDisplay = val; // 防呆：如果亂打，保留原本輸入的字
             }
         } else {
-            // 情況 C：一般數字，沒扣繳
+            // 情況：單純輸入數字，沒有扣款
             const numStr = val.replace(/\D/g, '');
             if (numStr) {
                 const baseAmount = parseInt(numStr, 10);
                 finalAmount = baseAmount;
                 formattedDisplay = baseAmount.toLocaleString('en-US');
+            } else {
+                formattedDisplay = val;
             }
         }
 
-        // 🔥 解決 React 狀態非同步問題：將「收據金額」與「收款金額」打包成一次更新
+        // 🔥 將「收據金額」與計算後的「收款金額」打包更新
         if (selectedClient && selectedClient.paymentRecords) {
             const newRecords = [...selectedClient.paymentRecords];
             newRecords[index] = { 
                 ...newRecords[index], 
-                receiptAmount: formattedDisplay, // 把格式化好的美美數字存進去
-                // 只有成功算出數字時，才強制連動覆蓋右邊的收款金額
+                receiptAmount: formattedDisplay, // 存入美化後的字串
+                // 強制連動更新右邊的收款金額
                 ...(formattedDisplay ? { collectionAmount: finalAmount.toLocaleString('en-US') } : {})
             };
             setSelectedClient({ ...selectedClient, paymentRecords: newRecords });
