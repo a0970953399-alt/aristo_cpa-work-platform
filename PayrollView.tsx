@@ -225,7 +225,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 650px; margin: 0 auto; background-color: white; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
           <div style="text-align: center; margin-bottom: 24px; background-color: #707070; border-radius: 8px 8px 0 0; padding: 20px 15px;">
           <h1 style="margin: 0 0 8px 0; color: #FFFFFF; font-size: 24px; font-weight: bold;">${companyName}</h1>              
-            <h2 style="margin: 0; color: #E5E7EB; font-size: 16px; font-weight: normal;">${record.yearMonth} 薪資明細表</h2>
+            <h2 style="margin: 0; color: #E5E7EB; font-size: 16px; font-weight: normal;">${selectedYear}-${editModalMonth} 薪資明細表</h2>
               <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">發放月份：${selectedYear} 年 ${editModalMonth} 月</p>
             </div>
             <div style="padding: 20px; background-color: #f9fafb; border-bottom: 2px solid #e5e7eb;">
