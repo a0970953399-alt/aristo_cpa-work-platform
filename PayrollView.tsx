@@ -553,7 +553,18 @@ const htmlContent = `
               }
           });
 
-          setEmailSendStatus('success'); // ✨ 寄信成功，打勾！
+          setEmailSendStatus('success'); // ✨ 這是剛剛加的
+
+          // ✨ 新增這兩行：把「已寄送」的記憶寫進目前視窗與本地資料庫中
+          setMonthlyFormData(prev => ({ ...prev, isEmailSent: true }));
+          setMonthlyData(prev => ({
+              ...prev,
+              [editingMonthlyEmp.id]: {
+                  ...(prev[editingMonthlyEmp.id] || {}),
+                  isEmailSent: true
+              }
+          }));
+
           alert('✅ 薪資單已成功交給系統排程！郵差正在路上 (約需 10~30 秒)。');
           
       } catch (error) {
@@ -665,10 +676,19 @@ const htmlContent = `
               });
           });
 
-          // 4. 一次將所有信件交給 Firebase
+        // 4. 一次將所有信件交給 Firebase
           await Promise.all(promises);
           
-          alert(`✅ 大成功！已將 ${validEmps.length} 封薪資單交給系統發送。郵差正在派件中！`);
+          // ✨ 新增這段：一鍵全發後，把所有成功寄出的員工都標記為「已寄送」
+          setMonthlyData(prev => {
+              const newData = { ...prev };
+              validEmps.forEach(emp => {
+                  newData[emp.id] = { ...(newData[emp.id] || {}), isEmailSent: true };
+              });
+              return newData;
+          });
+
+          alert(`✅ 大成功！已將 ${validEmps.length} 封薪資單交給系統發送。`);
 
       } catch (error) {
           console.error('一鍵寄信失敗:', error);
@@ -844,12 +864,13 @@ const htmlContent = `
   };
   
   const handleRowClickMonthly = (emp: Employee) => {
-      setEmailSendStatus('idle');
+      // 去找這個員工這個月的資料，看他之前有沒有寄過信
+  const currentRecord = monthlyData[emp.id] || {};
+      setEmailSendStatus(currentRecord.isEmailSent ? 'success' : 'idle');
       setEditingMonthlyEmp(emp);
       setEditModalMonth(selectedMonth);
       setEditModalMode('monthly'); // ✨ 設定為每月模式
       loadFormDataForMonth(emp, selectedMonth);
-      setEmailSendStatus('idle');
       setIsAddingNewMonthly(false);
       setIsMonthlyEditModalOpen(true);
   };
@@ -1687,7 +1708,8 @@ const htmlContent = `
                                                     
                                                 {/* 姓名 - 點擊開啟編輯視窗 */}
                                                     <td rowSpan={5} onClick={() => {
-                                                        setEmailSendStatus('idle');
+                                              const currentRecord = monthlyData[emp.id] || {};
+                                              setEmailSendStatus(currentRecord.isEmailSent ? 'success' : 'idle');
                                                         setEditingMonthlyEmp(emp);
                                                         setEditModalMode('yearly'); // ✨ 設定為年度模式
                                                         const firstActiveMonth = empMonths.find(m => m.isActive)?.month || '01';
@@ -1824,7 +1846,8 @@ const htmlContent = `
                                                         setEditingMonthlyEmp(emp);
                                                         setEditModalMonth(selectedMonth);
                                                         loadFormDataForMonth(emp, selectedMonth);
-                                                        setEmailSendStatus('idle');
+                                                      const currentRecord = monthlyData[emp.id] || {};
+                                                      setEmailSendStatus(currentRecord.isEmailSent ? 'success' : 'idle');
                                                     }
                                                 }} 
                                                 className="w-full border border-blue-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white"
