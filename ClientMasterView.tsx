@@ -361,15 +361,15 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
                 }
             });
 
-          // 3. 💰 動態塞入 7 筆收費與收款紀錄變數 (進階抓取自扣款)
+          // ✨ 3. 💰 動態塞入 7 筆收費與收款紀錄變數 (新增金額欄位加上 $ 符號)
             selectedClient.paymentRecords?.forEach((record, index) => {
                 const i = index + 1; // 讓 Index 從 1 開始算
                 if (i <= 7) {
-                    const receiptAmtStr = record.receiptAmount || '';
+                    const receiptAmtStr = record.receiptAmount || ''; // 這是 UI 上顯示的完整字串 (如: 80,000 - 8,000)
                     let deductAmt = ''; 
-                    let baseAmt = receiptAmtStr; 
+                    let baseAmt = ''; // 初始化，稍後如果沒有計算式，就直接用 receiptAmtStr
                     
-                    // ✨ 核心邏輯：將美化後的字串還原，並精準抓取減號後面的自扣款
+                    // --- A. 解析變數 (保留原本辛苦寫好的解析邏輯) ---
                     const cleanVal = receiptAmtStr.replace(/[^\d\-+]/g, '');
                     
                     if (cleanVal) {
@@ -382,29 +382,45 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
                         if (minusIdx !== -1 && plusIdx !== -1) {
                             if (minusIdx < plusIdx) {
                                 baseStr = cleanVal.substring(0, minusIdx);
-                                deductStr = cleanVal.substring(minusIdx + 1, plusIdx); // 抓取減號與加號之間的數字
+                                deductStr = cleanVal.substring(minusIdx + 1, plusIdx);
                             } else {
                                 baseStr = cleanVal.substring(0, plusIdx);
-                                deductStr = cleanVal.substring(minusIdx + 1); // 抓取最後面的減號數字
+                                deductStr = cleanVal.substring(minusIdx + 1);
                             }
                         } else if (minusIdx !== -1) {
                             baseStr = cleanVal.substring(0, minusIdx);
                             deductStr = cleanVal.substring(minusIdx + 1);
                         }
                         
-                        // 轉換回千分位格式供 Word 顯示
+                        // 轉換回千分位格式
                         if (baseStr) baseAmt = parseInt(baseStr, 10).toLocaleString('en-US');
                         if (deductStr) deductAmt = parseInt(deductStr, 10).toLocaleString('en-US');
                     }
 
+                    // 如果 baseAmt 解析失敗 (例如使用者輸入亂碼)，就拿原本的 receiptAmtStr 當作 base
+                    if (!baseAmt) baseAmt = receiptAmtStr;
+
+                    // ✨ --- B. 關鍵修正：在寫入 Word 變數時加上 $ 符號 --- ✨
+                    // 我們使用樣板字串 `${...}`，只有在資料「存在」時才加上 $
+
                     data[`p_date_${i}`] = record.receiptDate || '';
                     data[`p_no_${i}`] = record.receiptNo || '';
-                    data[`p_amt_${i}`] = receiptAmtStr;     // 完整保留 (如: 80,000 - 8,000 + 400)
-                    data[`p_base_${i}`] = baseAmt;          // 原始收費 (如: 80,000)
-                    data[`p_deduct_${i}`] = deductAmt;      // ✨ 自扣款錨點 (如: 8,000)，不管有沒有代墊款都能精準抓到
+                    
+                    // 1. 收據金額 (原始字串，如: 80,000 - 8,000)：不適合加 $，因為裡面有減號，會變成 $80,000 - 8,000 很怪
+                    data[`p_amt_${i}`] = receiptAmtStr; 
+                    
+                    // 2. 原始收費 (純數字，如: 80,000) ➔ 加上 $
+                    data[`p_base_${i}`] = baseAmt ? `$${baseAmt}` : ''; 
+                    
+                    // 3. 自扣款 (純數字，如: 8,000) ➔ 加上 $
+                    data[`p_deduct_${i}`] = deductAmt ? `$${deductAmt}` : ''; 
+                    
                     data[`p_ok_${i}`] = record.approvedBy || '';
                     data[`p_sdate_${i}`] = record.paymentDate || '';
-                    data[`p_camt_${i}`] = record.collectionAmount || '';
+                    
+                    // 4. 收款金額 (純數字，如: 72,400) ➔ 加上 $
+                    data[`p_camt_${i}`] = record.collectionAmount ? `$${record.collectionAmount}` : ''; 
+                    
                     data[`p_sign_${i}`] = record.signedBy || '';
                 }
             });
