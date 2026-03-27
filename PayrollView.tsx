@@ -210,7 +210,15 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       if (monthlyFormData.normalOt > 0 || monthlyFormData.holidayOt > 0) remarksArr.push(`加班${(monthlyFormData.normalOt||0) + (monthlyFormData.holidayOt||0)}小時`);
       const remarks = remarksArr.length > 0 ? remarksArr.join('，') + '。' : '無';
 
-      // 2. 組合 HTML 模板
+
+    // 假設你傳入的變數叫做 record (單筆薪資紀錄)
+    // 1. 透過 clientId 找到該客戶的完整資料
+    const currentClient = clients.find(c => String(c.id) === String(record.clientId));
+
+    // 2. 優先抓取 fullName (公司全名)，如果沒有填寫就退回使用 name (簡稱)，都沒填則顯示預設字
+    const companyName = currentClient?.fullName || currentClient?.name || '公司名稱未設定';
+      
+    // 2. 組合 HTML 模板
       const htmlContent = `
         <!DOCTYPE html>
         <html>
@@ -221,6 +229,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
         <body style="background-color: #e5e7eb; padding: 40px; margin: 0;">
           <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 650px; margin: 0 auto; background-color: white; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
             <div style="background-color: #2563eb; padding: 20px; text-align: center; color: white;">
+            <h1 style="margin: 0 0 10px 0; color: #1F2937; font-size: 24px;">${companyName}</h1>
               <h2 style="margin: 0; letter-spacing: 2px;">薪資結算明細表</h2>
               <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">發放月份：${selectedYear} 年 ${editModalMonth} 月</p>
             </div>
