@@ -210,8 +210,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       if (monthlyFormData.normalOt > 0 || monthlyFormData.holidayOt > 0) remarksArr.push(`加班${(monthlyFormData.normalOt||0) + (monthlyFormData.holidayOt||0)}小時`);
       const remarks = remarksArr.length > 0 ? remarksArr.join('，') + '。' : '無';
 
-    // ✨ 直接從目前頁面選中的客戶 (selectedClient) 抓取公司全名
+    // ✨ 1. 從目前選中的客戶資料中，抓取公司全名、電話與地址
     const companyName = selectedClient?.fullName || selectedClient?.name || '公司名稱未設定';
+    const companyPhone = selectedClient?.phone || '電話未提供';
+    // 地址優先使用「聯絡地址」，沒有的話用「登記地址」
+    const companyAddress = selectedClient?.contactAddress || selectedClient?.regAddress || '地址未提供';;
       
     // 2. 組合 HTML 模板
       const htmlContent = `
@@ -222,12 +225,22 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           <title>預覽薪資單 - ${editingMonthlyEmp.name}</title>
         </head>
         <body style="background-color: #e5e7eb; padding: 40px; margin: 0;">
-          <div style="font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif; max-width: 650px; margin: 0 auto; background-color: white; border: 1px solid #d1d5db; border-radius: 8px; overflow: hidden; box-shadow: 0 10px 15px -3px rgba(0,0,0,0.1);">
-          <div style="text-align: center; margin-bottom: 24px; background-color: #707070; border-radius: 8px 8px 0 0; padding: 20px 15px;">
-          <h1 style="margin: 0 0 8px 0; color: #FFFFFF; font-size: 24px; font-weight: bold;">${companyName}</h1>              
-            <h2 style="margin: 0; color: #E5E7EB; font-size: 16px; font-weight: normal;">${selectedYear}-${editModalMonth} 薪資明細表</h2>
-              <p style="margin: 5px 0 0 0; font-size: 14px; opacity: 0.9;">發放月份：${selectedYear} 年 ${editModalMonth} 月</p>
+        <div style="display: flex; justify-content: space-between; align-items: flex-end; margin-bottom: 24px; padding-bottom: 15px; border-bottom: 2px solid #1F2937;">
+            <div style="text-align: left;">
+                <h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">薪資單</h1>
+                <h2 style="margin: 0 0 6px 0; color: #1F2937; font-size: 18px; font-weight: bold;">${companyName}</h2>
+                <div style="color: #4B5563; font-size: 13px; line-height: 1.6;">
+                    <div>📞 ${companyPhone}</div>
+                    <div>📍 ${companyAddress}</div>
+                </div>
             </div>
+
+            <div style="text-align: right;">
+                <div style="color: #6B7280; font-size: 13px; margin-bottom: 4px;">發放月份</div>
+                <div style="color: #111827; font-size: 20px; font-weight: bold;">${selectedYear}-${editModalMonth}</div>
+            </div>
+
+        </div>
             <div style="padding: 20px; background-color: #f9fafb; border-bottom: 2px solid #e5e7eb;">
               <table style="width: 100%; font-size: 14px; color: #374151;">
                 <tr>
