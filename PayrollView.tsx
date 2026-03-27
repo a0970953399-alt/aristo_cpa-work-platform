@@ -1910,11 +1910,9 @@ const htmlContent = `
                                     </div>
                                     <div className="flex gap-3 w-3/5">
                                         {/* ✨ 新增的預覽與寄送按鈕 */}
-                                        <button type="button" onClick={handlePreviewEmail} className="px-4 py-3 bg-white border border-blue-200 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors whitespace-nowrap shadow-sm">
-                                            👀 預覽
+                                        <button type="button" onClick={handlePreviewEmail} className="px-4 py-3 bg-white border border-blue-200 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors whitespace-nowrap shadow-sm">預覽
                                         </button>
-                                      <button type="button" onClick={handleSendEmail} className="px-4 py-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">
-                                        ✉️ 寄送
+                                      <button type="button" onClick={handleSendEmail} className="px-4 py-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">寄送
                                       </button>
                                         
                                         <button type="button" onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
