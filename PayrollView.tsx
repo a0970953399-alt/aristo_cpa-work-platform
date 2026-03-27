@@ -88,6 +88,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [isFullscreen, setIsFullscreen] = useState(false); // ✨ 控制年度表格全螢幕
 
   const [isSendingBatch, setIsSendingBatch] = useState(false); // ✨ 控制一鍵發送的轉圈圈狀態
+
+  const [emailSendStatus, setEmailSendStatus] = useState<'idle' | 'success' | 'error'>('idle'); // ✨ 記錄單筆寄信狀態
   
   // ✨ 新增：彈出視窗專用的月份狀態
   const [editModalMonth, setEditModalMonth] = useState(selectedMonth);
