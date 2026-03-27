@@ -219,36 +219,46 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     // 地址優先使用「聯絡地址」，沒有的話用「登記地址」
     const companyAddress = selectedClient?.contactAddress || selectedClient?.regAddress || '地址未提供';;
       
-    // 2. 組合 HTML 模板 (Clean Design 極簡商務版)
-    const htmlContent = `
-        <!DOCTYPE html>
-        <html>
-        <head>
-          <meta charset="utf-8">
-          <title>預覽薪資單 - ${editingMonthlyEmp.name}</title>
-        </head>
-        <body style="background-color: #e5e7eb; padding: 40px; margin: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;">
+// ✨ 信箱專用的 Table 排版 HTML (解決跑版問題)
+const htmlContent = `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>薪資單 - ${editingMonthlyEmp.name}</title>
+</head>
+<body style="background-color: #e5e7eb; margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;">
+  
+  <table width="100%" bgcolor="#e5e7eb" cellpadding="0" cellspacing="0" border="0" style="padding: 40px 10px;">
+    <tr>
+      <td align="center">
+        
+        <table width="100%" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="max-width: 800px; width: 100%; border-radius: 8px; border: 1px solid #d1d5db; overflow: hidden;">
           
-          <div style="max-width: 800px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
-            
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; padding: 30px 40px 20px 40px; border-bottom: 2px solid #1F2937;">
-                <div style="text-align: left;">
+          <tr>
+            <td style="padding: 30px 40px 20px 40px; border-bottom: 2px solid #1F2937;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" valign="bottom">
                     <h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">薪資單</h1>
                     <h2 style="margin: 0 0 6px 0; color: #1F2937; font-size: 18px; font-weight: bold;">${companyName}</h2>
                     <div style="color: #4B5563; font-size: 13px; line-height: 1.6;">
                         <div>📞 ${companyPhone}</div>
                         <div>📍 ${companyAddress}</div>
                     </div>
-                </div>
-
-                <div style="text-align: right;">
+                  </td>
+                  <td align="right" valign="bottom">
                     <div style="color: #6B7280; font-size: 13px; margin-bottom: 4px;">發放月份</div>
                     <div style="color: #111827; font-size: 20px; font-weight: bold;">${selectedYear}-${editModalMonth}</div>
-                </div>
-            </div>
-            
-            <div style="padding: 15px 40px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb;">
-              <table style="width: 100%; font-size: 14px; color: #4B5563;">
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 15px 40px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; color: #4B5563;">
                 <tr>
                   <td style="padding: 6px 0; width: 50%;"><strong>員工姓名：</strong><span style="color: #111827;">${editingMonthlyEmp.name}</span></td>
                   <td style="padding: 6px 0; width: 50%;"><strong>員工代號：</strong><span style="color: #111827;">${editingMonthlyEmp.empNo || '-'}</span></td>
@@ -258,79 +268,92 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                   <td style="padding: 6px 0;"><strong>E-mail：</strong><span style="color: #111827;">${editingMonthlyEmp.email || '尚未設定'}</span></td>
                 </tr>
               </table>
-            </div>
-            
-            <div style="padding: 30px 40px;">
+            </td>
+          </tr>
+          
+          <tr>
+            <td style="padding: 30px 40px;">
               <p style="text-align: right; font-size: 12px; color: #9CA3AF; margin: 0 0 10px 0;">單位：新台幣 (元)</p>
               
-              <div style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
-                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: right;">
-                    <thead>
-                      <tr style="background-color: #F9FAFB; color: #374151;">
-                        <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">加項</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; border-right: 1px dashed #D1D5DB; text-align: center; width: 25%;">金額</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">減項</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">金額</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">本薪</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: 500;">${baseSalary.toLocaleString()}</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">病事假扣薪</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: 500;">${leaveDeduction.toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">伙食費</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: 500;">${foodAllowance.toLocaleString()}</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">遲到扣薪</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: 500;">${lateDeduction.toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">加班費</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: 500;">${totalOtPay.toLocaleString()}</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">勞保自負額</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: 500;">${laborIns.toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">其他加項</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: 500;">${otherAdditions.toLocaleString()}</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">健保自負額</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: 500;">${healthIns.toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 12px; text-align: center;"></td>
-                        <td style="padding: 12px; border-right: 1px dashed #D1D5DB;"></td>
-                        <td style="padding: 12px; text-align: center; color: #4B5563;">其他減項</td>
-                        <td style="padding: 12px; color: #B91C1C; font-weight: 500;">${otherDeductions.toLocaleString()}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-              </div>
-            </div>
-            
-            <div style="padding: 25px 40px; background-color: #F8FAFC; border-top: 1px solid #E5E7EB;">
-              <p style="margin: 0 0 20px 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
-                <strong style="color: #111827;">其他備註：</strong><br/>
-                ${remarks || '無'}
-              </p>
-              <div style="text-align: right; display: flex; justify-content: flex-end; align-items: baseline; gap: 15px;">
-                <span style="font-size: 16px; font-weight: bold; color: #374151;">實領金額：</span>
-                <span style="font-size: 28px; font-weight: 900; color: #15803D; border-bottom: 4px double #15803D; padding-bottom: 2px;">
-                  $ ${netPay.toLocaleString()}
-                </span>
-              </div>
-            </div>
-            
-            <div style="background-color: #F3F4F6; padding: 16px; text-align: center; font-size: 12px; color: #9CA3AF; border-top: 1px solid #E5E7EB;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; font-size: 14px; text-align: right; border-collapse: separate; border-spacing: 0;">
+                <thead>
+                  <tr style="background-color: #F9FAFB; color: #374151;">
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">加項</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; border-right: 1px dashed #D1D5DB; text-align: center; width: 25%;">金額</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">減項</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">本薪</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${baseSalary.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">病事假扣薪</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${leaveDeduction.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">伙食費</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${foodAllowance.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">遲到扣薪</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${lateDeduction.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">加班費</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${totalOtPay.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">勞保自負額</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${laborIns.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">其他加項</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${otherAdditions.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">健保自負額</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${healthIns.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; text-align: center;"></td>
+                    <td style="padding: 12px; border-right: 1px dashed #D1D5DB;"></td>
+                    <td style="padding: 12px; text-align: center; color: #4B5563;">其他減項</td>
+                    <td style="padding: 12px; color: #B91C1C; font-weight: bold;">${otherDeductions.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          
+          <tr>
+            <td style="padding: 25px 40px; background-color: #F8FAFC; border-top: 1px solid #E5E7EB;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" valign="top" style="width: 50%;">
+                    <p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
+                      <strong style="color: #111827;">其他備註：</strong><br/>
+                      ${remarks || '無'}
+                    </p>
+                  </td>
+                  <td align="right" valign="bottom" style="width: 50%;">
+                    <span style="font-size: 16px; font-weight: bold; color: #374151;">實領金額：</span>
+                    <span style="font-size: 28px; font-weight: 900; color: #15803D; border-bottom: 4px double #15803D; padding-bottom: 2px;">
+                      $ ${netPay.toLocaleString()}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <tr>
+            <td align="center" style="background-color: #F3F4F6; padding: 16px; font-size: 12px; color: #9CA3AF; border-top: 1px solid #E5E7EB;">
               此信件為系統自動發送，請勿直接回覆。若對薪資結算有疑問，請洽會計部門。
-            </div>
-            
-          </div>
-        </body>
-        </html>
-    `;
-
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
       // 3. 開啟新分頁並寫入 HTML
       const newWindow = window.open('', '_blank');
       if (newWindow) {
@@ -383,28 +406,41 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           const companyAddress = selectedClient?.contactAddress || selectedClient?.regAddress || '地址未提供';
           
           // ✨ 請將你 handlePreviewEmail 裡面的那個 const htmlContent = `...` 整串複製下來，貼取代下面這行註解！
-          const htmlContent = `<body style="background-color: #e5e7eb; padding: 40px; margin: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;">
+          const htmlContent = `<meta charset="utf-8">
+  <title>薪資單 - ${editingMonthlyEmp.name}</title>
+</head>
+<body style="background-color: #e5e7eb; margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;">
+  
+  <table width="100%" bgcolor="#e5e7eb" cellpadding="0" cellspacing="0" border="0" style="padding: 40px 10px;">
+    <tr>
+      <td align="center">
+        
+        <table width="100%" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="max-width: 800px; width: 100%; border-radius: 8px; border: 1px solid #d1d5db; overflow: hidden;">
           
-          <div style="max-width: 800px; margin: 0 auto; background-color: #ffffff; border-radius: 12px; box-shadow: 0 4px 20px rgba(0,0,0,0.08); overflow: hidden;">
-            
-            <div style="display: flex; justify-content: space-between; align-items: flex-end; padding: 30px 40px 20px 40px; border-bottom: 2px solid #1F2937;">
-                <div style="text-align: left;">
+          <tr>
+            <td style="padding: 30px 40px 20px 40px; border-bottom: 2px solid #1F2937;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" valign="bottom">
                     <h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">薪資單</h1>
                     <h2 style="margin: 0 0 6px 0; color: #1F2937; font-size: 18px; font-weight: bold;">${companyName}</h2>
                     <div style="color: #4B5563; font-size: 13px; line-height: 1.6;">
                         <div>📞 ${companyPhone}</div>
                         <div>📍 ${companyAddress}</div>
                     </div>
-                </div>
-
-                <div style="text-align: right;">
+                  </td>
+                  <td align="right" valign="bottom">
                     <div style="color: #6B7280; font-size: 13px; margin-bottom: 4px;">發放月份</div>
                     <div style="color: #111827; font-size: 20px; font-weight: bold;">${selectedYear}-${editModalMonth}</div>
-                </div>
-            </div>
-            
-            <div style="padding: 15px 40px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb;">
-              <table style="width: 100%; font-size: 14px; color: #4B5563;">
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 15px 40px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; color: #4B5563;">
                 <tr>
                   <td style="padding: 6px 0; width: 50%;"><strong>員工姓名：</strong><span style="color: #111827;">${editingMonthlyEmp.name}</span></td>
                   <td style="padding: 6px 0; width: 50%;"><strong>員工代號：</strong><span style="color: #111827;">${editingMonthlyEmp.empNo || '-'}</span></td>
@@ -414,75 +450,89 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                   <td style="padding: 6px 0;"><strong>E-mail：</strong><span style="color: #111827;">${editingMonthlyEmp.email || '尚未設定'}</span></td>
                 </tr>
               </table>
-            </div>
-            
-            <div style="padding: 30px 40px;">
+            </td>
+          </tr>
+          
+          <tr>
+            <td style="padding: 30px 40px;">
               <p style="text-align: right; font-size: 12px; color: #9CA3AF; margin: 0 0 10px 0;">單位：新台幣 (元)</p>
               
-              <div style="border: 1px solid #E5E7EB; border-radius: 8px; overflow: hidden;">
-                  <table style="width: 100%; border-collapse: collapse; font-size: 14px; text-align: right;">
-                    <thead>
-                      <tr style="background-color: #F9FAFB; color: #374151;">
-                        <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">加項</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; border-right: 1px dashed #D1D5DB; text-align: center; width: 25%;">金額</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">減項</th>
-                        <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">金額</th>
-                      </tr>
-                    </thead>
-                    <tbody>
-                      <tr>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">本薪</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: 500;">${baseSalary.toLocaleString()}</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">病事假扣薪</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: 500;">${leaveDeduction.toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">伙食費</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: 500;">${foodAllowance.toLocaleString()}</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">遲到扣薪</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: 500;">${lateDeduction.toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">加班費</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: 500;">${totalOtPay.toLocaleString()}</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">勞保自負額</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: 500;">${laborIns.toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">其他加項</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: 500;">${otherAdditions.toLocaleString()}</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">健保自負額</td>
-                        <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: 500;">${healthIns.toLocaleString()}</td>
-                      </tr>
-                      <tr>
-                        <td style="padding: 12px; text-align: center;"></td>
-                        <td style="padding: 12px; border-right: 1px dashed #D1D5DB;"></td>
-                        <td style="padding: 12px; text-align: center; color: #4B5563;">其他減項</td>
-                        <td style="padding: 12px; color: #B91C1C; font-weight: 500;">${otherDeductions.toLocaleString()}</td>
-                      </tr>
-                    </tbody>
-                  </table>
-              </div>
-            </div>
-            
-            <div style="padding: 25px 40px; background-color: #F8FAFC; border-top: 1px solid #E5E7EB;">
-              <p style="margin: 0 0 20px 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
-                <strong style="color: #111827;">其他備註：</strong><br/>
-                ${remarks || '無'}
-              </p>
-              <div style="text-align: right; display: flex; justify-content: flex-end; align-items: baseline; gap: 15px;">
-                <span style="font-size: 16px; font-weight: bold; color: #374151;">實領金額：</span>
-                <span style="font-size: 28px; font-weight: 900; color: #15803D; border-bottom: 4px double #15803D; padding-bottom: 2px;">
-                  $ ${netPay.toLocaleString()}
-                </span>
-              </div>
-            </div>
-            
-            <div style="background-color: #F3F4F6; padding: 16px; text-align: center; font-size: 12px; color: #9CA3AF; border-top: 1px solid #E5E7EB;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; font-size: 14px; text-align: right; border-collapse: separate; border-spacing: 0;">
+                <thead>
+                  <tr style="background-color: #F9FAFB; color: #374151;">
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">加項</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; border-right: 1px dashed #D1D5DB; text-align: center; width: 25%;">金額</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">減項</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">本薪</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${baseSalary.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">病事假扣薪</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${leaveDeduction.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">伙食費</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${foodAllowance.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">遲到扣薪</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${lateDeduction.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">加班費</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${totalOtPay.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">勞保自負額</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${laborIns.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">其他加項</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${otherAdditions.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">健保自負額</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${healthIns.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; text-align: center;"></td>
+                    <td style="padding: 12px; border-right: 1px dashed #D1D5DB;"></td>
+                    <td style="padding: 12px; text-align: center; color: #4B5563;">其他減項</td>
+                    <td style="padding: 12px; color: #B91C1C; font-weight: bold;">${otherDeductions.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+          
+          <tr>
+            <td style="padding: 25px 40px; background-color: #F8FAFC; border-top: 1px solid #E5E7EB;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" valign="top" style="width: 50%;">
+                    <p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
+                      <strong style="color: #111827;">其他備註：</strong><br/>
+                      ${remarks || '無'}
+                    </p>
+                  </td>
+                  <td align="right" valign="bottom" style="width: 50%;">
+                    <span style="font-size: 16px; font-weight: bold; color: #374151;">實領金額：</span>
+                    <span style="font-size: 28px; font-weight: 900; color: #15803D; border-bottom: 4px double #15803D; padding-bottom: 2px;">
+                      $ ${netPay.toLocaleString()}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+          
+          <tr>
+            <td align="center" style="background-color: #F3F4F6; padding: 16px; font-size: 12px; color: #9CA3AF; border-top: 1px solid #E5E7EB;">
               此信件為系統自動發送，請勿直接回覆。若對薪資結算有疑問，請洽會計部門。
-            </div>
-            
-          </div>`; 
+            </td>
+          </tr>
+          
+        </table>
+      </td>
+    </tr>
+  </table>`; 
 
           // 3. 召喚郵差：把信件丟進 Firebase 的 'mail' 資料夾
           await addDoc(collection(db, 'mail'), {
