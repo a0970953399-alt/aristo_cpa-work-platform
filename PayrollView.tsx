@@ -544,7 +544,7 @@ const htmlContent = `
     </tr>
   </table>`; 
 
-          // 3. 召喚郵差：把信件丟進 Firebase 的 'mail' 資料夾
+        // 3. 召喚郵差：把信件丟進 Firebase 的 'mail' 資料夾
           await addDoc(collection(db, 'mail'), {
               to: [editingMonthlyEmp.email],
               message: {
@@ -553,10 +553,12 @@ const htmlContent = `
               }
           });
 
+          setEmailSendStatus('success'); // ✨ 寄信成功，打勾！
           alert('✅ 薪資單已成功交給系統排程！郵差正在路上 (約需 10~30 秒)。');
           
       } catch (error) {
           console.error('寄信失敗:', error);
+          setEmailSendStatus('error'); // ✨ 寄信失敗，打叉！
           alert('寄信發生錯誤，請檢查網路連線或主控台資訊。');
       }
   };
@@ -842,10 +844,12 @@ const htmlContent = `
   };
   
   const handleRowClickMonthly = (emp: Employee) => {
+      setEmailSendStatus('idle');
       setEditingMonthlyEmp(emp);
       setEditModalMonth(selectedMonth);
       setEditModalMode('monthly'); // ✨ 設定為每月模式
       loadFormDataForMonth(emp, selectedMonth);
+      setEmailSendStatus('idle');
       setIsAddingNewMonthly(false);
       setIsMonthlyEditModalOpen(true);
   };
@@ -1683,6 +1687,7 @@ const htmlContent = `
                                                     
                                                 {/* 姓名 - 點擊開啟編輯視窗 */}
                                                     <td rowSpan={5} onClick={() => {
+                                                        setEmailSendStatus('idle');
                                                         setEditingMonthlyEmp(emp);
                                                         setEditModalMode('yearly'); // ✨ 設定為年度模式
                                                         const firstActiveMonth = empMonths.find(m => m.isActive)?.month || '01';
@@ -1910,20 +1915,35 @@ const htmlContent = `
                                             ((monthlyFormData.laborIns||0) + (monthlyFormData.healthIns||0) + (monthlyFormData.incomeTax||0) + (monthlyFormData.advancePay||0))).toLocaleString()
                                         }</span>
                                     </div>
-                                    <div className="flex gap-3 w-3/5">
-                                        {/* ✨ 新增的預覽與寄送按鈕 */}
-                                        <button type="button" onClick={handlePreviewEmail} className="px-4 py-3 bg-white border border-blue-200 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors whitespace-nowrap shadow-sm">預覽
-                                        </button>
-                                      <button type="button" onClick={handleSendEmail} className="px-4 py-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">寄送
-                                      </button>
-                                        
-                                        <button type="button" onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
-                                        <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
-                                    </div>
+                              <div className="flex gap-3 w-3/5 items-center">
+                                {/* 預覽與寄送按鈕 */}
+                                <button type="button" onClick={handlePreviewEmail} className="px-4 py-3 bg-white border border-blue-200 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors whitespace-nowrap shadow-sm">預覽</button>
+                                <button type="button" onClick={handleSendEmail} className="px-4 py-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors whitespace-nowrap shadow-sm">寄送</button>
+                                {/* ✨ 新增：寄信狀態方框 */}
+                                <div className="flex items-center justify-center min-w-[48px] h-12 rounded-xl bg-white shadow-sm border-2 transition-all duration-300 mx-1" 
+                                  style={{ borderColor: emailSendStatus === 'success' ? '#10B981' : emailSendStatus === 'error' ? '#EF4444' : '#E5E7EB' }}
+                                  title={emailSendStatus === 'success' ? '已成功發送' : emailSendStatus === 'error' ? '發送失敗' : '尚未發送'}
+                                  >
+                                  {emailSendStatus === 'success' && (
+                                    <svg className="w-7 h-7 text-green-500 animate-fade-in" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+                                    </svg>
+                                  )}
+                                  {emailSendStatus === 'error' && (
+                                    <svg className="w-7 h-7 text-red-500 animate-fade-in" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
+                                      <path strokeLinecap="round" strokeLinejoin="round" d="M6 18L18 6M6 6l12 12" />
+                                    </svg>
+                                  )}
                                 </div>
+                                
+                                {/* 存檔與取消按鈕 */}
+                                <button type="button" onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
+                                <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
+                              </div>
                             </div>
+                          </div>
                         </div>
-                    )}
+      )}
         </div>
 
         {/* 🚀 員工詳細資訊 (新增/編輯) Modal */}
