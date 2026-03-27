@@ -361,28 +361,47 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
                 }
             });
 
-          // 3. 💰 動態塞入 7 筆收費與收款紀錄變數 (新增自扣款提取功能)
+          // 3. 💰 動態塞入 7 筆收費與收款紀錄變數 (進階抓取自扣款)
             selectedClient.paymentRecords?.forEach((record, index) => {
                 const i = index + 1; // 讓 Index 從 1 開始算
                 if (i <= 7) {
                     const receiptAmtStr = record.receiptAmount || '';
-                    let deductAmt = ''; // 預設自扣款為空
-                    let baseAmt = receiptAmtStr; // 預設收據總額為原始字串
+                    let deductAmt = ''; 
+                    let baseAmt = receiptAmtStr; 
                     
-                    // ✨ 核心邏輯：偵測是否有減號，提取自扣款與收據總額
-                    if (receiptAmtStr.includes('-')) {
-                        const parts = receiptAmtStr.split('-');
-                        baseAmt = parts[0].trim();       // 取得前半段 (例: 10,000)
-                        if (parts.length > 1 && parts[1].trim()) {
-                            deductAmt = parts[1].trim(); // 取得後半段 (例: 1,000)
+                    // ✨ 核心邏輯：將美化後的字串還原，並精準抓取減號後面的自扣款
+                    const cleanVal = receiptAmtStr.replace(/[^\d\-+]/g, '');
+                    
+                    if (cleanVal) {
+                        const minusIdx = cleanVal.indexOf('-');
+                        const plusIdx = cleanVal.indexOf('+');
+                        
+                        let baseStr = cleanVal;
+                        let deductStr = "";
+
+                        if (minusIdx !== -1 && plusIdx !== -1) {
+                            if (minusIdx < plusIdx) {
+                                baseStr = cleanVal.substring(0, minusIdx);
+                                deductStr = cleanVal.substring(minusIdx + 1, plusIdx); // 抓取減號與加號之間的數字
+                            } else {
+                                baseStr = cleanVal.substring(0, plusIdx);
+                                deductStr = cleanVal.substring(minusIdx + 1); // 抓取最後面的減號數字
+                            }
+                        } else if (minusIdx !== -1) {
+                            baseStr = cleanVal.substring(0, minusIdx);
+                            deductStr = cleanVal.substring(minusIdx + 1);
                         }
+                        
+                        // 轉換回千分位格式供 Word 顯示
+                        if (baseStr) baseAmt = parseInt(baseStr, 10).toLocaleString('en-US');
+                        if (deductStr) deductAmt = parseInt(deductStr, 10).toLocaleString('en-US');
                     }
 
                     data[`p_date_${i}`] = record.receiptDate || '';
                     data[`p_no_${i}`] = record.receiptNo || '';
-                    data[`p_amt_${i}`] = receiptAmtStr;     // 保留原汁原味的完整字串 (如: 10,000 - 1,000)
-                    data[`p_base_${i}`] = baseAmt;          // (額外贈送) 如果你 Word 只想顯示 10,000，可以用這個錨點
-                    data[`p_deduct_${i}`] = deductAmt;      // ✨ 新增的【自扣款】錨點 (如: 1,000)
+                    data[`p_amt_${i}`] = receiptAmtStr;     // 完整保留 (如: 80,000 - 8,000 + 400)
+                    data[`p_base_${i}`] = baseAmt;          // 原始收費 (如: 80,000)
+                    data[`p_deduct_${i}`] = deductAmt;      // ✨ 自扣款錨點 (如: 8,000)，不管有沒有代墊款都能精準抓到
                     data[`p_ok_${i}`] = record.approvedBy || '';
                     data[`p_sdate_${i}`] = record.paymentDate || '';
                     data[`p_camt_${i}`] = record.collectionAmount || '';
@@ -425,44 +444,64 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
         }
     };
 
-  // ✨ 魔法快捷 2：收據金額改為「自由輸入扣款」，並連動右側收款金額
+  // ✨ 魔法快捷 2：收據金額改為「自由輸入扣款與代墊款」，並連動右側收款金額
     const handleAmountBlur = (index: number, val: string) => {
         if (!val.trim()) {
             handlePaymentRecordChange(index, 'receiptAmount', '');
             return;
         }
 
-        let finalAmount = 0;
-        let formattedDisplay = '';
+        // 1. 過濾字元，只保留數字、加號(+)、減號(-)
+        const cleanVal = val.replace(/[^\d\-+]/g, '');
+        if (!cleanVal) return;
 
-        if (val.includes('-')) {
-            // 情況：使用者輸入了減號 (例如 "10000-500" 或 "10000-")
-            const parts = val.split('-');
-            const baseStr = parts[0].replace(/\D/g, '');
-            const deductStr = parts[1].replace(/\D/g, ''); // 減號後面的數字 (自由輸入的自扣款)
+        let baseStr = cleanVal;
+        let deductStr = "";
+        let addStr = "";
 
-            if (baseStr) {
-                const baseAmount = parseInt(baseStr, 10);
-                const deductAmount = deductStr ? parseInt(deductStr, 10) : 0; 
-                finalAmount = baseAmount - deductAmount;
-                
-                // 格式化顯示，如果有扣款數字就顯示出來
-                formattedDisplay = deductAmount > 0 
-                    ? `${baseAmount.toLocaleString('en-US')} - ${deductAmount.toLocaleString('en-US')}`
-                    : `${baseAmount.toLocaleString('en-US')} -`; // 如果只打了減號還沒打數字，保留減號
-            } else {
-                formattedDisplay = val; // 防呆：如果亂打，保留原本輸入的字
+        const minusIdx = cleanVal.indexOf('-');
+        const plusIdx = cleanVal.indexOf('+');
+
+        // 2. 判斷加減號的先後順序，精準切分數字
+        if (minusIdx !== -1 && plusIdx !== -1) {
+            if (minusIdx < plusIdx) { // 格式: 80000 - 8000 + 400
+                baseStr = cleanVal.substring(0, minusIdx);
+                deductStr = cleanVal.substring(minusIdx + 1, plusIdx);
+                addStr = cleanVal.substring(plusIdx + 1);
+            } else { // 格式: 80000 + 400 - 8000
+                baseStr = cleanVal.substring(0, plusIdx);
+                addStr = cleanVal.substring(plusIdx + 1, minusIdx);
+                deductStr = cleanVal.substring(minusIdx + 1);
             }
-        } else {
-            // 情況：單純輸入數字，沒有扣款
-            const numStr = val.replace(/\D/g, '');
-            if (numStr) {
-                const baseAmount = parseInt(numStr, 10);
-                finalAmount = baseAmount;
-                formattedDisplay = baseAmount.toLocaleString('en-US');
+        } else if (minusIdx !== -1) { // 格式: 80000 - 8000
+            baseStr = cleanVal.substring(0, minusIdx);
+            deductStr = cleanVal.substring(minusIdx + 1);
+        } else if (plusIdx !== -1) { // 格式: 80000 + 400
+            baseStr = cleanVal.substring(0, plusIdx);
+            addStr = cleanVal.substring(plusIdx + 1);
+        }
+
+        // 3. 轉換為數字進行計算
+        const baseAmount = parseInt(baseStr || '0', 10);
+        const deductAmount = parseInt(deductStr || '0', 10);
+        const addAmount = parseInt(addStr || '0', 10);
+
+        const finalAmount = baseAmount - deductAmount + addAmount;
+
+        // 4. 組合美化後的顯示字串 (加上千分位與空格)
+        let formattedDisplay = baseAmount.toLocaleString('en-US');
+        if (minusIdx !== -1 && plusIdx !== -1) {
+            if (minusIdx < plusIdx) {
+                formattedDisplay += ` - ${deductAmount > 0 ? deductAmount.toLocaleString('en-US') : ''}`.trimEnd();
+                formattedDisplay += ` + ${addAmount > 0 ? addAmount.toLocaleString('en-US') : ''}`.trimEnd();
             } else {
-                formattedDisplay = val;
+                formattedDisplay += ` + ${addAmount > 0 ? addAmount.toLocaleString('en-US') : ''}`.trimEnd();
+                formattedDisplay += ` - ${deductAmount > 0 ? deductAmount.toLocaleString('en-US') : ''}`.trimEnd();
             }
+        } else if (minusIdx !== -1) {
+            formattedDisplay += ` - ${deductAmount > 0 ? deductAmount.toLocaleString('en-US') : ''}`.trimEnd();
+        } else if (plusIdx !== -1) {
+            formattedDisplay += ` + ${addAmount > 0 ? addAmount.toLocaleString('en-US') : ''}`.trimEnd();
         }
 
         // 🔥 將「收據金額」與計算後的「收款金額」打包更新
@@ -470,9 +509,9 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
             const newRecords = [...selectedClient.paymentRecords];
             newRecords[index] = { 
                 ...newRecords[index], 
-                receiptAmount: formattedDisplay, // 存入美化後的字串
+                receiptAmount: formattedDisplay, // 存入美化後的字串 (如: 80,000 - 8,000 + 400)
                 // 強制連動更新右邊的收款金額
-                ...(formattedDisplay ? { collectionAmount: finalAmount.toLocaleString('en-US') } : {})
+                collectionAmount: finalAmount.toLocaleString('en-US')
             };
             setSelectedClient({ ...selectedClient, paymentRecords: newRecords });
         }
