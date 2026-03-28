@@ -555,7 +555,7 @@ const htmlContent = `
 
           setEmailSendStatus('success'); // ✨ 這是剛剛加的
 
-          // ✨ 新增這兩行：把「已寄送」的記憶寫進目前視窗與本地資料庫中
+          // 把「已寄送」狀態寫進本地 state
           setMonthlyFormData(prev => ({ ...prev, isEmailSent: true }));
           setMonthlyData(prev => ({
               ...prev,
@@ -564,6 +564,28 @@ const htmlContent = `
                   isEmailSent: true
               }
           }));
+
+          // 永久寫入 Firebase
+          const targetMonth = `${selectedYear}-${editModalMonth}`;
+          const allSalaries = await TaskService.fetchMonthlySalaries();
+          const existingIdx = allSalaries.findIndex(r =>
+              r.clientId === String(selectedClient?.id) &&
+              r.employeeId === editingMonthlyEmp.id &&
+              r.month === targetMonth
+          );
+          if (existingIdx !== -1) {
+              allSalaries[existingIdx] = { ...allSalaries[existingIdx], isEmailSent: true };
+          } else {
+              allSalaries.push({
+                  id: Date.now().toString(),
+                  clientId: String(selectedClient?.id),
+                  employeeId: editingMonthlyEmp.id,
+                  month: targetMonth,
+                  isEmailSent: true,
+                  updatedAt: new Date().toISOString(),
+              } as any);
+          }
+          await TaskService.saveMonthlySalaries(allSalaries);
 
           alert('✅ 薪資單已成功交給系統排程！郵差正在路上 (約需 10~30 秒)。');
           
@@ -679,7 +701,7 @@ const htmlContent = `
         // 4. 一次將所有信件交給 Firebase
           await Promise.all(promises);
           
-          // ✨ 新增這段：一鍵全發後，把所有成功寄出的員工都標記為「已寄送」
+          // 把所有成功寄出的員工都標記為「已寄送」（本地 state）
           setMonthlyData(prev => {
               const newData = { ...prev };
               validEmps.forEach(emp => {
@@ -687,6 +709,30 @@ const htmlContent = `
               });
               return newData;
           });
+
+          // 永久寫入 Firebase
+          const batchTargetMonth = `${selectedYear}-${selectedMonth}`;
+          const allSalaries = await TaskService.fetchMonthlySalaries();
+          validEmps.forEach(emp => {
+              const existingIdx = allSalaries.findIndex(r =>
+                  r.clientId === String(selectedClient?.id) &&
+                  r.employeeId === emp.id &&
+                  r.month === batchTargetMonth
+              );
+              if (existingIdx !== -1) {
+                  allSalaries[existingIdx] = { ...allSalaries[existingIdx], isEmailSent: true };
+              } else {
+                  allSalaries.push({
+                      id: Date.now().toString() + emp.id,
+                      clientId: String(selectedClient?.id),
+                      employeeId: emp.id,
+                      month: batchTargetMonth,
+                      isEmailSent: true,
+                      updatedAt: new Date().toISOString(),
+                  } as any);
+              }
+          });
+          await TaskService.saveMonthlySalaries(allSalaries);
 
           alert(`✅ 大成功！已將 ${validEmps.length} 封薪資單交給系統發送。`);
 

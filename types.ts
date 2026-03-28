@@ -339,4 +339,5 @@ export interface MonthlySalaryRecord {
     laborIns: number; healthIns: number; incomeTax: number; advancePay: number;
     
     updatedAt: string;
+    isEmailSent?: boolean;
 }
