@@ -270,7 +270,7 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                 <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
                     <button onClick={() => setActiveSubTab('aristo_out')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeSubTab === 'aristo_out' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>寄件_碩業</button>
                     <button onClick={() => setActiveSubTab('lawyer_out')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeSubTab === 'lawyer_out' ? 'bg-blue-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>寄件_張律師</button>
-                    <button onClick={() => setActiveSubTab('inbound')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeSubTab === 'inbound' ? 'bg-green-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>📥 收文表</button>
+                    <button onClick={() => setActiveSubTab('inbound')} className={`px-4 py-2 rounded-md text-sm font-bold transition-all ${activeSubTab === 'inbound' ? 'bg-green-600 text-white shadow' : 'text-gray-500 hover:bg-gray-100'}`}>收文表</button>
                 </div>
 
               <div className="flex items-center gap-2">
