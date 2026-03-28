@@ -229,7 +229,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
         <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4 animate-fade-in">
             <div className="bg-white rounded-xl shadow-2xl w-full max-w-4xl max-h-[90vh] flex flex-col overflow-hidden">
                 <div className="bg-gray-800 text-white p-4 flex justify-between items-center shrink-0">
-                    <h2 className="text-xl font-bold flex items-center gap-2">📊 請款單生成器</h2>
+                    <h2 className="text-xl font-bold flex items-center gap-2">請款單生成器</h2>
                     <button onClick={onClose} className="hover:bg-white/20 rounded-full p-1">✕</button>
                 </div>
 
