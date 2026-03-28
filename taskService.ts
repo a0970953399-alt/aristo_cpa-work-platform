@@ -103,7 +103,12 @@ export const TaskService = {
       // 1. 維持瞬間讀取本機快取，確保登入畫面秒開不白屏
       const cached = localStorage.getItem(USERS_STORAGE_KEY);
       if (cached) {
-          const parsedUsers: User[] = JSON.parse(cached);
+          let parsedUsers: User[] = JSON.parse(cached);
+          // 以 DEFAULT_USERS 的 role 為權威來源，避免快取角色過時
+          parsedUsers = parsedUsers.map(u => {
+              const defaultUser = DEFAULT_USERS.find(d => d.id === u.id);
+              return defaultUser ? { ...u, role: defaultUser.role } : u;
+          });
           // 防呆：確保預設名單(如新主管)一定存在
           let hasNewUser = false;
           DEFAULT_USERS.forEach(defaultUser => {
@@ -132,8 +137,14 @@ export const TaskService = {
       // 4. 去 Firebase 抓大家最新的頭貼下來
       const snapshot = await getDocs(collection(db, "users"));
       if (!snapshot.empty) {
-          const cloudUsers = snapshot.docs.map(d => d.data() as User);
-          
+          let cloudUsers = snapshot.docs.map(d => d.data() as User);
+
+          // 以 DEFAULT_USERS 的 role 為權威來源，修正雲端快取的過時角色
+          cloudUsers = cloudUsers.map(u => {
+              const defaultUser = DEFAULT_USERS.find(d => d.id === u.id);
+              return defaultUser ? { ...u, role: defaultUser.role } : u;
+          });
+
           // 把雲端抓下來的名單與本機合併更新
           let finalUsers = [...cloudUsers];
           DEFAULT_USERS.forEach(defaultUser => {
@@ -142,6 +153,14 @@ export const TaskService = {
               }
           });
           localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(finalUsers));
+
+          // 把修正後的角色同步回 Firebase，確保雲端也是最新狀態
+          for (const u of finalUsers) {
+              const defaultUser = DEFAULT_USERS.find(d => d.id === u.id);
+              if (defaultUser) {
+                  await setDoc(doc(db, "users", String(u.id)), u);
+              }
+          }
       } else {
           // 如果 Firebase 裡面還沒有名單，就把預設名單推上去建立檔案
           await this.saveUsers(DEFAULT_USERS);
