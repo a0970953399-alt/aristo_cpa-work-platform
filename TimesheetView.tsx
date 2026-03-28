@@ -12,8 +12,8 @@ interface TimesheetViewProps {
 }
 
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
-    const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
-    
+    const isSupervisor = currentUser.role === UserRole.SUPERVISOR || currentUser.role === UserRole.BOSS;
+
     // 篩選狀態
     const [targetUserId, setTargetUserId] = useState<string>(isSupervisor ? 'ALL' : currentUser.id);
     const [monthFilter, setMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7)); // 預設本月 (YYYY-MM)
@@ -26,12 +26,14 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
 
     // 計算與篩選邏輯
     const filteredRecords = useMemo(() => {
+        const bossIds = new Set(users.filter(u => u.role === UserRole.BOSS).map(u => u.id));
         return records.filter(r => {
+            if (bossIds.has(r.userId)) return false; // boss 不出現在工時紀錄
             if (targetUserId !== 'ALL' && r.userId !== targetUserId) return false;
             if (!r.date.startsWith(monthFilter)) return false;
             return true;
-        }).sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime)); // 日期新到舊
-    }, [records, targetUserId, monthFilter]);
+        }).sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
+    }, [records, targetUserId, monthFilter, users]);
 
     const totalHours = useMemo(() => {
         return filteredRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
@@ -100,8 +102,8 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                     className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer"
                                 >
                                     <option value="ALL">全體人員</option>
-                                    {/* ✨ 移除 filter 限制，讓包含主管在內的所有使用者都顯示 */}
-                                    {users.map(u => (
+                                    {/* boss 不打卡，不顯示於工時清單 */}
+                                    {users.filter(u => u.role !== UserRole.BOSS).map(u => (
                                         <option key={u.id} value={u.id}>
                                             {u.id === currentUser.id ? `${u.name} (自己)` : u.name}
                                         </option>

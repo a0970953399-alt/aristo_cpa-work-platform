@@ -135,6 +135,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [newUserPin, setNewUserPin] = useState('');
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
+  const [modalBossDate, setModalBossDate] = useState('');
   const [checkInRecords, setCheckInRecords] = useState<CheckInRecord[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
   const [mailRecords, setMailRecords] = useState<MailRecord[]>([]);
@@ -151,7 +152,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   // --- Computed ---
   const dateStr = currentTime.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const timeStr = currentTime.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
+  const isBoss = currentUser.role === UserRole.BOSS;
   const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
+  const isPrivileged = isSupervisor || isBoss; // boss 或主管都有的權限
   const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
 
   // -----------------------------------------------------------
@@ -525,14 +528,89 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleUpdatePin = () => { if (!newUserPin.trim()) return; if (newUserPin.length !== 4 || isNaN(Number(newUserPin))) { alert("請輸入 4 位數字密碼"); return; } const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === currentUser.id ? { ...u, pin: newUserPin.trim() } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserPin(''); alert("密碼已更新"); };
 
   // Matrix Logic
-  const handleCellClick = (client: Client, column: string, task?: ClientTask) => { if (!dbConnected) return; setSelectedCell({ client, column, task }); setModalNote(task?.note || ''); setModalAssigneeId(task?.assigneeId || ''); const canModify = isSupervisor; if (task && (task.status === 'done' || task.isNA)) { setModalDate(task.completionDate || ''); setIsDateModalOpen(true); stopPolling(); return; } if (task) { if (!canModify) { setModalDate(''); setIsDateModalOpen(true); stopPolling(); return; } setIsAssignModalOpen(true); stopPolling(); } else { if (canModify) { setIsAssignModalOpen(true); stopPolling(); } } };
+  const handleCellClick = (client: Client, column: string, task?: ClientTask) => {
+    if (!dbConnected) return;
+    setSelectedCell({ client, column, task });
+    setModalNote(task?.note || '');
+    setModalAssigneeId(task?.assigneeId || '');
+
+    if (task && (task.status === 'done' || task.isNA)) {
+      setModalDate(task.completionDate || '');
+      setIsDateModalOpen(true);
+      stopPolling();
+      return;
+    }
+
+    if (isBoss) {
+      if (isBossAssignableColumn(activeTab, column)) {
+        setModalAssigneeId(currentUser.id);
+        setModalBossDate('');
+        setIsAssignModalOpen(true);
+        stopPolling();
+      } else if (task) {
+        // boss 在非自我指派欄位只能看唯讀
+        setModalDate('');
+        setIsDateModalOpen(true);
+        stopPolling();
+      }
+      return;
+    }
+
+    if (task) {
+      if (!isSupervisor) { setModalDate(''); setIsDateModalOpen(true); stopPolling(); return; }
+      setIsAssignModalOpen(true);
+      stopPolling();
+    } else {
+      if (isSupervisor) { setIsAssignModalOpen(true); stopPolling(); }
+    }
+  };
   const handleClientNameClick = (client: Client) => { if (!dbConnected) return; setSelectedClientForDrawer(client); stopPolling(); };
   const handleSaveProfile = (profile: ClientProfile) => { TaskService.saveClientProfile(profile); };
-  const handleAssignSubmit = async (isNA: boolean = false) => { if (!selectedCell) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); if (!isNA && !modalAssigneeId) { alert("請選擇負責人"); setIsLoading(false); return; } const newTask: ClientTask = { id: selectedCell.task?.id || Date.now().toString(), clientId: selectedCell.client.id, clientName: selectedCell.client.name, category: activeTab, workItem: selectedCell.column, year: currentYear, status: isNA ? 'done' : 'todo', isNA: isNA, assigneeId: isNA ? '' : modalAssigneeId, assigneeName: isNA ? '' : assignee?.name.substring(assignee.name.length - 2) || '', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString(), history: selectedCell.task?.history || [] }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsAssignModalOpen(false); setSelectedCell(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
+  const handleAssignSubmit = async (isNA: boolean = false) => {
+    if (!selectedCell) return;
+    setIsLoading(true);
+    const isBosSelfAssign = isBoss && isBossAssignableColumn(activeTab, selectedCell.column);
+    const actualAssigneeId = isBosSelfAssign ? currentUser.id : modalAssigneeId;
+    const actualAssignee = isBosSelfAssign ? currentUser : users.find(u => u.id === modalAssigneeId);
+    if (!isNA && !actualAssigneeId) { alert("請選擇負責人"); setIsLoading(false); return; }
+    const hasBossDate = isBosSelfAssign && modalBossDate.trim();
+    const newTask: ClientTask = {
+      id: selectedCell.task?.id || Date.now().toString(),
+      clientId: selectedCell.client.id,
+      clientName: selectedCell.client.name,
+      category: activeTab,
+      workItem: selectedCell.column,
+      year: currentYear,
+      status: isNA ? 'done' : (hasBossDate ? 'done' : 'todo'),
+      isNA: isNA,
+      assigneeId: isNA ? '' : actualAssigneeId,
+      assigneeName: isNA ? '' : (actualAssignee?.name.substring(actualAssignee.name.length - 2) || ''),
+      completionDate: hasBossDate ? modalBossDate.trim() : '',
+      note: modalNote,
+      lastUpdatedBy: currentUser.name,
+      lastUpdatedAt: new Date().toISOString(),
+      history: selectedCell.task?.history || []
+    };
+    try {
+      const updatedList = await TaskService.addTask(newTask);
+      setTasks(updatedList);
+      setIsAssignModalOpen(false);
+      setSelectedCell(null);
+      setModalBossDate('');
+    } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); }
+  };
   const handleRevertStatus = async () => { if (!selectedCell || !selectedCell.task) return; setIsLoading(true); try { if (selectedCell.task.isNA) { await TaskService.deleteTask(selectedCell.task.id); } else { await TaskService.updateTaskStatus(selectedCell.task.id, 'in_progress', currentUser.name); } const tData = await TaskService.fetchTasks(); setTasks(tData); setIsDateModalOpen(false); setSelectedCell(null); } catch(e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
   const handleConfirmDelete = async () => { if(!taskToDelete) return; setIsLoading(true); try { const updatedList = await TaskService.deleteTask(taskToDelete.id); setTasks(updatedList); setIsDeleteModalOpen(false); setTaskToDelete(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
   
   const toggleColumn = (col: string) => { const newSet = new Set(collapsedColumns); if (newSet.has(col)) newSet.delete(col); else newSet.add(col); setCollapsedColumns(newSet); };
+
+  // Boss 可以自我指派的欄位：帳務處理-覆核、所得扣繳-鄧會確認、年度申報-鄧會確認
+  const isBossAssignableColumn = (tab: string, column: string): boolean => {
+    const subItem = column.split('-').pop();
+    if (tab === TabCategory.ACCOUNTING && subItem === '覆核') return true;
+    if ((tab === TabCategory.INCOME_TAX || tab === TabCategory.ANNUAL) && column === '鄧會確認') return true;
+    return false;
+  };
 
   // --- Render ---
 
@@ -571,21 +649,23 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 </button>
             )}
 
-            {/* 2. 上班打卡 (純圖示：時鐘) */}
-            <button 
-                onClick={() => isWorking ? setIsCheckOutModalOpen(true) : handleCheckIn()} 
+            {/* 2. 上班打卡 (純圖示：時鐘) — boss 不需要打卡 */}
+            {!isBoss && (
+            <button
+                onClick={() => isWorking ? setIsCheckOutModalOpen(true) : handleCheckIn()}
                 title={isWorking ? "工作中...點擊下班" : "上班打卡"}
                 className={`flex items-center justify-center p-2.5 rounded-xl shadow-sm transition-all active:scale-95 border ${
-                    isWorking 
-                    ? 'bg-green-500 border-green-600 text-white hover:bg-green-600 animate-pulse' 
+                    isWorking
+                    ? 'bg-green-500 border-green-600 text-white hover:bg-green-600 animate-pulse'
                     : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                 }`}
             >
                 <ClockIcon className="w-5 h-5" />
             </button>
+            )}
 
             {/* 3. 視圖切換 (純圖示：群組/表格) */}
-            {isSupervisor ? (
+            {isPrivileged ? (
                 <button onClick={() => setShowMyList(!showMyList)} title={showMyList ? "返回全所進度" : "查看每日進度"} className={`flex items-center justify-center p-2.5 rounded-xl transition-colors border shadow-sm ${showMyList ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
                     {showMyList ? <ReturnIcon className="w-5 h-5"/> : <UserGroupIcon className="w-5 h-5"/>}
                 </button>
@@ -621,7 +701,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         </button>
                         <button onClick={() => { setIsUserModalOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-xl text-gray-600 hover:text-gray-900 transition-colors">
                             <GearIcon className="w-6 h-6" />
-                            <span className="text-xs font-bold">{isSupervisor ? "人員管理" : "個人設定"}</span>
+                            <span className="text-xs font-bold">{isPrivileged ? "人員管理" : "個人設定"}</span>
                         </button>
                         <button onClick={() => { setIsCalendarOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-purple-50 rounded-xl text-gray-600 hover:text-purple-600 transition-colors">
                             <CalendarIcon className="w-6 h-6" />
@@ -649,7 +729,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             {/* 5. 人員頭像與登出區 (純圖示) */}
             <div className="flex items-center justify-center gap-3">
                 {/* 圓形頭像，Hover時會顯示名字，並附帶上線狀態小綠點 */}
-                <div className={`relative rounded-full border-2 cursor-help ${isSupervisor ? 'border-purple-300' : 'border-blue-300'} p-0.5`} title={currentUser.name}>
+                <div className={`relative rounded-full border-2 cursor-help ${isBoss ? 'border-yellow-400' : isSupervisor ? 'border-purple-300' : 'border-blue-300'} p-0.5`} title={currentUser.name}>
                     <img src={activeUser.avatar} alt="User" className="w-9 h-9 rounded-full object-cover bg-white" />
                     <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isWorking ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                 </div>
@@ -665,7 +745,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       </header>
 
       {/* 2. Tabs */}
-      {((isSupervisor && !showMyList) || (!isSupervisor && showOverview)) ? (
+      {((isPrivileged && !showMyList) || (!isPrivileged && showOverview)) ? (
           <div className="flex-none bg-white border-b border-gray-200 z-40">
               <div className="w-full px-6">
                   <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar">
@@ -681,7 +761,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
       {/* 3. Main Content */}
       <main className="flex-1 overflow-hidden relative w-full bg-gray-50">
-        {((isSupervisor && !showMyList) || (!isSupervisor && showOverview)) ? (
+        {((isPrivileged && !showMyList) || (!isPrivileged && showOverview)) ? (
             <div className="absolute inset-0 px-6 py-6">
                 {!dbConnected ? (
                     <div className="flex flex-col items-center justify-center py-40 gap-5">
@@ -693,20 +773,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                     </div>
                 ) :
                 activeTab === '收發信件' ? (
-                    <MailLogView 
-                        records={mailRecords} 
+                    <MailLogView
+                        records={mailRecords}
                         onUpdate={loadData}
-                        isSupervisor={isSupervisor}
+                        isSupervisor={isPrivileged}
                     />
-                ) : 
+                ) :
                 activeTab === '零用金/代墊款' ? (
-                    <CashLogView 
+                    <CashLogView
                         records={cashRecords}
                         clients={clients}
                         onUpdate={loadData}
-                        isSupervisor={isSupervisor}
+                        isSupervisor={isPrivileged}
                     />
-                    ) : 
+                    ) :
                     activeTab === '股票進銷存' ? (
                         <StockInventoryView 
                             clients={clients} 
@@ -734,10 +814,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 )}
             </div>
         ) : (
-            <ListView 
+            <ListView
                 tasks={tasks}
                 currentUser={currentUser}
-                isSupervisor={isSupervisor}
+                isSupervisor={isPrivileged}
                 currentYear={currentYear}
                 users={users}
                 viewTargetId={viewTargetId}
@@ -759,12 +839,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   <div className="flex-1 overflow-auto bg-gray-50">
                       <div className="h-full min-h-[500px]">
                           {!dbConnected ? <div className="text-center py-40 opacity-50"><p className="text-2xl">請先連結資料庫</p></div> : 
-                          <CalendarView 
+                          <CalendarView
                               currentMonth={currentMonth}
                               setCurrentMonth={setCurrentMonth}
                               events={events}
                               currentUser={currentUser}
-                              isSupervisor={isSupervisor}
+                              isSupervisor={isPrivileged}
                               onDayClick={handleDayClick}
                               onEventClick={handleEventClick}
                           />}
@@ -836,15 +916,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                       <div>
                           <label className="block text-sm font-bold text-gray-700 mb-1">類型</label>
                           <div className="flex p-1 bg-gray-100 rounded-xl">
-                              <button onClick={() => setNewEventType('reminder')} disabled={selectedEvent && selectedEvent.type === 'shift' && !isSupervisor} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'reminder' ? 'bg-white shadow text-yellow-600' : 'text-gray-500 hover:bg-gray-200'}`}>提醒</button>
-                              {isSupervisor && <button onClick={() => { setNewEventType('shift'); if(selectedEvent && selectedEvent.type === 'reminder') setNewEventOwnerId(''); }} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'shift' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-200'}`}>排班</button>}
+                              <button onClick={() => setNewEventType('reminder')} disabled={selectedEvent && selectedEvent.type === 'shift' && !isPrivileged} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'reminder' ? 'bg-white shadow text-yellow-600' : 'text-gray-500 hover:bg-gray-200'}`}>提醒</button>
+                              {isPrivileged && <button onClick={() => { setNewEventType('shift'); if(selectedEvent && selectedEvent.type === 'reminder') setNewEventOwnerId(''); }} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'shift' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-200'}`}>排班</button>}
                           </div>
                       </div>
 
                       {newEventType === 'shift' ? (
                           <div>
                               <label className="block text-sm font-bold text-gray-700 mb-1">排班對象</label>
-                              <select value={newEventOwnerId} onChange={(e) => setNewEventOwnerId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-base" disabled={!isSupervisor}>
+                              <select value={newEventOwnerId} onChange={(e) => setNewEventOwnerId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-base" disabled={!isPrivileged}>
                                   <option value="">請選擇人員...</option>
                                   {users.filter(u => u.role === UserRole.INTERN).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                               </select>
@@ -855,20 +935,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           <div>
                               <label className="block text-sm font-bold text-gray-700 mb-1">時間</label>
                               <div className="grid grid-cols-2 gap-3">
-                                  <div><span className="text-xs text-gray-500 mb-1 block">上班</span><select value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono text-base" disabled={!isSupervisor}>{TIME_OPTIONS.map(t => <option key={`start-${t}`} value={t}>{t}</option>)}</select></div>
-                                  <div><span className="text-xs text-gray-500 mb-1 block">下班</span><select value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono text-base" disabled={!isSupervisor}>{TIME_OPTIONS.map(t => <option key={`end-${t}`} value={t}>{t}</option>)}</select></div>
+                                  <div><span className="text-xs text-gray-500 mb-1 block">上班</span><select value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono text-base" disabled={!isPrivileged}>{TIME_OPTIONS.map(t => <option key={`start-${t}`} value={t}>{t}</option>)}</select></div>
+                                  <div><span className="text-xs text-gray-500 mb-1 block">下班</span><select value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono text-base" disabled={!isPrivileged}>{TIME_OPTIONS.map(t => <option key={`end-${t}`} value={t}>{t}</option>)}</select></div>
                               </div>
                           </div>
                       ) : (
                           <div><label className="block text-sm font-bold text-gray-700 mb-1">標題</label><input type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="例如：跟客戶開會..." /></div>
                       )}
 
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">備註 (選填)</label><textarea value={newEventDesc} onChange={(e) => setNewEventDesc(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none h-24 resize-none text-base" placeholder="輸入詳細內容..." readOnly={selectedEvent && selectedEvent.type === 'shift' && !isSupervisor} /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">備註 (選填)</label><textarea value={newEventDesc} onChange={(e) => setNewEventDesc(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none h-24 resize-none text-base" placeholder="輸入詳細內容..." readOnly={selectedEvent && selectedEvent.type === 'shift' && !isPrivileged} /></div>
                   </div>
 
                   <div className="p-6 border-t bg-white flex gap-3">
-                      {selectedEvent && ((isSupervisor || (selectedEvent.type === 'reminder' && selectedEvent.ownerId === currentUser.id)) && <button onClick={handleEventDelete} disabled={isLoading} className="px-5 py-2.5 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors text-base">刪除</button>)}
-                      {(!selectedEvent || isSupervisor || (selectedEvent.type === 'reminder' && selectedEvent.ownerId === currentUser.id)) && <button onClick={handleEventSubmit} disabled={isLoading || (newEventType === 'shift' && !newEventOwnerId)} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed text-base">{selectedEvent ? '更新' : '新增'}</button>}
+                      {selectedEvent && ((isPrivileged || (selectedEvent.type === 'reminder' && selectedEvent.ownerId === currentUser.id)) && <button onClick={handleEventDelete} disabled={isLoading} className="px-5 py-2.5 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors text-base">刪除</button>)}
+                      {(!selectedEvent || isPrivileged || (selectedEvent.type === 'reminder' && selectedEvent.ownerId === currentUser.id)) && <button onClick={handleEventSubmit} disabled={isLoading || (newEventType === 'shift' && !newEventOwnerId)} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed text-base">{selectedEvent ? '更新' : '新增'}</button>}
                   </div>
               </div>
           </div>
@@ -895,14 +975,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               <div className="bg-white rounded-2xl shadow-2xl max-w-lg w-full max-h-[85vh] flex flex-col" onClick={e => e.stopPropagation()}>
                   <div className="p-6 border-b">
                       <div className="flex items-center justify-between">
-                        <h3 className="text-xl font-bold flex items-center gap-2 text-gray-800"><GearIcon className="w-6 h-6 text-gray-600" />{isSupervisor ? '人員管理' : '個人設定'}</h3>
+                        <h3 className="text-xl font-bold flex items-center gap-2 text-gray-800"><GearIcon className="w-6 h-6 text-gray-600" />{isPrivileged ? '人員管理' : '個人設定'}</h3>
                         <button onClick={() => setIsUserModalOpen(false)} className="text-gray-400 hover:text-gray-600">✕</button>
                       </div>
                   </div>
                   <input type="file" ref={fileInputRef} className="hidden" accept="image/png, image/jpeg, image/gif" onChange={handleFileChange} />
 
                   <div className="p-6 overflow-y-auto flex-1 custom-scrollbar">
-                      {isSupervisor ? (
+                      {isPrivileged ? (
                           <>
                               <div className="flex flex-col items-center p-6 bg-gray-50 rounded-xl border border-gray-100 mb-6">
                                   <div className="relative w-24 h-24 mb-4 cursor-pointer group" onClick={() => handleAvatarClick(currentUser.id)}>
@@ -990,7 +1070,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               onSave={handleSaveProfile}
               currentYear={currentYear}
               tasks={tasks}
-              isReadOnly={!isSupervisor}
+              isReadOnly={!isPrivileged}
           />
       )}
 
@@ -1006,7 +1086,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                       </div>
                       <div className="flex items-center gap-4">
                           {/* ✨ 按鈕改為純加號圖示 */}
-                          {isSupervisor && (
+                          {isPrivileged && (
                               <button onClick={() => { setEditingInstruction({}); setIsInstructionModalOpen(true); }} title="新增懶人包" className="bg-yellow-500 hover:bg-yellow-600 text-white w-10 h-10 flex items-center justify-center rounded-xl font-black text-xl shadow-sm transition-colors active:scale-95">
                                   +
                               </button>
@@ -1043,7 +1123,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   <div className="p-5 border-b flex justify-between items-center">
                       <h3 className="text-xl font-bold">{selectedInstruction.title}</h3>
                       <div className="flex items-center gap-2">
-                          {isSupervisor && (
+                          {isPrivileged && (
                               <>
                                   {/* ✨ 編輯按鈕 (純圖示) */}
                                   <button onClick={() => { setEditingInstruction(selectedInstruction); setIsInstructionModalOpen(true); setSelectedInstruction(null); }} title="編輯" className="p-2 bg-white border border-blue-200 text-blue-600 rounded-xl hover:bg-blue-50 transition-colors shadow-sm">
@@ -1138,11 +1218,27 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   <div className="p-6 space-y-5 overflow-y-auto flex-1">
                       <div>
                           <label className="block text-sm font-bold text-gray-700 mb-1">指派給</label>
-                          <select value={modalAssigneeId} onChange={e => setModalAssigneeId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base">
-                              <option value="">請選擇...</option>
-                              {users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                          </select>
+                          {isBoss && isBossAssignableColumn(activeTab, selectedCell.column) ? (
+                              // Boss 只能自我指派
+                              <div className="w-full p-2.5 bg-purple-50 border border-purple-200 rounded-xl text-base flex items-center gap-2">
+                                  <img src={activeUser.avatar} className="w-6 h-6 rounded-full object-cover" alt="" />
+                                  <span className="font-bold text-purple-800">{currentUser.name}</span>
+                                  <span className="text-xs text-purple-400 ml-auto">僅能指派給自己</span>
+                              </div>
+                          ) : (
+                              <select value={modalAssigneeId} onChange={e => setModalAssigneeId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base">
+                                  <option value="">請選擇...</option>
+                                  {users.filter(u => u.role !== UserRole.BOSS).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                              </select>
+                          )}
                       </div>
+                      {/* Boss 自我指派時的完成日期欄位 */}
+                      {isBoss && isBossAssignableColumn(activeTab, selectedCell.column) && (
+                          <div>
+                              <label className="block text-sm font-bold text-gray-700 mb-1">完成日期 (選填，例如：3/15)</label>
+                              <input type="text" value={modalBossDate} onChange={e => setModalBossDate(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-base" placeholder="填入日期即標記為完成，留空則標記為進行中" />
+                          </div>
+                      )}
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">備註 (選填)</label><input type="text" value={modalNote} onChange={e => setModalNote(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="例如：需特別注意..." /></div>
                       {selectedCell.task?.history && selectedCell.task.history.length > 0 && (
                           <div className="mt-4 pt-4 border-t border-gray-100">
@@ -1163,8 +1259,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   </div>
 
                   <div className="p-6 border-t bg-white flex gap-3">
-                      <button onClick={() => handleAssignSubmit(true)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 rounded-xl font-bold transition-colors text-sm">標記為 N/A</button>
-                      <button onClick={() => handleAssignSubmit(false)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold transition-colors shadow-lg shadow-blue-200 text-sm">確認派案</button>
+                      {!isBoss && <button onClick={() => handleAssignSubmit(true)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 rounded-xl font-bold transition-colors text-sm">標記為 N/A</button>}
+                      <button onClick={() => handleAssignSubmit(false)} className={`flex-1 py-2.5 rounded-xl font-bold transition-colors shadow-lg text-sm ${isBoss ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-200' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200'}`}>
+                          {isBoss ? (modalBossDate.trim() ? '確認完成' : '指派給自己') : '確認派案'}
+                      </button>
                   </div>
               </div>
           </div>
@@ -1191,7 +1289,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           {!selectedCell.task?.isNA && selectedCell.task?.assigneeName && <div className="flex justify-between text-base"><span className="text-gray-500">負責人</span><span className="font-bold text-gray-800">{selectedCell.task.assigneeName}</span></div>}
                           {selectedCell.task?.note && <div className="pt-2 border-t border-gray-200 mt-2"><span className="text-xs text-gray-400 block mb-1">備註</span><p className="text-base text-gray-700">{selectedCell.task.note}</p></div>}
                       </div>
-                      {isSupervisor && <button onClick={handleRevertStatus} className="w-full bg-white border border-red-200 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-base">{selectedCell.task?.isNA ? '取消 N/A (重置)' : '撤銷完成狀態'}</button>}
+                      {(isSupervisor || (isBoss && isBossAssignableColumn(activeTab, selectedCell.column))) && <button onClick={handleRevertStatus} className="w-full bg-white border border-red-200 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-base">{selectedCell.task?.isNA ? '取消 N/A (重置)' : '撤銷完成狀態'}</button>}
                       {selectedCell.task?.history && selectedCell.task.history.length > 0 && (
                           <div className="pt-4 border-t border-gray-100">
                               <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1"><ClockIcon className="w-3 h-3" /> 任務履歷紀錄</h4>
@@ -1220,7 +1318,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
             <h2 className="text-xl font-bold mb-4 text-gray-800 flex items-center gap-2"><LightningIcon className="w-6 h-6 text-yellow-500"/> 臨時交辦事項</h2>
             <div className="space-y-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">指派對象</label><select className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 outline-none bg-white text-base" value={modalAssigneeId} onChange={(e) => setModalAssigneeId(e.target.value)}><option value="">請選擇人員...</option>{users.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">指派對象</label><select className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 outline-none bg-white text-base" value={modalAssigneeId} onChange={(e) => setModalAssigneeId(e.target.value)}><option value="">請選擇人員...</option>{users.filter(u => u.role !== UserRole.BOSS).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">交辦內容</label><textarea className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 outline-none h-32 resize-none text-base" placeholder="請輸入具體工作內容..." value={modalNote} onChange={(e) => setModalNote(e.target.value)}></textarea></div>
               <div className="flex gap-3 mt-2">
                 <button onClick={() => setIsMiscModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 text-base">取消</button>
