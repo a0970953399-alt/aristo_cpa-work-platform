@@ -68,8 +68,7 @@ export const MessageBoard: React.FC<MessageBoardProps> = ({ currentUser, message
                 
                 {/* Header */}
                 <div className="p-5 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
-                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">
-                        💬 事務所留言板
+                    <h2 className="text-xl font-bold text-gray-800 flex items-center gap-2">事務所留言板
                     </h2>
                     <button onClick={onClose} className="text-gray-400 hover:text-gray-600 text-2xl">✕</button>
                 </div>
