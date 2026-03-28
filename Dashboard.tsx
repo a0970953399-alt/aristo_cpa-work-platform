@@ -623,7 +623,24 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       setSelectedCell(null);
     } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); }
   };
-  const handleRevertStatus = async () => { if (!selectedCell || !selectedCell.task) return; setIsLoading(true); try { if (selectedCell.task.isNA) { await TaskService.deleteTask(selectedCell.task.id); } else { await TaskService.updateTaskStatus(selectedCell.task.id, 'in_progress', currentUser.name); } const tData = await TaskService.fetchTasks(); setTasks(tData); setIsDateModalOpen(false); setSelectedCell(null); } catch(e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
+  const handleRevertStatus = async () => {
+    if (!selectedCell || !selectedCell.task) return;
+    stopPolling();
+    setIsLoading(true);
+    try {
+      const isBossOwnTask = isBoss && isBossAssignableColumn(activeTab, selectedCell.column);
+      if (selectedCell.task.isNA || isBossOwnTask) {
+        // N/A 或 boss 自我完成的格子 → 直接刪除，讓格子回到空白
+        await TaskService.deleteTask(selectedCell.task.id);
+      } else {
+        await TaskService.updateTaskStatus(selectedCell.task.id, 'in_progress', currentUser.name);
+      }
+      const tData = await TaskService.fetchTasks();
+      setTasks(tData);
+      setIsDateModalOpen(false);
+      setSelectedCell(null);
+    } catch(e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); }
+  };
   const handleConfirmDelete = async () => { if(!taskToDelete) return; setIsLoading(true); try { const updatedList = await TaskService.deleteTask(taskToDelete.id); setTasks(updatedList); setIsDeleteModalOpen(false); setTaskToDelete(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
   
   const toggleColumn = (col: string) => { const newSet = new Set(collapsedColumns); if (newSet.has(col)) newSet.delete(col); else newSet.add(col); setCollapsedColumns(newSet); };
