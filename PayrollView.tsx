@@ -2114,7 +2114,7 @@ const htmlContent = `
   return (
     <div className="h-full flex flex-col animate-fade-in">
       <div className="flex items-center justify-between mb-6">
-        <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">💰 客戶薪資計算</h2>
+        <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">客戶薪資計算</h2>
         <div className="flex gap-2">
           <button onClick={() => setIsAddClientModalOpen(true)} title="新增客戶" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center">
             <PlusIcon className="w-5 h-5" />
