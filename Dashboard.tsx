@@ -527,6 +527,35 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && editingUserId) { if (file.size > 500 * 1024) { alert("圖片大小請小於 500KB"); return; } const reader = new FileReader(); reader.onloadend = () => { const base64String = reader.result as string; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === editingUserId ? { ...u, avatar: base64String } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setEditingUserId(null); }; reader.readAsDataURL(file); } };
   const handleUpdatePin = () => { if (!newUserPin.trim()) return; if (newUserPin.length !== 4 || isNaN(Number(newUserPin))) { alert("請輸入 4 位數字密碼"); return; } const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === currentUser.id ? { ...u, pin: newUserPin.trim() } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserPin(''); alert("密碼已更新"); };
 
+  // Boss 直接完成：點擊即標記 done + 今日日期
+  const handleBossDirectComplete = async (client: Client, column: string, task?: ClientTask) => {
+    if (!dbConnected) return;
+    stopPolling();
+    setIsLoading(true);
+    const today = `${currentTime.getMonth() + 1}/${currentTime.getDate()}`;
+    const newTask: ClientTask = {
+      id: task?.id || Date.now().toString(),
+      clientId: client.id,
+      clientName: client.name,
+      category: activeTab,
+      workItem: column,
+      year: currentYear,
+      status: 'done',
+      isNA: false,
+      assigneeId: currentUser.id,
+      assigneeName: currentUser.name.substring(currentUser.name.length - 2),
+      completionDate: today,
+      note: task?.note || '',
+      lastUpdatedBy: currentUser.name,
+      lastUpdatedAt: new Date().toISOString(),
+      history: task?.history || []
+    };
+    try {
+      const updatedList = await TaskService.addTask(newTask);
+      setTasks(updatedList);
+    } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); }
+  };
+
   // Matrix Logic
   const handleCellClick = (client: Client, column: string, task?: ClientTask) => {
     if (!dbConnected) return;
@@ -543,12 +572,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
     if (isBoss) {
       if (isBossAssignableColumn(activeTab, column)) {
-        setModalAssigneeId(currentUser.id);
-        setModalBossDate('');
-        setIsAssignModalOpen(true);
-        stopPolling();
+        // 直接標記為完成並填上今日日期，不需要開 modal
+        handleBossDirectComplete(client, column, task);
       } else if (task) {
         // boss 在非自我指派欄位只能看唯讀
+        setSelectedCell({ client, column, task });
         setModalDate('');
         setIsDateModalOpen(true);
         stopPolling();
@@ -569,11 +597,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleAssignSubmit = async (isNA: boolean = false) => {
     if (!selectedCell) return;
     setIsLoading(true);
-    const isBosSelfAssign = isBoss && isBossAssignableColumn(activeTab, selectedCell.column);
-    const actualAssigneeId = isBosSelfAssign ? currentUser.id : modalAssigneeId;
-    const actualAssignee = isBosSelfAssign ? currentUser : users.find(u => u.id === modalAssigneeId);
-    if (!isNA && !actualAssigneeId) { alert("請選擇負責人"); setIsLoading(false); return; }
-    const hasBossDate = isBosSelfAssign && modalBossDate.trim();
+    const assignee = users.find(u => u.id === modalAssigneeId);
+    if (!isNA && !modalAssigneeId) { alert("請選擇負責人"); setIsLoading(false); return; }
     const newTask: ClientTask = {
       id: selectedCell.task?.id || Date.now().toString(),
       clientId: selectedCell.client.id,
@@ -581,11 +606,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       category: activeTab,
       workItem: selectedCell.column,
       year: currentYear,
-      status: isNA ? 'done' : (hasBossDate ? 'done' : 'todo'),
+      status: isNA ? 'done' : 'todo',
       isNA: isNA,
-      assigneeId: isNA ? '' : actualAssigneeId,
-      assigneeName: isNA ? '' : (actualAssignee?.name.substring(actualAssignee.name.length - 2) || ''),
-      completionDate: hasBossDate ? modalBossDate.trim() : '',
+      assigneeId: isNA ? '' : modalAssigneeId,
+      assigneeName: isNA ? '' : (assignee?.name.substring(assignee.name.length - 2) || ''),
+      completionDate: '',
       note: modalNote,
       lastUpdatedBy: currentUser.name,
       lastUpdatedAt: new Date().toISOString(),
@@ -596,7 +621,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       setTasks(updatedList);
       setIsAssignModalOpen(false);
       setSelectedCell(null);
-      setModalBossDate('');
     } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); }
   };
   const handleRevertStatus = async () => { if (!selectedCell || !selectedCell.task) return; setIsLoading(true); try { if (selectedCell.task.isNA) { await TaskService.deleteTask(selectedCell.task.id); } else { await TaskService.updateTaskStatus(selectedCell.task.id, 'in_progress', currentUser.name); } const tData = await TaskService.fetchTasks(); setTasks(tData); setIsDateModalOpen(false); setSelectedCell(null); } catch(e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
@@ -1218,27 +1242,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   <div className="p-6 space-y-5 overflow-y-auto flex-1">
                       <div>
                           <label className="block text-sm font-bold text-gray-700 mb-1">指派給</label>
-                          {isBoss && isBossAssignableColumn(activeTab, selectedCell.column) ? (
-                              // Boss 只能自我指派
-                              <div className="w-full p-2.5 bg-purple-50 border border-purple-200 rounded-xl text-base flex items-center gap-2">
-                                  <img src={activeUser.avatar} className="w-6 h-6 rounded-full object-cover" alt="" />
-                                  <span className="font-bold text-purple-800">{currentUser.name}</span>
-                                  <span className="text-xs text-purple-400 ml-auto">僅能指派給自己</span>
-                              </div>
-                          ) : (
-                              <select value={modalAssigneeId} onChange={e => setModalAssigneeId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base">
-                                  <option value="">請選擇...</option>
-                                  {users.filter(u => u.role !== UserRole.BOSS).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
-                              </select>
-                          )}
+                          <select value={modalAssigneeId} onChange={e => setModalAssigneeId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base">
+                              <option value="">請選擇...</option>
+                              {users.filter(u => u.role !== UserRole.BOSS).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                          </select>
                       </div>
-                      {/* Boss 自我指派時的完成日期欄位 */}
-                      {isBoss && isBossAssignableColumn(activeTab, selectedCell.column) && (
-                          <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-1">完成日期 (選填，例如：3/15)</label>
-                              <input type="text" value={modalBossDate} onChange={e => setModalBossDate(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-purple-500 outline-none text-base" placeholder="填入日期即標記為完成，留空則標記為進行中" />
-                          </div>
-                      )}
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">備註 (選填)</label><input type="text" value={modalNote} onChange={e => setModalNote(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="例如：需特別注意..." /></div>
                       {selectedCell.task?.history && selectedCell.task.history.length > 0 && (
                           <div className="mt-4 pt-4 border-t border-gray-100">
@@ -1259,10 +1267,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   </div>
 
                   <div className="p-6 border-t bg-white flex gap-3">
-                      {!isBoss && <button onClick={() => handleAssignSubmit(true)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 rounded-xl font-bold transition-colors text-sm">標記為 N/A</button>}
-                      <button onClick={() => handleAssignSubmit(false)} className={`flex-1 py-2.5 rounded-xl font-bold transition-colors shadow-lg text-sm ${isBoss ? 'bg-purple-600 hover:bg-purple-700 text-white shadow-purple-200' : 'bg-blue-600 hover:bg-blue-700 text-white shadow-blue-200'}`}>
-                          {isBoss ? (modalBossDate.trim() ? '確認完成' : '指派給自己') : '確認派案'}
-                      </button>
+                      <button onClick={() => handleAssignSubmit(true)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 rounded-xl font-bold transition-colors text-sm">標記為 N/A</button>
+                      <button onClick={() => handleAssignSubmit(false)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold transition-colors shadow-lg shadow-blue-200 text-sm">確認派案</button>
                   </div>
               </div>
           </div>
