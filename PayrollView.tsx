@@ -153,6 +153,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
       if (record) {
           setMonthlyFormData(record);
+          setEmailSendStatus(record.isEmailSent ? 'success' : 'idle');
       } else {
           setMonthlyFormData({
               workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
@@ -161,6 +162,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               foodAllowance: emp.employmentType === 'full_time' ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
               laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
           });
+          setEmailSendStatus('idle');
       }
   };
 
@@ -1754,13 +1756,11 @@ const htmlContent = `
                                                     
                                                 {/* 姓名 - 點擊開啟編輯視窗 */}
                                                     <td rowSpan={5} onClick={() => {
-                                              const currentRecord = monthlyData[emp.id] || {};
-                                              setEmailSendStatus(currentRecord.isEmailSent ? 'success' : 'idle');
                                                         setEditingMonthlyEmp(emp);
                                                         setEditModalMode('yearly'); // ✨ 設定為年度模式
                                                         const firstActiveMonth = empMonths.find(m => m.isActive)?.month || '01';
                                                         setEditModalMonth(firstActiveMonth);
-                                                        loadFormDataForMonth(emp, firstActiveMonth);
+                                                        loadFormDataForMonth(emp, firstActiveMonth); // 會同步更新 emailSendStatus
                                                         setIsAddingNewMonthly(false);
                                                         setIsMonthlyEditModalOpen(true);
                                                     }} className={`p-3 text-center border-r-2 border-gray-200 border-b-2 border-b-gray-300 sticky left-[60px] z-20 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)] cursor-pointer group/name hover:bg-blue-50 transition-colors ${stickyBg}`}>
