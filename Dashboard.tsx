@@ -543,7 +543,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       status: 'done',
       isNA: false,
       assigneeId: currentUser.id,
-      assigneeName: currentUser.name.substring(currentUser.name.length - 2),
+      assigneeName: currentUser.name,
       completionDate: today,
       note: task?.note || '',
       lastUpdatedBy: currentUser.name,
