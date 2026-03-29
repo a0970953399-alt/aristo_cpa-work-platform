@@ -817,12 +817,12 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
                                     onClick={handleSave} 
                                     disabled={isSaving}
                                     title={isSaving ? '儲存中...' : '儲存資料'}
-                                    className="p-3 bg-blue-600 text-white rounded-xl hover:bg-blue-700 shadow-md transition-colors disabled:opacity-50 flex items-center justify-center active:scale-95"
+                                    className="px-5 py-3 bg-blue-600 text-white font-bold rounded-xl hover:bg-blue-700 shadow-md transition-colors disabled:opacity-50 flex items-center justify-center gap-2 active:scale-95"
                                 >
                                     {isSaving ? (
-                                        <div className="w-6 h-6 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                                        <div className="w-5 h-5 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
                                     ) : (
-                                        <CloudArrowUpIcon className="w-6 h-6" />
+                                        '確認存檔'
                                     )}
                                 </button>
                                 
