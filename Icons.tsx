@@ -48,8 +48,10 @@ export const CheckIcon = ({ className }: { className?: string }) => (
     </svg>
 );
 export const LightBulbIcon = ({ className }: { className?: string }) => (
-    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="currentColor" className={className || "w-6 h-6 pointer-events-none"}>
-        <path fillRule="evenodd" d="M12 2.25c-3.1 0-5.625 2.525-5.625 5.625 0 2.054 1.096 3.864 2.756 4.887a.75.75 0 0 0 .393.655l.852.378c.328.146.54.475.54.834v.375c0 .414.336.75.75.75h.768c.414 0 .75-.336.75-.75v-.375c0-.36.212-.688.54-.834l.851-.378a.75.75 0 0 0 .394-.655 5.627 5.627 0 0 0 2.756-4.887c0-3.1-2.525-5.625-5.625-5.625ZM10.5 15.75a.75.75 0 0 0-1.5 0v.75c0 .828.672 1.5 1.5 1.5h3a1.5 1.5 0 0 0 1.5-1.5v-.75a.75.75 0 0 0-1.5 0v.75h-3v-.75Z" clipRule="evenodd" />
+    <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" className={className || "w-6 h-6 pointer-events-none"}>
+        <path d="M15 14c.2-1 .7-1.7 1.5-2.5 1-.9 1.5-2.2 1.5-3.5A6 6 0 0 0 6 8c0 1 .2 2.2 1.5 3.5.7.7 1.3 1.5 1.5 2.5"/>
+        <path d="M9 18h6"/>
+        <path d="M10 22h4"/>
     </svg>
 );
 export const ClockIcon = ({ className }: { className?: string }) => (
