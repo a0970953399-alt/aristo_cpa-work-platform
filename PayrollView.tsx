@@ -174,15 +174,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
           // 判斷該月適用的薪資待遇
           let effectiveBase = emp.defaultBaseSalary || 0;
-          let effectiveLabor = 0;
-          let effectiveHealth = 0;
 
           if (emp.compensationHistory && emp.compensationHistory.length > 0) {
               const sorted = [...emp.compensationHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
               const matched = sorted.find(r => r.effectiveDate <= targetDateStr) || sorted[sorted.length - 1];
               effectiveBase = matched.baseSalary;
-              effectiveLabor = matched.laborIns;
-              effectiveHealth = matched.healthIns;
           }
 
           setMonthlyFormData({
@@ -190,7 +186,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               baseSalary: effectiveBase, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
               leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
               foodAllowance: effectiveType === 'full_time' ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
-              laborIns: effectiveLabor, healthIns: effectiveHealth, incomeTax: 0, advancePay: 0
+              laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
           });
           setEmailSendStatus('idle');
       }
@@ -1125,9 +1121,9 @@ const htmlContent = `
         address: editingEmp.address || '',
         defaultBaseSalary: derivedBase,
         defaultFoodAllowance: derivedType === 'full_time' ? (Number(editingEmp.defaultFoodAllowance) || 0) : 0,
-        insuranceBracket: Number(editingEmp.insuranceBracket) || 0,
-        hasLaborIns: editingEmp.hasLaborIns ?? true,
-        hasHealthIns: editingEmp.hasHealthIns ?? true,
+        insuranceBracket: sortedComp[0]?.insuranceBracket ?? Number(editingEmp.insuranceBracket) ?? 0,
+        hasLaborIns: sortedComp[0]?.hasLaborIns ?? editingEmp.hasLaborIns ?? true,
+        hasHealthIns: sortedComp[0]?.hasHealthIns ?? editingEmp.hasHealthIns ?? true,
         createdAt: editingEmp.createdAt || new Date().toISOString(),
         employmentHistory: editingEmpEmployHistory,
         compensationHistory: editingEmpCompHistory,
@@ -1322,8 +1318,9 @@ const htmlContent = `
                                                         id: Date.now().toString(),
                                                         effectiveDate: emp.startDate || `${selectedYear}-01-01`,
                                                         baseSalary: emp.defaultBaseSalary || 0,
-                                                        laborIns: 0,
-                                                        healthIns: 0
+                                                        insuranceBracket: emp.insuranceBracket || 0,
+                                                        hasLaborIns: emp.hasLaborIns ?? true,
+                                                        hasHealthIns: emp.hasHealthIns ?? true,
                                                     }]);
                                                 } else {
                                                     setEditingEmpCompHistory([]);
@@ -2107,6 +2104,16 @@ const htmlContent = `
                             </div>
                         </div>
 
+                        <div className="space-y-4">
+                            <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-purple-500 rounded-full"></div>詳細個資 (點擊展開才可見)</h4>
+                            <div className="grid grid-cols-3 gap-4">
+                                <div><label className="block text-xs font-bold text-gray-500 mb-1">身分證字號</label><input type="text" value={editingEmp.idNumber || ''} onChange={e => setEditingEmp({...editingEmp, idNumber: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm uppercase font-mono" /></div>
+                                <div><label className="block text-xs font-bold text-gray-500 mb-1">銀行分行名稱</label><input type="text" value={editingEmp.bankBranch || ''} onChange={e => setEditingEmp({...editingEmp, bankBranch: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm" placeholder="例如: 中國信託 站前分行" /></div>
+                                <div><label className="block text-xs font-bold text-gray-500 mb-1">銀行戶頭代號</label><input type="text" value={editingEmp.bankAccount || ''} onChange={e => setEditingEmp({...editingEmp, bankAccount: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm font-mono" /></div>
+                            </div>
+                            <div><label className="block text-xs font-bold text-gray-500 mb-1">戶籍地址</label><input type="text" value={editingEmp.address || ''} onChange={e => setEditingEmp({...editingEmp, address: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm" /></div>
+                        </div>
+
                         {/* 任職歷程管理區塊 */}
                         <div className="space-y-4 bg-green-50 p-4 rounded-2xl border border-green-100">
                             <div className="flex items-center justify-between">
@@ -2145,29 +2152,19 @@ const htmlContent = `
                             </div>
                         </div>
 
-                        <div className="space-y-4">
-                            <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-purple-500 rounded-full"></div>詳細個資 (點擊展開才可見)</h4>
-                            <div className="grid grid-cols-3 gap-4">
-                                <div><label className="block text-xs font-bold text-gray-500 mb-1">身分證字號</label><input type="text" value={editingEmp.idNumber || ''} onChange={e => setEditingEmp({...editingEmp, idNumber: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm uppercase font-mono" /></div>
-                                <div><label className="block text-xs font-bold text-gray-500 mb-1">銀行分行名稱</label><input type="text" value={editingEmp.bankBranch || ''} onChange={e => setEditingEmp({...editingEmp, bankBranch: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm" placeholder="例如: 中國信託 站前分行" /></div>
-                                <div><label className="block text-xs font-bold text-gray-500 mb-1">銀行戶頭代號</label><input type="text" value={editingEmp.bankAccount || ''} onChange={e => setEditingEmp({...editingEmp, bankAccount: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm font-mono" /></div>
-                            </div>
-                            <div><label className="block text-xs font-bold text-gray-500 mb-1">戶籍地址</label><input type="text" value={editingEmp.address || ''} onChange={e => setEditingEmp({...editingEmp, address: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm" /></div>
-                        </div>
-
                         <div className="space-y-4 bg-orange-50 p-4 rounded-2xl border border-orange-100">
                             <div className="flex items-center justify-between">
                                 <h4 className="font-bold text-orange-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>待遇歷程</h4>
-                                <button type="button" onClick={() => setEditingEmpCompHistory(prev => [...prev, { id: Date.now().toString(), effectiveDate: new Date().toISOString().split('T')[0], baseSalary: 0, laborIns: 0, healthIns: 0 }])} className="text-xs font-bold text-orange-700 bg-white border border-orange-300 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-colors">+ 新增調薪紀錄</button>
+                                <button type="button" onClick={() => setEditingEmpCompHistory(prev => [...prev, { id: Date.now().toString(), effectiveDate: new Date().toISOString().split('T')[0], baseSalary: 0, insuranceBracket: 0, hasLaborIns: true, hasHealthIns: true }])} className="text-xs font-bold text-orange-700 bg-white border border-orange-300 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-colors">+ 新增調薪紀錄</button>
                             </div>
-                            <p className="text-xs text-orange-600">系統將依生效日期自動抓取對應月份的薪資數值。</p>
+                            <p className="text-xs text-orange-600">系統將依生效日期自動抓取對應月份的薪資與勞健保設定。</p>
                             {editingEmpCompHistory.length === 0 && (
                                 <p className="text-xs text-gray-400 text-center py-3">尚無待遇紀錄，請點擊「新增調薪紀錄」</p>
                             )}
                             <div className="space-y-3">
                                 {[...editingEmpCompHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate)).map(rec => (
-                                    <div key={rec.id} className="bg-white border border-orange-200 rounded-xl p-3">
-                                        <div className="grid grid-cols-4 gap-2 items-end">
+                                    <div key={rec.id} className="bg-white border border-orange-200 rounded-xl p-3 space-y-2">
+                                        <div className="grid grid-cols-3 gap-2 items-end">
                                             <div>
                                                 <label className="block text-xs font-bold text-orange-700 mb-1">生效日期</label>
                                                 <input type="date" value={rec.effectiveDate} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, effectiveDate: e.target.value } : r))} className="w-full border p-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-400 font-mono" />
@@ -2176,17 +2173,23 @@ const htmlContent = `
                                                 <label className="block text-xs font-bold text-orange-700 mb-1">{([...editingEmpEmployHistory].sort((a,b) => b.startDate.localeCompare(a.startDate))[0]?.type ?? editingEmp.employmentType) === 'full_time' ? '月薪' : '時薪/底薪'}</label>
                                                 <input type="number" value={rec.baseSalary || ''} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, baseSalary: Number(e.target.value) } : r))} className="w-full border p-2 rounded-lg text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-orange-400" placeholder="0" />
                                             </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-orange-700 mb-1">勞保</label>
-                                                <input type="number" value={rec.laborIns || ''} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, laborIns: Number(e.target.value) } : r))} className="w-full border p-2 rounded-lg text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-orange-400" placeholder="0" />
-                                            </div>
                                             <div className="flex gap-2 items-end">
                                                 <div className="flex-1">
-                                                    <label className="block text-xs font-bold text-orange-700 mb-1">健保</label>
-                                                    <input type="number" value={rec.healthIns || ''} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, healthIns: Number(e.target.value) } : r))} className="w-full border p-2 rounded-lg text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-orange-400" placeholder="0" />
+                                                    <label className="block text-xs font-bold text-orange-700 mb-1">勞健保級距</label>
+                                                    <input type="number" value={rec.insuranceBracket || ''} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, insuranceBracket: Number(e.target.value) } : r))} className="w-full border p-2 rounded-lg text-sm font-bold text-blue-900 outline-none focus:ring-2 focus:ring-orange-400" placeholder="0" />
                                                 </div>
                                                 <button type="button" onClick={() => setEditingEmpCompHistory(prev => prev.filter(r => r.id !== rec.id))} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 mb-0.5">✕</button>
                                             </div>
+                                        </div>
+                                        <div className="flex items-center gap-5 pt-1">
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={rec.hasLaborIns ?? true} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, hasLaborIns: e.target.checked } : r))} className="w-4 h-4 text-orange-500 rounded focus:ring-orange-400 border-gray-300" />
+                                                <span className="text-xs font-bold text-orange-800">投保勞保</span>
+                                            </label>
+                                            <label className="flex items-center gap-2 cursor-pointer">
+                                                <input type="checkbox" checked={rec.hasHealthIns ?? true} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, hasHealthIns: e.target.checked } : r))} className="w-4 h-4 text-orange-500 rounded focus:ring-orange-400 border-gray-300" />
+                                                <span className="text-xs font-bold text-orange-800">投保健保</span>
+                                            </label>
                                         </div>
                                     </div>
                                 ))}
@@ -2197,26 +2200,6 @@ const htmlContent = `
                                     <input type="number" value={editingEmp.defaultFoodAllowance || ''} onChange={e => setEditingEmp({...editingEmp, defaultFoodAllowance: Number(e.target.value)})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 text-base font-black text-gray-800" placeholder="0" />
                                 </div>
                             )}
-                        </div>
-
-                        <div className="space-y-4 bg-blue-50 p-4 rounded-2xl border border-blue-100 mt-4">
-                            <h4 className="font-bold text-blue-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>勞健保設定</h4>
-                            <div className="flex items-center gap-6">
-                                <div className="flex-1">
-                                    <label className="block text-xs font-bold text-blue-700 mb-1">勞健保級距</label>
-                                    <input type="number" value={editingEmp.insuranceBracket || ''} onChange={e => setEditingEmp({...editingEmp, insuranceBracket: Number(e.target.value)})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 text-base font-black text-blue-900" placeholder="0" />
-                                </div>
-                                <div className="flex items-center gap-4 mt-5">
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={editingEmp.hasLaborIns ?? true} onChange={e => setEditingEmp({...editingEmp, hasLaborIns: e.target.checked})} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
-                                        <span className="font-bold text-blue-800">勞保</span>
-                                    </label>
-                                    <label className="flex items-center gap-2 cursor-pointer">
-                                        <input type="checkbox" checked={editingEmp.hasHealthIns ?? true} onChange={e => setEditingEmp({...editingEmp, hasHealthIns: e.target.checked})} className="w-5 h-5 text-blue-600 rounded focus:ring-blue-500 border-gray-300" />
-                                        <span className="font-bold text-blue-800">健保</span>
-                                    </label>
-                                </div>
-                            </div>
                         </div>
 
                         <button type="submit" id="submitEmpForm" className="hidden"></button>

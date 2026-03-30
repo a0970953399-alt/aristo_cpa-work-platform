@@ -294,10 +294,11 @@ export interface EmploymentRecord {
 
 export interface CompensationRecord {
   id: string;
-  effectiveDate: string; // 生效日期 (YYYY-MM-DD)
-  baseSalary: number;    // 本薪 (或時薪)
-  laborIns: number;      // 勞保
-  healthIns: number;     // 健保
+  effectiveDate: string;      // 生效日期 (YYYY-MM-DD)
+  baseSalary: number;         // 本薪 (或時薪)
+  insuranceBracket: number;   // 勞健保投保級距
+  hasLaborIns: boolean;       // 是否投保勞保
+  hasHealthIns: boolean;      // 是否投保健保
 }
 
 // 1. 紀錄有開通薪資計算的客戶
