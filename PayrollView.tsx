@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { Client, PayrollClientConfig, PayrollRecord, Employee, EmploymentType } from './types';
+import { Client, PayrollClientConfig, PayrollRecord, Employee, EmploymentType, CompensationRecord } from './types';
 import { ReturnIcon, PlusIcon, TrashIcon } from './Icons';
 import { TaskService } from './taskService';
 
@@ -158,12 +158,26 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           setMonthlyFormData(record);
           setEmailSendStatus(record.isEmailSent ? 'success' : 'idle');
       } else {
+          // ✨ 時光機邏輯：根據月份找出對應的薪資歷程紀錄
+          const targetDateStr = `${selectedYear}-${month}-31`;
+          let effectiveBase = emp.defaultBaseSalary || 0;
+          let effectiveLabor = 0;
+          let effectiveHealth = 0;
+
+          if (emp.compensationHistory && emp.compensationHistory.length > 0) {
+              const sorted = [...emp.compensationHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+              const record = sorted.find(r => r.effectiveDate <= targetDateStr) || sorted[sorted.length - 1];
+              effectiveBase = record.baseSalary;
+              effectiveLabor = record.laborIns;
+              effectiveHealth = record.healthIns;
+          }
+
           setMonthlyFormData({
               workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
-              baseSalary: emp.defaultBaseSalary || 0, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
+              baseSalary: effectiveBase, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
               leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
               foodAllowance: emp.employmentType === 'full_time' ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
-              laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
+              laborIns: effectiveLabor, healthIns: effectiveHealth, incomeTax: 0, advancePay: 0
           });
           setEmailSendStatus('idle');
       }
@@ -973,6 +987,7 @@ const htmlContent = `
   
   const [isEmpModalOpen, setIsEmpModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Partial<Employee> | null>(null);
+  const [editingEmpCompHistory, setEditingEmpCompHistory] = useState<CompensationRecord[]>([]);
 
   const empFileInputRef = useRef<HTMLInputElement>(null);
 
@@ -1060,6 +1075,7 @@ const htmlContent = `
         employmentType: 'full_time', email: '', defaultBaseSalary: 0, defaultFoodAllowance: 0,
         startDate: new Date().toISOString().split('T')[0]
     });
+    setEditingEmpCompHistory([]);
     setIsEmpModalOpen(true);
   };
 
@@ -1080,12 +1096,15 @@ const htmlContent = `
         bankBranch: editingEmp.bankBranch || '',
         bankAccount: editingEmp.bankAccount || '',
         address: editingEmp.address || '',
-        defaultBaseSalary: Number(editingEmp.defaultBaseSalary) || 0,
+        defaultBaseSalary: editingEmpCompHistory.length > 0
+            ? (editingEmpCompHistory.sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0]?.baseSalary ?? Number(editingEmp.defaultBaseSalary) ?? 0)
+            : (Number(editingEmp.defaultBaseSalary) || 0),
         defaultFoodAllowance: editingEmp.employmentType === 'full_time' ? (Number(editingEmp.defaultFoodAllowance) || 0) : 0,
         insuranceBracket: Number(editingEmp.insuranceBracket) || 0,
         hasLaborIns: editingEmp.hasLaborIns ?? true,
         hasHealthIns: editingEmp.hasHealthIns ?? true,
         createdAt: editingEmp.createdAt || new Date().toISOString(),
+        compensationHistory: editingEmpCompHistory,
     };
 
     if (editingEmp.id) {
@@ -1254,7 +1273,23 @@ const htmlContent = `
                                     return (
                                         <tr 
                                             key={emp.id} 
-                                            onClick={() => { setEditingEmp(emp); setIsEmpModalOpen(true); }}
+                                            onClick={() => {
+                                                setEditingEmp(emp);
+                                                if (emp.compensationHistory && emp.compensationHistory.length > 0) {
+                                                    setEditingEmpCompHistory(emp.compensationHistory);
+                                                } else if (emp.defaultBaseSalary !== undefined) {
+                                                    setEditingEmpCompHistory([{
+                                                        id: Date.now().toString(),
+                                                        effectiveDate: emp.startDate || `${selectedYear}-01-01`,
+                                                        baseSalary: emp.defaultBaseSalary || 0,
+                                                        laborIns: 0,
+                                                        healthIns: 0
+                                                    }]);
+                                                } else {
+                                                    setEditingEmpCompHistory([]);
+                                                }
+                                                setIsEmpModalOpen(true);
+                                            }}
                                             className={`cursor-pointer transition-colors group ${
                                                 isResigned 
                                                 ? 'bg-gray-100/50 opacity-75 hover:bg-gray-200/50' 
@@ -2054,20 +2089,47 @@ const htmlContent = `
                         </div>
 
                         <div className="space-y-4 bg-orange-50 p-4 rounded-2xl border border-orange-100">
-                            <h4 className="font-bold text-orange-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>預設薪資設定</h4>
-                            <p className="text-xs text-orange-600 mb-2">此數值將自動帶入每月的薪資結算表單中，勞健保數值將於結算時手動輸入。</p>
-                            <div className="grid grid-cols-2 gap-4">
-                                <div>
-                                    <label className="block text-xs font-bold text-orange-700 mb-1">預設本薪 ({editingEmp.employmentType === 'full_time' ? '正職月薪' : '兼職時薪/底薪'})</label>
-                                    <input type="number" value={editingEmp.defaultBaseSalary || ''} onChange={e => setEditingEmp({...editingEmp, defaultBaseSalary: Number(e.target.value)})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 text-base font-black text-gray-800" placeholder="0" />
-                                </div>
-                                {editingEmp.employmentType === 'full_time' && (
-                                    <div>
-                                        <label className="block text-xs font-bold text-orange-700 mb-1">預設伙食費 (正職專屬)</label>
-                                        <input type="number" value={editingEmp.defaultFoodAllowance || ''} onChange={e => setEditingEmp({...editingEmp, defaultFoodAllowance: Number(e.target.value)})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 text-base font-black text-gray-800" placeholder="0" />
-                                    </div>
-                                )}
+                            <div className="flex items-center justify-between">
+                                <h4 className="font-bold text-orange-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>待遇歷程</h4>
+                                <button type="button" onClick={() => setEditingEmpCompHistory(prev => [...prev, { id: Date.now().toString(), effectiveDate: new Date().toISOString().split('T')[0], baseSalary: 0, laborIns: 0, healthIns: 0 }])} className="text-xs font-bold text-orange-700 bg-white border border-orange-300 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-colors">+ 新增調薪紀錄</button>
                             </div>
+                            <p className="text-xs text-orange-600">系統將依生效日期自動抓取對應月份的薪資數值。</p>
+                            {editingEmpCompHistory.length === 0 && (
+                                <p className="text-xs text-gray-400 text-center py-3">尚無待遇紀錄，請點擊「新增調薪紀錄」</p>
+                            )}
+                            <div className="space-y-3">
+                                {[...editingEmpCompHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate)).map(rec => (
+                                    <div key={rec.id} className="bg-white border border-orange-200 rounded-xl p-3">
+                                        <div className="grid grid-cols-4 gap-2 items-end">
+                                            <div>
+                                                <label className="block text-xs font-bold text-orange-700 mb-1">生效日期</label>
+                                                <input type="date" value={rec.effectiveDate} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, effectiveDate: e.target.value } : r))} className="w-full border p-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-400 font-mono" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-orange-700 mb-1">{editingEmp.employmentType === 'full_time' ? '月薪' : '時薪/底薪'}</label>
+                                                <input type="number" value={rec.baseSalary || ''} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, baseSalary: Number(e.target.value) } : r))} className="w-full border p-2 rounded-lg text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-orange-400" placeholder="0" />
+                                            </div>
+                                            <div>
+                                                <label className="block text-xs font-bold text-orange-700 mb-1">勞保</label>
+                                                <input type="number" value={rec.laborIns || ''} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, laborIns: Number(e.target.value) } : r))} className="w-full border p-2 rounded-lg text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-orange-400" placeholder="0" />
+                                            </div>
+                                            <div className="flex gap-2 items-end">
+                                                <div className="flex-1">
+                                                    <label className="block text-xs font-bold text-orange-700 mb-1">健保</label>
+                                                    <input type="number" value={rec.healthIns || ''} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, healthIns: Number(e.target.value) } : r))} className="w-full border p-2 rounded-lg text-sm font-bold text-gray-800 outline-none focus:ring-2 focus:ring-orange-400" placeholder="0" />
+                                                </div>
+                                                <button type="button" onClick={() => setEditingEmpCompHistory(prev => prev.filter(r => r.id !== rec.id))} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 mb-0.5">✕</button>
+                                            </div>
+                                        </div>
+                                    </div>
+                                ))}
+                            </div>
+                            {editingEmp.employmentType === 'full_time' && (
+                                <div className="pt-2 border-t border-orange-100">
+                                    <label className="block text-xs font-bold text-orange-700 mb-1">預設伙食費 (正職專屬)</label>
+                                    <input type="number" value={editingEmp.defaultFoodAllowance || ''} onChange={e => setEditingEmp({...editingEmp, defaultFoodAllowance: Number(e.target.value)})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 text-base font-black text-gray-800" placeholder="0" />
+                                </div>
+                            )}
                         </div>
 
                         <div className="space-y-4 bg-blue-50 p-4 rounded-2xl border border-blue-100 mt-4">
