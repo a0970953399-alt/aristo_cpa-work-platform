@@ -939,7 +939,9 @@ const htmlContent = `
       const currentBaseSalary = field === 'baseSalary' ? numValue : (updatedData.baseSalary || 0);
       const currentFoodAllowance = field === 'foodAllowance' ? numValue : (updatedData.foodAllowance || 0);
       
-      const hourlyWage = currentBaseSalary / 240;
+      const hourlyWage = isFullTime
+          ? currentBaseSalary / 240
+          : (editingMonthlyEmp?.defaultBaseSalary || 0);
       const minuteWage = hourlyWage / 60;
 
       const currentLate = field === 'lateHours' ? numValue : (updatedData.lateHours || 0);
