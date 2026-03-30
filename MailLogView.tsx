@@ -1,6 +1,6 @@
 // src/MailLogView.tsx
 
-import React, { useState, useRef, useMemo } from 'react';
+import React, { useState, useRef, useMemo, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { MailRecord, MailCategory } from './types';
 import { TaskService } from './taskService';
@@ -80,6 +80,22 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
     // ✨ 地址搜尋狀態
     const [filterAddress, setFilterAddress] = useState<string>('');
     const [isAddressFilterOpen, setIsAddressFilterOpen] = useState(false);
+
+    // --- Keyboard Shortcuts ---
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            // 依優先順序關閉：篩選面板 → 新增/編輯 Modal
+            if (isDateFilterOpen) { setIsDateFilterOpen(false); return; }
+            if (isClientFilterOpen) { setIsClientFilterOpen(false); return; }
+            if (isFileNameFilterOpen) { setIsFileNameFilterOpen(false); return; }
+            if (isCounterpartFilterOpen) { setIsCounterpartFilterOpen(false); return; }
+            if (isAddressFilterOpen) { setIsAddressFilterOpen(false); return; }
+            if (isModalOpen) { setIsModalOpen(false); setEditingRecord(null); return; }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isDateFilterOpen, isClientFilterOpen, isFileNameFilterOpen, isCounterpartFilterOpen, isAddressFilterOpen, isModalOpen]);
 
     // ✨ 自動從資料中抓取有紀錄的年份，供下拉選單使用
     const availableYears = useMemo(() => {

@@ -1,6 +1,6 @@
 // src/CashLogView.tsx
 
-import React, { useState, useMemo, useRef } from 'react';
+import React, { useState, useMemo, useRef, useEffect } from 'react';
 import * as XLSX from 'xlsx';
 import { CashRecord, Client, CashAccountType } from './types';
 import { TaskService } from './taskService';
@@ -92,6 +92,21 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     const [modalError, setModalError] = useState<string | null>(null);
 
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // --- Keyboard Shortcuts ---
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key !== 'Escape') return;
+            // 依優先順序關閉：篩選面板 → Modal → 客戶詳細頁 → 返回總覽
+            if (isDateFilterOpen) { setIsDateFilterOpen(false); return; }
+            if (isClientFilterOpen) { setIsClientFilterOpen(false); return; }
+            if (isModalOpen) { setIsModalOpen(false); setEditingRecord(null); setModalError(null); return; }
+            if (viewMode === 'client_detail') { setSelectedClient(null); setViewMode('dashboard'); return; }
+            if (viewMode !== 'dashboard') { setViewMode('dashboard'); return; }
+        };
+        document.addEventListener('keydown', handleKeyDown);
+        return () => document.removeEventListener('keydown', handleKeyDown);
+    }, [isDateFilterOpen, isClientFilterOpen, isModalOpen, viewMode]);
 
     // ✨ Excel 雙核匯入引擎
     const handleFileUpload = (e: React.ChangeEvent<HTMLInputElement>) => {

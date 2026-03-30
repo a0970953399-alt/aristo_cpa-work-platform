@@ -1514,9 +1514,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             </div>
             <div className="p-6 space-y-4">
               {[
-                { keys: ['Esc'], desc: '關閉目前開啟的視窗' },
+                { keys: ['Esc'], desc: '關閉視窗 / 返回上一層（依序：篩選面板 → 子視窗 → 頁面 → 彈窗）' },
                 { keys: ['Ctrl', '1',' ~ ','9'], desc: '切換到對應頁籤（1=帳務處理 … 9=薪資計算）' },
-                { keys: ['Ctrl', 'Enter'], desc: '儲存目前表單（薪資視窗）' },
+                { keys: ['Ctrl', 'Enter'], desc: '儲存目前表單（薪資、客戶總署）' },
                 { keys: ['?'], desc: '開啟 / 關閉此快捷鍵說明' },
               ].map(({ keys, desc }) => (
                 <div key={desc} className="flex items-center gap-4">

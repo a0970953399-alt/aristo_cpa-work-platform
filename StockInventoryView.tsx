@@ -501,6 +501,24 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     loadData();
   }, []);
 
+  // --- Keyboard Shortcuts ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key !== 'Escape') return;
+      // 依優先順序關閉：篩選面板 → 各種 Modal → 取消選取股票 → 取消選取客戶
+      if (isDateFilterOpen) { setIsDateFilterOpen(false); return; }
+      if (isAddTxModalOpen) { setIsAddTxModalOpen(false); return; }
+      if (isAddStockModalOpen) { setIsAddStockModalOpen(false); return; }
+      if (isDeleteStockModalOpen) { setIsDeleteStockModalOpen(false); return; }
+      if (isAddClientModalOpen) { setIsAddClientModalOpen(false); return; }
+      if (isDeleteClientModalOpen) { setIsDeleteClientModalOpen(false); return; }
+      if (selectedStock) { setSelectedStock(null); return; }
+      if (selectedClient) { setSelectedClient(null); return; }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isDateFilterOpen, isAddTxModalOpen, isAddStockModalOpen, isDeleteStockModalOpen, isAddClientModalOpen, isDeleteClientModalOpen, selectedStock, selectedClient]);
+
   const loadData = async () => {
     const fetchedClients = await TaskService.fetchStockClients();
     const fetchedTargets = await TaskService.fetchStockTargets();
