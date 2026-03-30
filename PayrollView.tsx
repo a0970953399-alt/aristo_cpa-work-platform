@@ -854,12 +854,24 @@ const htmlContent = `
 
               const netPay = baseSalary + foodAllowance + otPay + otherAdd + leaveDed + lateDed + laborIns + healthIns + otherDed;
 
+              // ✨ 時光機：依該月找對應的勞健保設定
+              let insBracket = emp.insuranceBracket || 0;
+              let insHasLabor = emp.hasLaborIns ?? true;
+              let insHasHealth = emp.hasHealthIns ?? true;
+              if (emp.compensationHistory && emp.compensationHistory.length > 0) {
+                  const targetDateStr = `${selectedYear}-${selectedMonth}-31`;
+                  const sorted = [...emp.compensationHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+                  const matched = sorted.find(r => r.effectiveDate <= targetDateStr) || sorted[sorted.length - 1];
+                  insBracket = matched.insuranceBracket ?? insBracket;
+                  insHasLabor = matched.hasLaborIns ?? insHasLabor;
+                  insHasHealth = matched.hasHealthIns ?? insHasHealth;
+              }
               let insStr = "";
-              if (emp.insuranceBracket) {
+              if (insBracket) {
                   const types = [];
-                  if (emp.hasLaborIns ?? true) types.push("勞");
-                  if (emp.hasHealthIns ?? true) types.push("健");
-                  if (types.length > 0) insStr = `${emp.insuranceBracket.toLocaleString()} (${types.join("")})`;
+                  if (insHasLabor) types.push("勞");
+                  if (insHasHealth) types.push("健");
+                  if (types.length > 0) insStr = `${insBracket.toLocaleString()} (${types.join("")})`;
               }
 
           const remarks = [];
@@ -1699,14 +1711,26 @@ const htmlContent = `
                         if (startMonthStr && targetMonthStr < startMonthStr) isActive = false;
                         if (endMonthStr && targetMonthStr > endMonthStr) isActive = false;
 
+                        // ✨ 時光機：依該月找對應的勞健保設定
+                        let effectiveBracket = emp.insuranceBracket || 0;
+                        let effectiveHasLabor = emp.hasLaborIns ?? true;
+                        let effectiveHasHealth = emp.hasHealthIns ?? true;
+                        if (emp.compensationHistory && emp.compensationHistory.length > 0) {
+                            const targetDateStr = `${selectedYear}-${m}-31`;
+                            const sorted = [...emp.compensationHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+                            const matched = sorted.find(r => r.effectiveDate <= targetDateStr) || sorted[sorted.length - 1];
+                            effectiveBracket = matched.insuranceBracket ?? effectiveBracket;
+                            effectiveHasLabor = matched.hasLaborIns ?? effectiveHasLabor;
+                            effectiveHasHealth = matched.hasHealthIns ?? effectiveHasHealth;
+                        }
                         let insurance: string | number = 0;
-                        if (isActive && emp.insuranceBracket) {
+                        if (isActive && effectiveBracket) {
                             const types = [];
-                            if (emp.hasLaborIns ?? true) types.push("勞");
-                            if (emp.hasHealthIns ?? true) types.push("健");
-                            insurance = types.length > 0 
-                                ? `${emp.insuranceBracket.toLocaleString()} (${types.join("")})` 
-                                : emp.insuranceBracket.toLocaleString();
+                            if (effectiveHasLabor) types.push("勞");
+                            if (effectiveHasHealth) types.push("健");
+                            insurance = types.length > 0
+                                ? `${effectiveBracket.toLocaleString()} (${types.join("")})`
+                                : effectiveBracket.toLocaleString();
                         }
 
                         if (!isActive || !record) {
