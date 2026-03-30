@@ -148,11 +148,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                   if (saved) {
                       initialData[emp.id] = saved;
                   } else {
+                      const empIsFullTime = resolveIsFullTime(emp, selectedYear, selectedMonth);
                       initialData[emp.id] = {
                           workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
-                          baseSalary: emp.defaultBaseSalary || 0, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
+                          baseSalary: empIsFullTime ? (resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth)) : 0,
+                          fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
                           leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
-                          foodAllowance: resolveIsFullTime(emp, selectedYear, selectedMonth) ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
+                          foodAllowance: empIsFullTime ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
                           laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
                       };
                   }
