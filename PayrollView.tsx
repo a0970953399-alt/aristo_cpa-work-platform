@@ -55,6 +55,31 @@ const SendMailIcon = ({ className }: { className?: string }) => (
   </svg>
 );
 
+// ✨ 時光機 Helper：依月份解析員工當時的聘僱身分
+const resolveIsFullTime = (emp: Employee, year: string, month: string): boolean => {
+    if (emp.employmentHistory && emp.employmentHistory.length > 0) {
+        const targetDateStr = `${year}-${month}-31`;
+        const targetMonthStart = `${year}-${month}-01`;
+        const active = emp.employmentHistory.find(r =>
+            r.startDate <= targetDateStr &&
+            (r.endDate === null || r.endDate >= targetMonthStart)
+        );
+        if (active) return active.type === 'full_time';
+    }
+    return emp.employmentType === 'full_time';
+};
+
+// ✨ 時光機 Helper：依月份解析員工當時的時薪/底薪（兼職用）
+const resolvePartTimeHourlyWage = (emp: Employee, year: string, month: string): number => {
+    if (emp.compensationHistory && emp.compensationHistory.length > 0) {
+        const targetDateStr = `${year}-${month}-31`;
+        const sorted = [...emp.compensationHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+        const matched = sorted.find(r => r.effectiveDate <= targetDateStr) || sorted[sorted.length - 1];
+        return matched.baseSalary;
+    }
+    return emp.defaultBaseSalary || 0;
+};
+
 export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
@@ -127,7 +152,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                           workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
                           baseSalary: emp.defaultBaseSalary || 0, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
                           leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
-                          foodAllowance: emp.employmentType === 'full_time' ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
+                          foodAllowance: resolveIsFullTime(emp, selectedYear, selectedMonth) ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
                           laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
                       };
                   }
@@ -664,10 +689,10 @@ const htmlContent = `
           // 3. 準備所有寄信任務 (打包成多個信件包裹)
           const promises = validEmps.map(emp => {
               const rowData = monthlyData[emp.id] || {};
-              const isFullTime = emp.employmentType === 'full_time';
+              const isFullTime = resolveIsFullTime(emp, selectedYear, selectedMonth);
 
               const baseSalaryForCalc = rowData.baseSalary || 0;
-              const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : (emp.defaultBaseSalary || 0);
+              const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
               const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0));
               const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2);
               const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
@@ -681,7 +706,7 @@ const htmlContent = `
                   realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
                   realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
               } else {
-                  const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+                  const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
                   realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
               }
               const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
@@ -819,10 +844,10 @@ const htmlContent = `
               const R = 2 + index; 
               const row = ws.getRow(R);
               const rowData = monthlyData[emp.id] || {};
-              const isFullTime = emp.employmentType === 'full_time';
+              const isFullTime = resolveIsFullTime(emp, selectedYear, selectedMonth);
 
               const baseSalaryForCalc = rowData.baseSalary || 0;
-              const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : (emp.defaultBaseSalary || 0);
+              const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
               const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0));
               const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2);
               const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
@@ -836,7 +861,7 @@ const htmlContent = `
                   realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
                   realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
               } else {
-                  const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+                  const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
                   realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
               }
               const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
@@ -958,18 +983,19 @@ const htmlContent = `
       const numValue = Number(value) || 0;
       let updatedData = { ...monthlyFormData, [field]: numValue };
       
-      const isFullTime = editingMonthlyEmp?.employmentType === 'full_time';
+      const isFullTime = editingMonthlyEmp ? resolveIsFullTime(editingMonthlyEmp, selectedYear, editModalMonth) : false;
+      const ptHourlyWage = editingMonthlyEmp ? resolvePartTimeHourlyWage(editingMonthlyEmp, selectedYear, editModalMonth) : 0;
 
       if (field === 'workHours' && !isFullTime) {
-          updatedData.baseSalary = numValue * (editingMonthlyEmp?.defaultBaseSalary || 0);
+          updatedData.baseSalary = numValue * ptHourlyWage;
       }
-      
+
       const currentBaseSalary = field === 'baseSalary' ? numValue : (updatedData.baseSalary || 0);
       const currentFoodAllowance = field === 'foodAllowance' ? numValue : (updatedData.foodAllowance || 0);
-      
+
       const hourlyWage = isFullTime
           ? currentBaseSalary / 240
-          : (editingMonthlyEmp?.defaultBaseSalary || 0);
+          : ptHourlyWage;
       const minuteWage = hourlyWage / 60;
 
       const currentLate = field === 'lateHours' ? numValue : (updatedData.lateHours || 0);
@@ -1485,8 +1511,8 @@ const htmlContent = `
                                                 const rowData = monthlyData[emp.id] || {};
                                                 
                                                 const baseSalaryForCalc = rowData.baseSalary || 0;
-                                                const isFullTime = emp.employmentType === 'full_time';
-                                                const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : (emp.defaultBaseSalary || 0);
+                                                const isFullTime = resolveIsFullTime(emp, selectedYear, selectedMonth);
+                                                const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
 
                                                 const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0));
                                                 const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2);
@@ -1502,7 +1528,7 @@ const htmlContent = `
                                                     realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
                                                     realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
                                                 } else {
-                                                    const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+                                                    const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
                                                     realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
                                                 }
                                                 const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
@@ -1738,10 +1764,10 @@ const htmlContent = `
                         }
 
                         const rowData = record;
-                        const isFullTime = emp.employmentType === 'full_time';
-                        
+                        const isFullTime = resolveIsFullTime(emp, selectedYear, m);
+
                         const baseSalaryForCalc = rowData.baseSalary || 0;
-                        const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : (emp.defaultBaseSalary || 0);
+                        const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : resolvePartTimeHourlyWage(emp, selectedYear, m);
                         const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0));
                         const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2);
                         const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
@@ -1755,7 +1781,7 @@ const htmlContent = `
                             realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
                             realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
                         } else {
-                            const partTimeHourlyWage = emp.defaultBaseSalary || 0;
+                            const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, m);
                             realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
                         }
                         const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
