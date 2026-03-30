@@ -1,6 +1,6 @@
 // src/ClientMasterView.tsx
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Client } from './types';
 import { TaskService } from './taskService';
 
@@ -58,6 +58,28 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
     const [activeTab, setActiveTab] = useState<'work' | 'payment' | 'notes'>('work');
     
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    // --- Keyboard Shortcuts ---
+    useEffect(() => {
+        const handleKeyDown = (e: KeyboardEvent) => {
+            if (e.key === 'Escape') {
+                // 分步關閉：刪除模式 → 詳細頁 → 讓外層 Dashboard 關掉整個視窗
+                if (isDeleteMode) { e.stopImmediatePropagation(); setIsDeleteMode(false); return; }
+                if (selectedClient) { e.stopImmediatePropagation(); setSelectedClient(null); return; }
+                // 若都沒有，不攔截，讓 Dashboard 的 Esc 關掉此視窗
+                return;
+            }
+            // Ctrl+Enter: 儲存目前客戶資料
+            if (e.ctrlKey && e.key === 'Enter' && selectedClient && !isSaving) {
+                e.preventDefault();
+                handleSave();
+                return;
+            }
+        };
+        // 使用 capture 讓此監聽器在 Dashboard 的監聽器之前觸發
+        document.addEventListener('keydown', handleKeyDown, true);
+        return () => document.removeEventListener('keydown', handleKeyDown, true);
+    }, [isDeleteMode, selectedClient, isSaving]);
 
     // ✨ 階段二新增 1：定義預設的 8 個工作期間
     const DEFAULT_WORK_PERIODS = ['1-2月', '3-4月', '5-6月', '7-8月', '9-10月', '11-12月', '扣繳申報', '年終申報'];

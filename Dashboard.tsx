@@ -109,6 +109,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [isCheckOutModalOpen, setIsCheckOutModalOpen] = useState(false);
   const [isEventDeleteModalOpen, setIsEventDeleteModalOpen] = useState(false);
   const [isClientMasterOpen, setIsClientMasterOpen] = useState(false);
+  const [isShortcutHelpOpen, setIsShortcutHelpOpen] = useState(false);
 
   // --- Data State ---
   const [selectedCalendarDate, setSelectedCalendarDate] = useState<string>('');
@@ -256,6 +257,62 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         setCollapsedColumns(prev => { const newSet = new Set(prev); colsToAutoCollapse.forEach(c => newSet.add(c)); return newSet; });
     }
   }, [tasks, activeTab, currentYear, clients]);
+
+  // --- Keyboard Shortcuts ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      const tag = (e.target as HTMLElement).tagName;
+      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable;
+
+      // Escape: close topmost modal
+      if (e.key === 'Escape') {
+        if (isShortcutHelpOpen) { setIsShortcutHelpOpen(false); return; }
+        if (isAssignModalOpen) { setIsAssignModalOpen(false); return; }
+        if (isDateModalOpen) { setIsDateModalOpen(false); return; }
+        if (isMiscModalOpen) { setIsMiscModalOpen(false); return; }
+        if (isDeleteModalOpen) { setIsDeleteModalOpen(false); return; }
+        if (isNoteEditModalOpen) { setIsNoteEditModalOpen(false); return; }
+        if (isUserDeleteModalOpen) { setIsUserDeleteModalOpen(false); return; }
+        if (isUserModalOpen) { setIsUserModalOpen(false); return; }
+        if (isEventDeleteModalOpen) { setIsEventDeleteModalOpen(false); return; }
+        if (isEventModalOpen) { setIsEventModalOpen(false); return; }
+        if (isDailyReminderOpen) { setIsDailyReminderOpen(false); return; }
+        if (isCalendarOpen) { setIsCalendarOpen(false); return; }
+        if (isGalleryOpen) { setIsGalleryOpen(false); return; }
+        if (isInstructionModalOpen) { setIsInstructionModalOpen(false); return; }
+        if (isCheckOutModalOpen) { setIsCheckOutModalOpen(false); return; }
+        if (isTimesheetOpen) { setIsTimesheetOpen(false); return; }
+        if (isInvoiceOpen) { setIsInvoiceOpen(false); return; }
+        if (isMessageBoardOpen) { setIsMessageBoardOpen(false); return; }
+        if (isClientMasterOpen) { setIsClientMasterOpen(false); return; }
+        if (selectedClientForDrawer) { setSelectedClientForDrawer(null); return; }
+        if (isAppMenuOpen) { setIsAppMenuOpen(false); return; }
+        return;
+      }
+
+      // ? : toggle shortcut help (only when not typing)
+      if (!isTyping && e.key === '?') {
+        setIsShortcutHelpOpen(prev => !prev);
+        return;
+      }
+
+      // Ctrl+1~9: switch tabs
+      if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
+        const idx = parseInt(e.key) - 1;
+        if (idx < TABS.length) {
+          e.preventDefault();
+          setActiveTab(TABS[idx] as TabCategory);
+        }
+        return;
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isShortcutHelpOpen, isAssignModalOpen, isDateModalOpen, isMiscModalOpen, isDeleteModalOpen,
+      isNoteEditModalOpen, isUserDeleteModalOpen, isUserModalOpen, isEventDeleteModalOpen,
+      isEventModalOpen, isDailyReminderOpen, isCalendarOpen, isGalleryOpen, isInstructionModalOpen,
+      isCheckOutModalOpen, isTimesheetOpen, isInvoiceOpen, isMessageBoardOpen, isClientMasterOpen,
+      selectedClientForDrawer, isAppMenuOpen]);
 
     const startPolling = () => { 
       if (pollingRef.current) return; 
@@ -774,6 +831,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                     <img src={activeUser.avatar} alt="User" className="w-9 h-9 rounded-full object-cover bg-white" />
                     <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isWorking ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                 </div>
+
+                {/* 快捷鍵說明按鈕 */}
+                <button onClick={() => setIsShortcutHelpOpen(true)} title="快捷鍵說明 (?)" className="flex items-center justify-center p-2.5 bg-gray-100 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors border border-transparent hover:border-blue-200 shadow-sm">
+                    <span className="text-sm font-bold leading-none w-5 h-5 flex items-center justify-center">?</span>
+                </button>
 
                 {/* 登出按鈕 (純圖示) */}
                 <button onClick={onLogout} title="登出系統" className="flex items-center justify-center p-2.5 bg-gray-100 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200 shadow-sm">
@@ -1442,6 +1504,40 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             />
       )}
         
+      {/* 快捷鍵說明 Modal */}
+      {isShortcutHelpOpen && (
+        <div className="fixed inset-0 bg-black/50 z-[200] flex items-center justify-center p-4" onClick={() => setIsShortcutHelpOpen(false)}>
+          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-md overflow-hidden" onClick={e => e.stopPropagation()}>
+            <div className="flex items-center justify-between px-6 py-4 border-b border-gray-100">
+              <h2 className="text-lg font-bold text-gray-800">快捷鍵說明</h2>
+              <button onClick={() => setIsShortcutHelpOpen(false)} className="text-gray-400 hover:text-gray-600 text-xl leading-none">&times;</button>
+            </div>
+            <div className="p-6 space-y-4">
+              {[
+                { keys: ['Esc'], desc: '關閉目前開啟的視窗' },
+                { keys: ['Ctrl', '1',' ~ ','9'], desc: '切換到對應頁籤（1=帳務處理 … 9=薪資計算）' },
+                { keys: ['Ctrl', 'Enter'], desc: '儲存目前表單（薪資視窗）' },
+                { keys: ['?'], desc: '開啟 / 關閉此快捷鍵說明' },
+              ].map(({ keys, desc }) => (
+                <div key={desc} className="flex items-center gap-4">
+                  <div className="flex items-center gap-1 flex-shrink-0">
+                    {keys.map((k, i) => (
+                      k === ' ~ ' || k === '+' ? (
+                        <span key={i} className="text-gray-400 text-xs">{k}</span>
+                      ) : (
+                        <kbd key={i} className="inline-flex items-center justify-center px-2 py-1 text-xs font-semibold text-gray-700 bg-gray-100 border border-gray-300 rounded-md shadow-sm min-w-[2rem]">{k}</kbd>
+                      )
+                    ))}
+                  </div>
+                  <span className="text-sm text-gray-600">{desc}</span>
+                </div>
+              ))}
+            </div>
+            <div className="px-6 pb-5 text-xs text-gray-400 text-center">按 Esc 或點擊背景關閉</div>
+          </div>
+        </div>
+      )}
+
       <style>{`
           @keyframes slideInRight {
             from { transform: translateX(100%); }

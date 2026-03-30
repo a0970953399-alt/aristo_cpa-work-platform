@@ -1111,6 +1111,33 @@ const htmlContent = `
     loadData();
   }, []);
 
+  // --- Keyboard Shortcuts ---
+  useEffect(() => {
+    const handleKeyDown = (e: KeyboardEvent) => {
+      // Escape: close open modals
+      if (e.key === 'Escape') {
+        if (isMonthlyEditModalOpen) { setIsMonthlyEditModalOpen(false); return; }
+        if (isEmpModalOpen) { setIsEmpModalOpen(false); return; }
+        return;
+      }
+      // Ctrl+Enter: submit currently open form
+      if (e.ctrlKey && e.key === 'Enter') {
+        if (isMonthlyEditModalOpen) {
+          e.preventDefault();
+          document.getElementById('submitMonthlyForm')?.click();
+          return;
+        }
+        if (isEmpModalOpen) {
+          e.preventDefault();
+          document.getElementById('submitEmpForm')?.click();
+          return;
+        }
+      }
+    };
+    document.addEventListener('keydown', handleKeyDown);
+    return () => document.removeEventListener('keydown', handleKeyDown);
+  }, [isMonthlyEditModalOpen, isEmpModalOpen]);
+
   const loadData = async () => {
     const fetchedClients = await TaskService.fetchPayrollClients();
     const fetchedRecords = await TaskService.fetchPayrollRecords();
