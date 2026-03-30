@@ -281,7 +281,15 @@ export interface Employee {
     insuranceBracket?: number; // 勞健保級距
     hasLaborIns?: boolean;     // 是否投保勞保
     hasHealthIns?: boolean;    // 是否投保健保
-    compensationHistory?: CompensationRecord[]; // ✨ 新增：待遇歷程陣列  
+    employmentHistory?: EmploymentRecord[];   // ✨ 任職歷程陣列
+    compensationHistory?: CompensationRecord[]; // ✨ 待遇歷程陣列
+}
+
+export interface EmploymentRecord {
+  id: string;
+  type: 'full_time' | 'part_time'; // 聘僱身分
+  startDate: string;               // 入職日 (YYYY-MM-DD)
+  endDate: string | null;          // 離職日，null 代表仍在職
 }
 
 export interface CompensationRecord {
