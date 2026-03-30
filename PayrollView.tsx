@@ -663,7 +663,7 @@ const htmlContent = `
                   const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
                   realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
                   realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-                  realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+                  realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
               } else {
                   const partTimeHourlyWage = emp.defaultBaseSalary || 0;
                   realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
@@ -818,7 +818,7 @@ const htmlContent = `
                   const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
                   realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
                   realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-                  realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+                  realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
               } else {
                   const partTimeHourlyWage = emp.defaultBaseSalary || 0;
                   realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
@@ -963,7 +963,7 @@ const htmlContent = `
           const otHourlyWage = (currentBaseSalary + currentFoodAllowance) / 240;
           annualPay = Math.round(otHourlyWage * currentAnnual);
           holidayPay = Math.round(otHourlyWage * currentHoliday);
-          normalPay = Math.round(otHourlyWage * currentNormal * 1.33);
+          normalPay = Math.round(otHourlyWage * currentNormal * 1.3333);
       } else {
           const partTimeHourlyWage = editingMonthlyEmp?.defaultBaseSalary || 0;
           holidayPay = Math.round(partTimeHourlyWage * currentHoliday * 2);
@@ -1423,7 +1423,7 @@ const htmlContent = `
                                                     const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
                                                     realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
                                                     realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-                                                    realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+                                                    realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
                                                 } else {
                                                     const partTimeHourlyWage = emp.defaultBaseSalary || 0;
                                                     realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
@@ -1664,7 +1664,7 @@ const htmlContent = `
                             const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
                             realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
                             realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-                            realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.33);
+                            realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
                         } else {
                             const partTimeHourlyWage = emp.defaultBaseSalary || 0;
                             realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
