@@ -302,16 +302,22 @@ const MobileDashboard: React.FC<MobileDashboardProps> = ({ currentUser, onLogout
   // ===== TAB RENDERS =====
 
   const renderCheckIn = () => (
-    <div className="p-4 space-y-3">
-      {/* Check-in action card */}
-      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-4">
+    <div className="p-4 space-y-4">
+      {/* Clock card */}
+      <div className="bg-white rounded-2xl shadow-sm border border-gray-100 p-6 text-center">
+        <p className="text-5xl font-bold font-mono text-gray-800 tracking-tight">{timeStr}</p>
+        <p className="text-sm text-gray-400 mt-2">{dateStr}</p>
+
         {!isBoss && (
-          <div className="space-y-3">
+          <div className="mt-6 space-y-3">
             {isWorking ? (
               <>
-                <div className="flex items-center gap-2 px-1">
-                  <span className="w-2 h-2 bg-green-500 rounded-full animate-pulse" />
-                  <span className="text-green-700 font-bold text-sm">工作中 · 上班時間 {myTodayRecord?.startTime}</span>
+                <div className="bg-green-50 border border-green-200 rounded-xl p-3">
+                  <div className="flex items-center justify-center gap-2">
+                    <span className="w-2.5 h-2.5 bg-green-500 rounded-full animate-pulse" />
+                    <span className="text-green-700 font-bold">工作中</span>
+                  </div>
+                  <p className="text-green-600 text-sm mt-1">上班時間 {myTodayRecord?.startTime}</p>
                 </div>
                 <button
                   onClick={() => setIsCheckOutModalOpen(true)}
@@ -333,7 +339,7 @@ const MobileDashboard: React.FC<MobileDashboardProps> = ({ currentUser, onLogout
         )}
 
         {isBoss && (
-          <p className="text-sm text-gray-400 text-center py-2">Boss 帳號不需打卡</p>
+          <p className="mt-4 text-sm text-gray-400">Boss 帳號不需打卡</p>
         )}
       </div>
 
@@ -442,7 +448,7 @@ const MobileDashboard: React.FC<MobileDashboardProps> = ({ currentUser, onLogout
     };
 
     return (
-      <div className="p-4 space-y-3">
+      <div className="p-4 space-y-4">
         {!dbConnected && <DbBanner />}
 
         {inProgressTasks.length > 0 && (
@@ -669,9 +675,12 @@ const MobileDashboard: React.FC<MobileDashboardProps> = ({ currentUser, onLogout
             <h1 className="font-bold text-base text-gray-800 tracking-tight">碩業工作平台</h1>
           </div>
           <div className="flex items-center gap-2">
-            {!isBoss && (
-              <span className={`w-2 h-2 rounded-full ${isWorking ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
-            )}
+            <div className="flex items-center gap-1.5">
+              {!isBoss && (
+                <span className={`w-2 h-2 rounded-full ${isWorking ? 'bg-green-500 animate-pulse' : 'bg-gray-300'}`} />
+              )}
+              <span className="text-sm font-bold text-gray-600 font-mono">{timeStr}</span>
+            </div>
             <div className="w-8 h-8 rounded-full overflow-hidden border-2 border-gray-200">
               <img src={currentUser.avatar} alt={currentUser.name} className="w-full h-full object-cover" />
             </div>
