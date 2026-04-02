@@ -154,7 +154,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                           baseSalary: empIsFullTime ? (resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth)) : 0,
                           fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
                           leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
-                          foodAllowance: empIsFullTime ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
+                          foodAllowance: empIsFullTime ? (emp.defaultFoodAllowance || 3000) : 0, taxFreeOt: 0,
                           laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
                       };
                   }
@@ -212,7 +212,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
               baseSalary: effectiveBase, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
               leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
-              foodAllowance: effectiveType === 'full_time' ? (emp.defaultFoodAllowance || 0) : 0, taxFreeOt: 0,
+              foodAllowance: effectiveType === 'full_time' ? (emp.defaultFoodAllowance || 3000) : 0, taxFreeOt: 0,
               laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
           });
           setEmailSendStatus('idle');
@@ -700,7 +700,7 @@ const htmlContent = `
               const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
               const realLeaveDeduction = Math.round(realSickDeduction + realPersonalDeduction);
 
-              const foodAllowanceForCalc = rowData.foodAllowance || 0;
+              const foodAllowanceForCalc = isFullTime ? (emp.defaultFoodAllowance || 3000) : (rowData.foodAllowance || 0);
               let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
               if (isFullTime) {
                   const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
@@ -856,7 +856,7 @@ const htmlContent = `
               const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
               const realLeaveDeduction = Math.round(realSickDeduction + realPersonalDeduction);
 
-              const foodAllowanceForCalc = rowData.foodAllowance || 0;
+              const foodAllowanceForCalc = isFullTime ? (emp.defaultFoodAllowance || 3000) : (rowData.foodAllowance || 0);
               let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
               if (isFullTime) {
                   const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
@@ -995,7 +995,6 @@ const htmlContent = `
       }
 
       const currentBaseSalary = field === 'baseSalary' ? numValue : (updatedData.baseSalary || 0);
-      const currentFoodAllowance = field === 'foodAllowance' ? numValue : (updatedData.foodAllowance || 0);
 
       const hourlyWage = isFullTime
           ? currentBaseSalary / 240
@@ -1011,6 +1010,14 @@ const htmlContent = `
       const personalDed = Math.round(hourlyWage * currentPersonal);
       updatedData.leaveDeduction = Math.round(sickDed + personalDed);
 
+      // 正職員工：依請假時數自動扣除伙食費，OT 計算用基本伙食費
+      const baseFoodAllowance = isFullTime ? (editingMonthlyEmp?.defaultFoodAllowance || 3000) : 0;
+      if (isFullTime && field !== 'foodAllowance') {
+          const totalLeaveHours = currentSick + currentPersonal;
+          const deductionDays = Math.floor(totalLeaveHours / 8);
+          updatedData.foodAllowance = baseFoodAllowance - deductionDays * Math.round(baseFoodAllowance / 30);
+      }
+
       const currentAnnual = field === 'annualLeave' ? numValue : (updatedData.annualLeave || 0);
       const currentHoliday = field === 'holidayOt' ? numValue : (updatedData.holidayOt || 0);
       const currentNormal = field === 'normalOt' ? numValue : (updatedData.normalOt || 0);
@@ -1018,7 +1025,7 @@ const htmlContent = `
       let annualPay = 0, holidayPay = 0, normalPay = 0;
 
       if (isFullTime) {
-          const otHourlyWage = (currentBaseSalary + currentFoodAllowance) / 240;
+          const otHourlyWage = (currentBaseSalary + baseFoodAllowance) / 240;
           annualPay = Math.round(otHourlyWage * currentAnnual);
           holidayPay = Math.round(otHourlyWage * currentHoliday);
           normalPay = Math.round(otHourlyWage * currentNormal * 1.3333);
@@ -1551,7 +1558,7 @@ const htmlContent = `
                                                 const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
                                                 const realLeaveDeduction = Math.round(realSickDeduction + realPersonalDeduction);
                                                 
-                                                const foodAllowanceForCalc = rowData.foodAllowance || 0;
+                                                const foodAllowanceForCalc = isFullTime ? (emp.defaultFoodAllowance || 3000) : (rowData.foodAllowance || 0);
                                                 let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
 
                                                 if (isFullTime) {
@@ -1806,7 +1813,7 @@ const htmlContent = `
                         const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
                         const realLeaveDeduction = Math.round(realSickDeduction + realPersonalDeduction);
 
-                        const foodAllowanceForCalc = rowData.foodAllowance || 0;
+                        const foodAllowanceForCalc = isFullTime ? (emp.defaultFoodAllowance || 3000) : (rowData.foodAllowance || 0);
                         let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
                         if (isFullTime) {
                             const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
