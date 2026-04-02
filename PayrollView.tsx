@@ -921,7 +921,7 @@ const htmlContent = `
               if (rowData.workHours > 0) remarks.push(`日常排班工時${rowData.workHours}小時`);
               if (rowData.normalOt > 0) remarks.push(`日常加班${rowData.normalOt}小時`);
           } else {
-              if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
+              if (rowData.normalOt > 0) remarks.push(`日常加班${rowData.normalOt}小時`);
           }
           if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
           
