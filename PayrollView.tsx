@@ -917,7 +917,12 @@ const htmlContent = `
           if (rowData.lateHours > 0) remarks.push(`遲到${rowData.lateHours}分鐘`);
           if (rowData.sickLeave > 0) remarks.push(`病假${rowData.sickLeave}小時`);
           if (rowData.personalLeave > 0) remarks.push(`事假${rowData.personalLeave}小時`);
-          if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
+          if (!isFullTime) {
+              if (rowData.workHours > 0) remarks.push(`日常排班工時${rowData.workHours}小時`);
+              if (rowData.normalOt > 0) remarks.push(`日常加班${rowData.normalOt}小時`);
+          } else {
+              if (rowData.normalOt > 0) remarks.push(`日常排班工時${rowData.normalOt}小時`);
+          }
           if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
           
           const remarkStr = remarks.length > 0 ? remarks.join("，") + "。" : "";
