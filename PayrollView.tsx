@@ -710,6 +710,7 @@ const htmlContent = `
               } else {
                   const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
                   realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+                  realNormalPay = Math.round(partTimeHourlyWage * (rowData.normalOt || 0) * 1.3333);
               }
               const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
 
@@ -719,7 +720,7 @@ const htmlContent = `
               const lateDeduction = rowData.lateDeduction ?? realLateDeduction;
               const laborIns = rowData.laborIns || 0;
               const healthIns = rowData.healthIns || 0;
-              
+
               const totalOtPay = (rowData.taxableOt || 0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
               const otherAdditions = (rowData.fullAttendance || 0) + (rowData.positionAllowance || 0) + (rowData.performanceBonus || 0);
               const otherDeductions = (rowData.dailyShortage || 0) + (rowData.pensionSelf || 0) + (rowData.incomeTax || 0) + (rowData.advancePay || 0);
@@ -865,6 +866,7 @@ const htmlContent = `
               } else {
                   const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
                   realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+                  realNormalPay = Math.round(partTimeHourlyWage * (rowData.normalOt || 0) * 1.3333);
               }
               const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
 
@@ -1023,6 +1025,7 @@ const htmlContent = `
       } else {
           const partTimeHourlyWage = editingMonthlyEmp?.defaultBaseSalary || 0;
           holidayPay = Math.round(partTimeHourlyWage * currentHoliday * 2);
+          normalPay = Math.round(partTimeHourlyWage * currentNormal * 1.3333);
       }
 
       updatedData.taxFreeOt = Math.round(annualPay + holidayPay + normalPay);
@@ -1559,6 +1562,7 @@ const htmlContent = `
                                                 } else {
                                                     const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
                                                     realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+                                                    realNormalPay = Math.round(partTimeHourlyWage * (rowData.normalOt || 0) * 1.3333);
                                                 }
                                                 const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
 
@@ -1624,8 +1628,8 @@ const htmlContent = `
                                                             <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realHolidayPay}</div>
                                                         </td>
                                                         <td className="p-3 border-r border-gray-200 group/cell relative text-center">
-                                                            <span className={`font-bold transition-opacity ${isFullTime ? 'text-gray-600 group-hover/cell:opacity-0' : 'text-gray-300'}`}>{isFullTime ? (rowData.normalOt || 0) : '-'}</span>
-                                                            {isFullTime && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realNormalPay}</div>}
+                                                            <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.normalOt || 0}</span>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realNormalPay}</div>
                                                         </td>
 
                                                         {expandedGroups.additions ? (
@@ -1812,6 +1816,7 @@ const htmlContent = `
                         } else {
                             const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, m);
                             realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
+                            realNormalPay = Math.round(partTimeHourlyWage * (rowData.normalOt || 0) * 1.3333);
                         }
                         const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
 
