@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { CashRecord, Client, CashAccountType } from './types';
 import { TaskService } from './taskService';
 import { PlusIcon, TrashIcon, ReturnIcon } from './Icons';
+import { EditableCombobox } from './EditableCombobox';
 
 // 擴充 Icons
 const PencilIcon = ({ className }: { className?: string }) => (
@@ -767,10 +768,13 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                         <label className="block text-sm font-bold text-gray-700 mb-1">
                                             {viewMode === 'client_detail' ? '代墊費用 (會計科目)' : '費用類別'}
                                         </label>
-                                        <input list="categories" name="category" defaultValue={editingRecord?.category} className="w-full p-2 border rounded-lg" placeholder="輸入或選擇..." />
-                                        <datalist id="categories">
-                                            <option value="規費"/><option value="郵資"/><option value="發票費"/><option value="零用金"/><option value="文具"/><option value="車資"/>
-                                        </datalist>
+                                        <EditableCombobox
+                                            name="category"
+                                            defaultValue={editingRecord?.category || ''}
+                                            storageKey="cash_categories"
+                                            defaultOptions={['規費', '郵資', '發票費', '零用金', '文具', '車資']}
+                                            placeholder="輸入或選擇..."
+                                        />
                                     </div>
                                 )}
 

@@ -5,6 +5,7 @@ import * as XLSX from 'xlsx';
 import { MailRecord, MailCategory } from './types';
 import { TaskService } from './taskService';
 import { PlusIcon, TrashIcon } from './Icons';
+import { EditableCombobox } from './EditableCombobox';
 
 // 擴充 Icons: 鉛筆圖示
 const PencilIcon = ({ className }: { className?: string }) => (
@@ -577,8 +578,15 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
                                 <div className="grid grid-cols-2 gap-3">
                                     <label className="block text-sm font-bold text-gray-700">日期 <input name="date" type="date" required defaultValue={editingRecord?.date || new Date().toISOString().split('T')[0]} className="w-full mt-1 p-2 border rounded-lg" /></label>
                                     <label className="block text-sm font-bold text-gray-700">送件方式 
-                                        <input list="methods" name="method" required defaultValue={editingRecord?.method || '普掛'} className="w-full mt-1 p-2 border rounded-lg" placeholder="可選或輸入" />
-                                        <datalist id="methods"><option value="普掛"/><option value="快遞"/><option value="雙掛號"/><option value="平信"/></datalist>
+                                        <EditableCombobox
+                                            name="method"
+                                            defaultValue={editingRecord?.method || '普掛'}
+                                            storageKey="mail_methods"
+                                            defaultOptions={['普掛', '快遞', '雙掛號', '平信']}
+                                            placeholder="可選或輸入"
+                                            required
+                                            className="w-full mt-1 p-2 border rounded-lg"
+                                        />
                                     </label>
                                 </div>
                                 <label className="block text-sm font-bold text-gray-700">文件名稱 <input name="fileName" required defaultValue={editingRecord?.fileName} className="w-full mt-1 p-2 border rounded-lg" /></label>
