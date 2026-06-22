@@ -879,7 +879,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                     <MailLogView
                         records={mailRecords}
                         onUpdate={loadData}
-                        isSupervisor={isPrivileged}
+                        isSupervisor={true}
                     />
                 ) :
                 activeTab === '零用金/代墊款' ? (
@@ -887,7 +887,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         records={cashRecords}
                         clients={clients}
                         onUpdate={loadData}
-                        isSupervisor={isPrivileged}
+                        isSupervisor={true}
                     />
                     ) :
                     activeTab === '股票進銷存' ? (
