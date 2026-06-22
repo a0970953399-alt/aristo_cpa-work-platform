@@ -19,6 +19,10 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadedUsers = TaskService.getUsers();
     setUsers(loadedUsers);
+    // Sync latest user list from Firebase (picks up users added on other devices)
+    TaskService.syncUsersFromCloud().then(() => {
+      setUsers(TaskService.getUsers());
+    }).catch(console.error);
     const timer = setTimeout(() => { setIsLoading(false); }, 500);
     return () => clearTimeout(timer);
   }, []);
