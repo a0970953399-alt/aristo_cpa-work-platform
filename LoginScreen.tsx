@@ -54,6 +54,26 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
   const dateStr = currentTime.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const timeStr = currentTime.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
 
+  const n = users.length;
+  const needsTwoRows = n >= 6;
+  const topRow = needsTwoRows ? users.slice(0, Math.ceil(n / 2)) : users;
+  const bottomRow = needsTwoRows ? users.slice(Math.ceil(n / 2)) : [];
+
+  const renderUserCard = (user: User) => (
+    <div
+      key={user.id}
+      onClick={() => handleUserClick(user)}
+      className="group cursor-pointer flex flex-col items-center"
+    >
+      <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-white border-4 border-white shadow-md flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:scale-110 group-hover:border-blue-500 group-hover:shadow-2xl">
+        {renderAvatar(user.avatar)}
+      </div>
+      <span className="mt-5 text-xl font-bold text-gray-600 group-hover:text-blue-600 transition-colors">
+        {user.name}
+      </span>
+    </div>
+  );
+
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50 px-4 select-none">
       <div className="max-w-6xl w-full">
@@ -67,22 +87,14 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
                 <span className="text-blue-600 font-bold font-mono text-xl">{timeStr}</span>
             </div>
         </div>
-        <div className="flex flex-wrap justify-center gap-10">
-          {users.map((user) => (
-            <div
-              key={user.id}
-              onClick={() => handleUserClick(user)}
-              className="group cursor-pointer flex flex-col items-center"
-            >
-              <div className="w-32 h-32 md:w-40 md:h-40 rounded-full bg-white border-4 border-white shadow-md flex items-center justify-center overflow-hidden transition-all duration-300 group-hover:scale-110 group-hover:border-blue-500 group-hover:shadow-2xl">
-                {renderAvatar(user.avatar)}
-              </div>
-              <span className="mt-5 text-xl font-bold text-gray-600 group-hover:text-blue-600 transition-colors">
-                {user.name}
-              </span>
-            </div>
-          ))}
-        </div>
+        {needsTwoRows ? (
+          <div className="flex flex-col items-center gap-10">
+            <div className="flex justify-center gap-10">{topRow.map(renderUserCard)}</div>
+            <div className="flex justify-center gap-10">{bottomRow.map(renderUserCard)}</div>
+          </div>
+        ) : (
+          <div className="flex flex-wrap justify-center gap-10">{users.map(renderUserCard)}</div>
+        )}
       </div>
       {selectedUser && (
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">

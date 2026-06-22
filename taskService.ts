@@ -139,17 +139,14 @@ export const TaskService = {
       if (!snapshot.empty) {
           let cloudUsers = snapshot.docs.map(d => d.data() as User);
 
-          // 以 DEFAULT_USERS 的 role 為權威來源，修正雲端快取的過時角色
-          cloudUsers = cloudUsers.map(u => {
-              const defaultUser = DEFAULT_USERS.find(d => d.id === u.id);
-              return defaultUser ? { ...u, role: defaultUser.role } : u;
+          // DEFAULT_USERS 依定義順序排前面，新增使用者依序補在最後
+          let finalUsers: User[] = DEFAULT_USERS.map(defaultUser => {
+              const cloudUser = cloudUsers.find(u => u.id === defaultUser.id);
+              return cloudUser ? { ...cloudUser, role: defaultUser.role } : defaultUser;
           });
-
-          // 把雲端抓下來的名單與本機合併更新
-          let finalUsers = [...cloudUsers];
-          DEFAULT_USERS.forEach(defaultUser => {
-              if (!finalUsers.find(u => u.id === defaultUser.id)) {
-                  finalUsers.unshift(defaultUser);
+          cloudUsers.forEach(cloudUser => {
+              if (!DEFAULT_USERS.find(d => d.id === cloudUser.id)) {
+                  finalUsers.push(cloudUser);
               }
           });
           localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(finalUsers));
