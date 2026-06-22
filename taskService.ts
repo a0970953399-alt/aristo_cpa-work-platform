@@ -249,7 +249,7 @@ export const TaskService = {
               timestamp: new Date().toISOString(),
               userName: user,
               action: `更改狀態至 ${status}`,
-              details: completionDate ? `完成日期: ${completionDate}` : undefined
+              ...(completionDate ? { details: `完成日期: ${completionDate}` } : {})
           };
           
           // ✨ 雲端局部更新：merge: true 代表只更新有變動的欄位，超級省流量！
