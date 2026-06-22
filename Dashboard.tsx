@@ -425,7 +425,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時`);
   };
 
-  const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => { stopPolling(); const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : ''; try { const updatedList = await TaskService.updateTaskStatus(task.id, newStatus, currentUser.name, completionDateStr); setTasks(updatedList); } catch (error) { alert("失敗"); } finally { startPolling(); } };
+  const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => { stopPolling(); const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : undefined; try { const updatedList = await TaskService.updateTaskStatus(task.id, newStatus, currentUser.name, completionDateStr); setTasks(updatedList); } catch (error) { alert("失敗"); } finally { startPolling(); } };
   const openInternNoteEdit = (task: ClientTask) => { setEditingTask(task); setModalNote(task.note); setIsNoteEditModalOpen(true); stopPolling(); };
   const handleInternNoteSubmit = async () => { if (!editingTask) return; setIsLoading(true); try { const updatedList = await TaskService.updateTaskNote(editingTask.id, modalNote, currentUser.name); setTasks(updatedList); setIsNoteEditModalOpen(false); setEditingTask(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
   const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
