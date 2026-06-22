@@ -16,12 +16,13 @@ interface ListViewProps {
     onUpdateStatus: (task: ClientTask, newStatus: TaskStatusType) => void;
     onEditNote: (task: ClientTask) => void;
     onDelete: (task: ClientTask) => void;
+    onDeleteNote: (task: ClientTask) => void;
     onGenerateReport: () => void; // ✨ 新增這行
 }
 
 export const ListView: React.FC<ListViewProps> = ({
-    tasks, currentUser, isSupervisor, currentYear, users, 
-    viewTargetId, setViewTargetId, onUpdateStatus, onEditNote, onDelete, onGenerateReport // ✨ 記得解構出來
+    tasks, currentUser, isSupervisor, currentYear, users,
+    viewTargetId, setViewTargetId, onUpdateStatus, onEditNote, onDelete, onDeleteNote, onGenerateReport // ✨ 記得解構出來
 }) => {
     const [filterStatus, setFilterStatus] = useState<'ALL' | TaskStatusType>('ALL');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -118,15 +119,16 @@ export const ListView: React.FC<ListViewProps> = ({
                 </div>
                 <div className="space-y-4">
                     {filteredTasks.map(task => (
-                        <TaskListItem 
-                            key={task.id} 
-                            task={task} 
+                        <TaskListItem
+                            key={task.id}
+                            task={task}
                             readOnly={!isSupervisor && task.assigneeId !== currentUser.id}
                             isSupervisor={isSupervisor}
                             users={users}
                             onUpdateStatus={onUpdateStatus}
                             onEditNote={onEditNote}
                             onDelete={onDelete}
+                            onDeleteNote={onDeleteNote}
                         />
                     ))}
                     {filteredTasks.length === 0 && <div className="text-center py-20 text-gray-400 text-xl">目前沒有工作項目</div>}

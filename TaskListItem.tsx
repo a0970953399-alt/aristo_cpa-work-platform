@@ -12,9 +12,10 @@ interface TaskListItemProps {
     onUpdateStatus: (task: ClientTask, newStatus: TaskStatusType) => void;
     onEditNote: (task: ClientTask) => void;
     onDelete: (task: ClientTask) => void;
+    onDeleteNote: (task: ClientTask) => void;
 }
 
-export const TaskListItem: React.FC<TaskListItemProps> = ({ task, readOnly, isSupervisor, users, onUpdateStatus, onEditNote, onDelete }) => {
+export const TaskListItem: React.FC<TaskListItemProps> = ({ task, readOnly, isSupervisor, users, onUpdateStatus, onEditNote, onDelete, onDeleteNote }) => {
     
     // 🔍 邏輯：透過 ID 找出使用者的「全名」(3個字)，如果找不到就用原本的縮寫
     const assigneeUser = users.find(u => u.id === task.assigneeId);
@@ -61,7 +62,7 @@ export const TaskListItem: React.FC<TaskListItemProps> = ({ task, readOnly, isSu
                                 <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M19 17V5a2 2 0 0 0-2-2H4"/><path d="M8 21h12a2 2 0 0 0 2-2v-1a1 1 0 0 0-1-1H11a1 1 0 0 0-1 1v1a2 2 0 1 1-4 0V5a2 2 0 1 0-4 0v2a1 1 0 0 0 1 1h3"/></svg>
                             </button>
                         )}
-                        <button onClick={() => onDelete(task)} className="p-1.5 bg-white rounded-full shadow-sm text-gray-400 hover:text-red-600 transition-colors">
+                        <button onClick={() => isSupervisor ? onDelete(task) : onDeleteNote(task)} className="p-1.5 bg-white rounded-full shadow-sm text-gray-400 hover:text-red-600 transition-colors">
                             <TrashIcon className="w-5 h-5"/>
                         </button>
                     </div>
