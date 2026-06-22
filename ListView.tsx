@@ -121,7 +121,7 @@ export const ListView: React.FC<ListViewProps> = ({
                         <TaskListItem 
                             key={task.id} 
                             task={task} 
-                            readOnly={task.assigneeId !== currentUser.id} 
+                            readOnly={!isSupervisor && task.assigneeId !== currentUser.id}
                             isSupervisor={isSupervisor}
                             users={users}
                             onUpdateStatus={onUpdateStatus}
