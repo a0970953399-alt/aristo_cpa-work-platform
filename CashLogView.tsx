@@ -54,7 +54,7 @@ interface CashLogViewProps {
     isSupervisor: boolean;
 }
 
-type ViewMode = 'dashboard' | 'shuoye' | 'yongye' | 'puhe' | 'client_detail';
+type ViewMode = 'dashboard' | 'shuoye' | 'yongye' | 'puhe' | 'client_detail' | 'all_advances';
 
 export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUpdate, isSupervisor }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
@@ -69,6 +69,14 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     // ✨ 客戶名稱搜尋狀態 (放大鏡)
     const [filterClient, setFilterClient] = useState<string>('');
     const [isClientFilterOpen, setIsClientFilterOpen] = useState(false);
+
+    // 代墊款總覽 篩選狀態
+    const [filterAllAdvClient, setFilterAllAdvClient] = useState<string>('');
+    const [isAllAdvClientFilterOpen, setIsAllAdvClientFilterOpen] = useState(false);
+    const [filterAllAdvRequestId, setFilterAllAdvRequestId] = useState<string>('');
+    const [isAllAdvRequestIdFilterOpen, setIsAllAdvRequestIdFilterOpen] = useState(false);
+    const [filterAllAdvCategory, setFilterAllAdvCategory] = useState<string>('');
+    const [isAllAdvCategoryFilterOpen, setIsAllAdvCategoryFilterOpen] = useState(false);
 
     // ✨ 篩選客戶名單供 Dashboard 顯示 (支援名稱與代碼搜尋)
     const filteredClients = useMemo(() => {
@@ -104,6 +112,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
             if (isClientFilterOpen) { setIsClientFilterOpen(false); return; }
             if (isModalOpen) { setIsModalOpen(false); setEditingRecord(null); setModalClientId(''); setModalError(null); return; }
             if (viewMode === 'client_detail') { setSelectedClient(null); setViewMode('dashboard'); return; }
+            if (viewMode === 'all_advances') { setFilterAllAdvClient(''); setFilterAllAdvRequestId(''); setFilterAllAdvCategory(''); setViewMode('dashboard'); return; }
             if (viewMode !== 'dashboard') { setViewMode('dashboard'); return; }
         };
         document.addEventListener('keydown', handleKeyDown);
@@ -331,6 +340,33 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
         return balances;
     }, [records]);
 
+    // 代墊款總覽：所有客戶代墊紀錄，依請款單編號升序分組
+    const allAdvanceRecords = useMemo(() => {
+        let filtered = records.filter(r => !!r.clientId);
+        if (filterYear || filterMonth) {
+            filtered = filtered.filter(r => {
+                const parts = r.date.split('-');
+                const yMatch = filterYear ? parts[0] === filterYear : true;
+                const mMatch = filterMonth ? parseInt(parts[1], 10).toString() === filterMonth : true;
+                return yMatch && mMatch;
+            });
+        }
+        if (filterAllAdvClient.trim()) filtered = filtered.filter(r => (r.clientName || '').toLowerCase().includes(filterAllAdvClient.trim().toLowerCase()));
+        if (filterAllAdvRequestId.trim()) filtered = filtered.filter(r => (r.requestId || '').toLowerCase().includes(filterAllAdvRequestId.trim().toLowerCase()));
+        if (filterAllAdvCategory.trim()) filtered = filtered.filter(r => (r.category || '').toLowerCase().includes(filterAllAdvCategory.trim().toLowerCase()));
+
+        const groups: { [key: string]: CashRecord[] } = {};
+        const singles: CashRecord[] = [];
+        filtered.forEach(r => {
+            if (r.requestId) { if (!groups[r.requestId]) groups[r.requestId] = []; groups[r.requestId].push(r); }
+            else singles.push(r);
+        });
+        Object.values(groups).forEach(g => g.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime()));
+        singles.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+        const sortedGroups = Object.entries(groups).sort(([kA], [kB]) => kA.localeCompare(kB)).map(([, g]) => g);
+        return [...sortedGroups.flat(), ...singles];
+    }, [records, filterYear, filterMonth, filterAllAdvClient, filterAllAdvRequestId, filterAllAdvCategory]);
+
     // ✨ 新增：專業貨幣格式化函數 (解決負號錯位問題)
     const formatCurrency = (amount: number) => {
         return amount < 0 ? `-$${Math.abs(amount).toLocaleString()}` : `$${amount.toLocaleString()}`;
@@ -405,9 +441,9 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                         <h3 className="text-gray-500 font-bold flex items-center gap-2 uppercase tracking-wider text-sm">
                             <span className="text-xl">👥</span> 客戶代墊紀錄
                         </h3>
-                        
+
                         {/* 放大鏡按鈕 */}
-                        <button 
+                        <button
                             onClick={(e) => { e.stopPropagation(); setIsClientFilterOpen(!isClientFilterOpen); }}
                             className={`p-1 rounded transition-colors hover:bg-gray-200 ${filterClient ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}
                             title="搜尋客戶"
@@ -440,6 +476,14 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 </div>
                             </>
                         )}
+
+                        {/* 代墊款總覽按鈕 */}
+                        <button
+                            onClick={() => setViewMode('all_advances')}
+                            className="ml-auto flex items-center gap-1.5 bg-blue-600 text-white text-xs font-bold px-3 py-1.5 rounded-lg hover:bg-blue-700 shadow-sm transition-colors"
+                        >
+                            <span>📋</span> 代墊款總覽
+                        </button>
                     </div>
 
                     <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-6 gap-4">
@@ -470,29 +514,30 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     if (viewMode === 'shuoye') { pageTitle = '碩業零用金'; headerColor = 'bg-purple-600'; }
     else if (viewMode === 'yongye') { pageTitle = '永業零用金'; headerColor = 'bg-green-600'; }
     else if (viewMode === 'puhe') { pageTitle = '璞和零用金'; headerColor = 'bg-orange-500'; }
+    else if (viewMode === 'all_advances') { pageTitle = '代墊款總覽'; headerColor = 'bg-blue-600'; }
     else { pageTitle = `代墊款：${selectedClient?.name}`; headerColor = 'bg-blue-600'; }
 
   return (
         <div className="h-full min-h-[calc(100vh-120px)] flex flex-col bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                 <div className="flex items-center gap-3">
-                    <button onClick={() => { setViewMode('dashboard'); setSelectedClient(null); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
+                    <button onClick={() => { setViewMode('dashboard'); setSelectedClient(null); setFilterAllAdvClient(''); setFilterAllAdvRequestId(''); setFilterAllAdvCategory(''); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
                         <ReturnIcon className="w-6 h-6" />
                     </button>
                     <h2 className={`text-xl font-bold px-3 py-1 rounded text-white ${headerColor} shadow-sm`}>{pageTitle}</h2>
                 </div>
                 
               <div className="flex items-center gap-2">
-                    {isSupervisor && (
+                    {isSupervisor && viewMode !== 'all_advances' && (
                         <>
                             {/* 隱藏的檔案選擇器 */}
                             <input type="file" ref={fileInputRef} onChange={handleFileUpload} accept=".xlsx, .xls" className="hidden" />
-                            
+
                             {/* Excel 匯入按鈕 (綠色底色，與新增按鈕做出區隔) */}
                             <button onClick={() => fileInputRef.current?.click()} title="Excel 匯入" className="p-2 bg-green-50 text-green-700 border border-green-200 rounded-lg hover:bg-green-100 shadow-sm transition-opacity">
                                 <ExcelFileIcon className="w-5 h-5" />
                             </button>
-                            
+
                             <button onClick={() => { setEditingRecord(null); setModalClientId(''); setModalError(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
                                 <PlusIcon className="w-5 h-5" />
                             </button>
@@ -503,6 +548,154 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
           {/* ✨ 將 auto 改成 overflow-y-scroll overflow-x-auto */}
             <div className="flex-1 overflow-y-scroll overflow-x-auto custom-scrollbar">
+            {viewMode === 'all_advances' ? (
+                /* ── 代墊款總覽 table ── */
+                <table className="w-full text-left border-collapse min-w-[900px]">
+                    <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider shadow-sm">
+                        <tr>
+                            {/* 請款單編號 */}
+                            <th className="p-3 border-b w-36 relative select-none">
+                                <div className="flex items-center gap-1">
+                                    請款單編號
+                                    <button onClick={(e) => { e.stopPropagation(); setIsAllAdvRequestIdFilterOpen(!isAllAdvRequestIdFilterOpen); }} className={`p-1 rounded hover:bg-gray-200 ${filterAllAdvRequestId ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`}><MagnifyingGlassIcon className="w-4 h-4" /></button>
+                                </div>
+                                {isAllAdvRequestIdFilterOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setIsAllAdvRequestIdFilterOpen(false)}></div>
+                                        <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                            <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋請款單編號</label>
+                                            <input type="text" value={filterAllAdvRequestId} onChange={e => setFilterAllAdvRequestId(e.target.value)} placeholder="例如：114R066" className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50" autoFocus />
+                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-3">
+                                                <button onClick={() => { setFilterAllAdvRequestId(''); setIsAllAdvRequestIdFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1">清除</button>
+                                                <button onClick={() => setIsAllAdvRequestIdFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold">完成</button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </th>
+                            {/* 客戶名稱 */}
+                            <th className="p-3 border-b w-32 relative select-none">
+                                <div className="flex items-center gap-1">
+                                    客戶名稱
+                                    <button onClick={(e) => { e.stopPropagation(); setIsAllAdvClientFilterOpen(!isAllAdvClientFilterOpen); }} className={`p-1 rounded hover:bg-gray-200 ${filterAllAdvClient ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`}><MagnifyingGlassIcon className="w-4 h-4" /></button>
+                                </div>
+                                {isAllAdvClientFilterOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setIsAllAdvClientFilterOpen(false)}></div>
+                                        <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                            <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋客戶名稱</label>
+                                            <input type="text" value={filterAllAdvClient} onChange={e => setFilterAllAdvClient(e.target.value)} placeholder="輸入關鍵字..." className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50" autoFocus />
+                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-3">
+                                                <button onClick={() => { setFilterAllAdvClient(''); setIsAllAdvClientFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1">清除</button>
+                                                <button onClick={() => setIsAllAdvClientFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold">完成</button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </th>
+                            {/* 日期（含年月漏斗） */}
+                            <th className="p-3 border-b w-32 relative select-none">
+                                <div className="flex items-center gap-2">
+                                    日期
+                                    <button onClick={(e) => { e.stopPropagation(); setIsDateFilterOpen(!isDateFilterOpen); }} className={`p-1 rounded hover:bg-gray-200 ${filterYear || filterMonth ? 'text-blue-600 bg-blue-50 shadow-sm' : 'text-gray-400'}`}><FunnelIcon className="w-4 h-4" /></button>
+                                </div>
+                                {isDateFilterOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setIsDateFilterOpen(false)}></div>
+                                        <div className="absolute top-full left-3 mt-1 w-48 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                            <div className="mb-3">
+                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">年份</label>
+                                                <select value={filterYear} onChange={e => setFilterYear(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50">
+                                                    <option value="">所有年份</option>
+                                                    {availableYears.map(y => <option key={y} value={y}>{y} 年</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="mb-4">
+                                                <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">月份</label>
+                                                <select value={filterMonth} onChange={e => setFilterMonth(e.target.value)} className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50">
+                                                    <option value="">所有月份</option>
+                                                    {Array.from({length: 12}, (_, i) => i + 1).map(m => <option key={m} value={m.toString()}>{m} 月</option>)}
+                                                </select>
+                                            </div>
+                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-1">
+                                                <button onClick={() => { setFilterYear(''); setFilterMonth(''); setIsDateFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1">清除</button>
+                                                <button onClick={() => setIsDateFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold shadow-sm">套用</button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </th>
+                            {/* 代墊費用 */}
+                            <th className="p-3 border-b w-28 relative select-none">
+                                <div className="flex items-center gap-1">
+                                    代墊費用
+                                    <button onClick={(e) => { e.stopPropagation(); setIsAllAdvCategoryFilterOpen(!isAllAdvCategoryFilterOpen); }} className={`p-1 rounded hover:bg-gray-200 ${filterAllAdvCategory ? 'text-blue-600 bg-blue-50' : 'text-gray-400'}`}><MagnifyingGlassIcon className="w-4 h-4" /></button>
+                                </div>
+                                {isAllAdvCategoryFilterOpen && (
+                                    <>
+                                        <div className="fixed inset-0 z-40" onClick={() => setIsAllAdvCategoryFilterOpen(false)}></div>
+                                        <div className="absolute top-full left-0 mt-1 w-56 bg-white border border-gray-200 rounded-xl shadow-xl z-50 p-4 text-sm font-normal cursor-default">
+                                            <label className="block text-xs font-bold text-gray-400 mb-1 uppercase tracking-wider">搜尋代墊費用</label>
+                                            <input type="text" value={filterAllAdvCategory} onChange={e => setFilterAllAdvCategory(e.target.value)} placeholder="例如：規費" className="w-full border border-gray-200 rounded-lg p-2 outline-none focus:ring-2 focus:ring-blue-500 font-medium text-gray-700 bg-gray-50" autoFocus />
+                                            <div className="flex justify-between items-center border-t border-gray-100 pt-3 mt-3">
+                                                <button onClick={() => { setFilterAllAdvCategory(''); setIsAllAdvCategoryFilterOpen(false); }} className="text-gray-500 font-bold hover:text-gray-800 px-2 py-1">清除</button>
+                                                <button onClick={() => setIsAllAdvCategoryFilterOpen(false)} className="bg-blue-600 text-white px-4 py-1.5 rounded-lg hover:bg-blue-700 font-bold">完成</button>
+                                            </div>
+                                        </div>
+                                    </>
+                                )}
+                            </th>
+                            <th className="p-3 border-b min-w-[200px]">說明</th>
+                            <th className="p-3 border-b w-24 text-right">金額</th>
+                            {isSupervisor && <th className="p-3 border-b w-20 text-center">操作</th>}
+                        </tr>
+                    </thead>
+                    <tbody className="text-sm divide-y divide-gray-100">
+                        {allAdvanceRecords.map((r, index) => {
+                            const prev = index > 0 ? allAdvanceRecords[index - 1] : null;
+                            const next = index < allAdvanceRecords.length - 1 ? allAdvanceRecords[index + 1] : null;
+                            const isGroupStart = !prev || prev.requestId !== r.requestId;
+                            const isGroupEnd = !next || next.requestId !== r.requestId;
+                            const groupTotal = isGroupEnd && r.requestId
+                                ? allAdvanceRecords.filter(x => x.requestId === r.requestId).reduce((s, x) => s + Number(x.amount), 0)
+                                : 0;
+                            return (
+                                <React.Fragment key={r.id}>
+                                    {index > 0 && isGroupStart && (
+                                        <tr><td colSpan={isSupervisor ? 7 : 6} className="bg-blue-50 h-2 border-t border-b border-blue-100"></td></tr>
+                                    )}
+                                    <tr className="hover:bg-gray-50 transition-colors group">
+                                        <td className="p-3 font-mono text-blue-800 font-bold">{r.requestId || <span className="text-gray-300">—</span>}</td>
+                                        <td className="p-3 font-bold text-blue-600">{r.clientName}</td>
+                                        <td className="p-3 font-mono text-gray-600">{r.date}</td>
+                                        <td className="p-3"><span className="bg-gray-100 text-gray-600 px-2 py-0.5 rounded text-xs font-bold">{r.category}</span></td>
+                                        <td className="p-3 text-gray-800">{r.description}</td>
+                                        <td className="p-3 font-mono font-bold text-gray-800 text-right">{Number(r.amount).toLocaleString()}</td>
+                                        {isSupervisor && (
+                                            <td className="p-3 text-center">
+                                                <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
+                                                    <button onClick={() => { setEditingRecord(r); setModalClientId(r.clientId || ''); setModalError(null); setIsModalOpen(true); }} className="p-1.5 bg-white border rounded hover:bg-blue-50 text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4"/></button>
+                                                    <button onClick={() => handleDelete(r.id)} className="p-1.5 bg-white border rounded hover:bg-red-50 text-red-600 shadow-sm"><TrashIcon className="w-4 h-4"/></button>
+                                                </div>
+                                            </td>
+                                        )}
+                                    </tr>
+                                    {isGroupEnd && r.requestId && (
+                                        <tr className="bg-blue-50/60">
+                                            <td colSpan={isSupervisor ? 5 : 4} className="p-2 pr-4 text-right text-xs font-bold text-blue-500">{r.requestId} 小計</td>
+                                            <td className="p-2 font-mono font-black text-blue-700 text-right">{groupTotal.toLocaleString()}</td>
+                                            {isSupervisor && <td></td>}
+                                        </tr>
+                                    )}
+                                </React.Fragment>
+                            );
+                        })}
+                        {allAdvanceRecords.length === 0 && (
+                            <tr><td colSpan={isSupervisor ? 7 : 6} className="p-10 text-center text-gray-400">尚無代墊款紀錄</td></tr>
+                        )}
+                    </tbody>
+                </table>
+            ) : (
                 <table className="w-full text-left border-collapse min-w-[1000px]">
                     <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider shadow-sm">
                         <tr>
@@ -676,6 +869,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                         )}
                     </tbody>
                 </table>
+            )} {/* end all_advances ternary */}
             </div>
 
             {/* 新增/編輯 Modal */}
@@ -695,10 +889,15 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             setIsProcessing(true);
 
                             const isAdvanceFromShuoye = viewMode === 'shuoye' && !!modalClientId;
-                            let finalAccount: CashAccountType = viewMode === 'client_detail' ? 'shuoye' : (viewMode as CashAccountType);
+                            let finalAccount: CashAccountType;
+                            if (viewMode === 'client_detail' || viewMode === 'all_advances') {
+                                finalAccount = (editingRecord?.account || 'shuoye') as CashAccountType;
+                            } else {
+                                finalAccount = viewMode as CashAccountType;
+                            }
                             let finalType: 'income' | 'expense' = 'expense';
 
-                            if (viewMode === 'client_detail' || isAdvanceFromShuoye) {
+                            if (viewMode === 'client_detail' || viewMode === 'all_advances' || isAdvanceFromShuoye) {
                                 finalType = 'expense';
                             } else {
                                 finalType = formData.get('type') as 'income' | 'expense';
@@ -740,7 +939,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             }
                         }}>
                             <div className={`p-4 border-b text-white flex justify-between items-center ${headerColor}`}>
-                                <h3 className="font-bold text-lg">{editingRecord ? '編輯' : '新增'} {(viewMode === 'client_detail' || (viewMode === 'shuoye' && !!modalClientId)) ? '代墊款' : '紀錄'}</h3>
+                                <h3 className="font-bold text-lg">{editingRecord ? '編輯' : '新增'} {(viewMode === 'client_detail' || viewMode === 'all_advances' || (viewMode === 'shuoye' && !!modalClientId)) ? '代墊款' : '紀錄'}</h3>
                                 <button type="button" onClick={() => { setIsModalOpen(false); setModalClientId(''); setModalError(null); }} className="hover:bg-white/20 rounded-full p-1" disabled={isProcessing}>✕</button>
                             </div>
                             
@@ -774,7 +973,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 )}
 
                                 {/* 收入/支出選擇：代墊款模式下不顯示（強制支出） */}
-                                {viewMode !== 'client_detail' && !modalClientId && (
+                                {viewMode !== 'client_detail' && viewMode !== 'all_advances' && !modalClientId && (
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-1">類型</label>
                                         <div className="flex p-1 bg-gray-100 rounded-lg">
@@ -793,7 +992,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 {viewMode !== 'puhe' && (
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-1">
-                                            {(viewMode === 'client_detail' || !!modalClientId) ? '代墊費用 (會計科目)' : '費用類別'}
+                                            {(viewMode === 'client_detail' || viewMode === 'all_advances' || !!modalClientId) ? '代墊費用 (會計科目)' : '費用類別'}
                                         </label>
                                         <EditableCombobox
                                             name="category"
@@ -810,8 +1009,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                     <input name="description" defaultValue={editingRecord?.description} className="w-full p-2 border rounded-lg" placeholder="詳細內容..." />
                                 </div>
 
-                                {/* 請款單編號：客戶代墊頁 或 碩業選了客戶時顯示 */}
-                                {(viewMode === 'client_detail' || !!modalClientId) && (
+                                {/* 請款單編號：客戶代墊頁、總覽頁 或 碩業選了客戶時顯示 */}
+                                {(viewMode === 'client_detail' || viewMode === 'all_advances' || !!modalClientId) && (
                                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
                                         <label className="block text-sm font-bold text-blue-800 mb-1">請款單編號 (用於分組)</label>
                                         <input name="requestId" defaultValue={editingRecord?.requestId} className="w-full p-2 border border-blue-200 rounded-lg" placeholder="例如：114R066" />
@@ -820,7 +1019,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 )}
 
                                 {/* 已請款、傳票號碼、備註：代墊款模式下不顯示 */}
-                                {viewMode !== 'client_detail' && !modalClientId && (
+                                {viewMode !== 'client_detail' && viewMode !== 'all_advances' && !modalClientId && (
                                     <div className="grid grid-cols-2 gap-4">
                                         {viewMode === 'shuoye' && (
                                             <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
