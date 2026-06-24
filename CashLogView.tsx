@@ -59,7 +59,7 @@ type ViewMode = 'dashboard' | 'shuoye' | 'yongye' | 'puhe' | 'client_detail';
 export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUpdate, isSupervisor }) => {
     const [viewMode, setViewMode] = useState<ViewMode>('dashboard');
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
-    const [sortDesc, setSortDesc] = useState(false); // 預設升序
+    const [sortDesc, setSortDesc] = useState(true); // 預設降序（新→舊）
 
     // ✨ Excel 漏斗篩選狀態
     const [filterYear, setFilterYear] = useState<string>('');
@@ -89,6 +89,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     // Modal State
     const [isModalOpen, setIsModalOpen] = useState(false);
     const [editingRecord, setEditingRecord] = useState<CashRecord | null>(null);
+    const [modalClientId, setModalClientId] = useState<string>('');
     const [isProcessing, setIsProcessing] = useState(false);
     const [modalError, setModalError] = useState<string | null>(null);
 
@@ -101,7 +102,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
             // 依優先順序關閉：篩選面板 → Modal → 客戶詳細頁 → 返回總覽
             if (isDateFilterOpen) { setIsDateFilterOpen(false); return; }
             if (isClientFilterOpen) { setIsClientFilterOpen(false); return; }
-            if (isModalOpen) { setIsModalOpen(false); setEditingRecord(null); setModalError(null); return; }
+            if (isModalOpen) { setIsModalOpen(false); setEditingRecord(null); setModalClientId(''); setModalError(null); return; }
             if (viewMode === 'client_detail') { setSelectedClient(null); setViewMode('dashboard'); return; }
             if (viewMode !== 'dashboard') { setViewMode('dashboard'); return; }
         };
@@ -492,7 +493,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 <ExcelFileIcon className="w-5 h-5" />
                             </button>
                             
-                            <button onClick={() => { setEditingRecord(null); setModalError(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
+                            <button onClick={() => { setEditingRecord(null); setModalClientId(''); setModalError(null); setIsModalOpen(true); }} title="新增紀錄" className={`p-2 ${headerColor} text-white rounded-lg hover:opacity-90 shadow-sm transition-opacity`}>
                                 <PlusIcon className="w-5 h-5" />
                             </button>
                         </>
@@ -661,7 +662,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                         {isSupervisor && (
                                             <td className="p-3 text-center">
                                                 <div className="flex justify-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
-                                                    <button onClick={() => { setEditingRecord(r); setModalError(null); setIsModalOpen(true); }} className="p-1.5 bg-white border rounded hover:bg-blue-50 text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4"/></button>
+                                                    <button onClick={() => { setEditingRecord(r); setModalClientId(r.clientId || ''); setModalError(null); setIsModalOpen(true); }} className="p-1.5 bg-white border rounded hover:bg-blue-50 text-blue-600 shadow-sm"><PencilIcon className="w-4 h-4"/></button>
                                                     <button onClick={() => handleDelete(r.id)} className="p-1.5 bg-white border rounded hover:bg-red-50 text-red-600 shadow-sm"><TrashIcon className="w-4 h-4"/></button>
                                                 </div>
                                             </td>
@@ -679,7 +680,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
             {/* 新增/編輯 Modal */}
             {isModalOpen && (
-                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!isProcessing) { setIsModalOpen(false); setModalError(null); } }}>
+                <div className="fixed inset-0 bg-black/50 z-50 flex items-center justify-center p-4" onClick={() => { if (!isProcessing) { setIsModalOpen(false); setModalClientId(''); setModalError(null); } }}>
                     <div className="bg-white rounded-xl shadow-xl w-full max-w-lg overflow-hidden" onClick={e => e.stopPropagation()}>
                         <form noValidate onSubmit={async (e) => {
                             e.preventDefault();
@@ -693,14 +694,22 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
                             setIsProcessing(true);
 
+                            const isAdvanceFromShuoye = viewMode === 'shuoye' && !!modalClientId;
                             let finalAccount: CashAccountType = viewMode === 'client_detail' ? 'shuoye' : (viewMode as CashAccountType);
                             let finalType: 'income' | 'expense' = 'expense';
 
-                            if (viewMode === 'client_detail') {
+                            if (viewMode === 'client_detail' || isAdvanceFromShuoye) {
                                 finalType = 'expense';
                             } else {
                                 finalType = formData.get('type') as 'income' | 'expense';
                             }
+
+                            const resolvedClientId = viewMode === 'client_detail'
+                                ? selectedClient!.id
+                                : (isAdvanceFromShuoye ? modalClientId : editingRecord?.clientId);
+                            const resolvedClientName = viewMode === 'client_detail'
+                                ? selectedClient!.name
+                                : (isAdvanceFromShuoye ? clients.find(c => c.id === modalClientId)?.name : editingRecord?.clientName);
 
                             const newRec: CashRecord = {
                                 id: editingRecord ? editingRecord.id : Date.now().toString(),
@@ -709,13 +718,13 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 amount: Number(amountVal),
                                 category: formData.get('category') as string || '',
                                 description: formData.get('description') as string || '',
-                                note: formData.get('note') as string || '',
+                                note: isAdvanceFromShuoye ? '' : (formData.get('note') as string || ''),
                                 account: finalAccount,
-                                clientId: viewMode === 'client_detail' ? selectedClient!.id : editingRecord?.clientId,
-                                clientName: viewMode === 'client_detail' ? selectedClient!.name : editingRecord?.clientName,
+                                clientId: resolvedClientId,
+                                clientName: resolvedClientName,
                                 requestId: formData.get('requestId') as string || '',
-                                isReimbursed: formData.get('isReimbursed') === 'on',
-                                voucherId: formData.get('voucherId') as string || ''
+                                isReimbursed: isAdvanceFromShuoye ? false : formData.get('isReimbursed') === 'on',
+                                voucherId: isAdvanceFromShuoye ? '' : (formData.get('voucherId') as string || '')
                             };
 
                             try {
@@ -731,8 +740,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             }
                         }}>
                             <div className={`p-4 border-b text-white flex justify-between items-center ${headerColor}`}>
-                                <h3 className="font-bold text-lg">{editingRecord ? '編輯' : '新增'} {viewMode === 'client_detail' ? '代墊款' : '紀錄'}</h3>
-                                <button type="button" onClick={() => { setIsModalOpen(false); setModalError(null); }} className="hover:bg-white/20 rounded-full p-1" disabled={isProcessing}>✕</button>
+                                <h3 className="font-bold text-lg">{editingRecord ? '編輯' : '新增'} {(viewMode === 'client_detail' || (viewMode === 'shuoye' && !!modalClientId)) ? '代墊款' : '紀錄'}</h3>
+                                <button type="button" onClick={() => { setIsModalOpen(false); setModalClientId(''); setModalError(null); }} className="hover:bg-white/20 rounded-full p-1" disabled={isProcessing}>✕</button>
                             </div>
                             
                             <div className="p-5 space-y-4 max-h-[70vh] overflow-y-auto">
@@ -747,7 +756,25 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                     </div>
                                 </div>
 
-                                {viewMode !== 'client_detail' && (
+                                {/* 碩業頁專用：客戶選單（選了即變代墊款模式） */}
+                                {viewMode === 'shuoye' && (
+                                    <div>
+                                        <label className="block text-sm font-bold text-gray-700 mb-1">客戶 <span className="text-gray-400 font-normal">（選填，選擇後記為代墊款）</span></label>
+                                        <select
+                                            value={modalClientId}
+                                            onChange={e => setModalClientId(e.target.value)}
+                                            className="w-full p-2 border rounded-lg bg-gray-50"
+                                        >
+                                            <option value="">— 內部紀錄（無客戶）—</option>
+                                            {clients.map(c => (
+                                                <option key={c.id} value={c.id}>{c.name}</option>
+                                            ))}
+                                        </select>
+                                    </div>
+                                )}
+
+                                {/* 收入/支出選擇：代墊款模式下不顯示（強制支出） */}
+                                {viewMode !== 'client_detail' && !modalClientId && (
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-1">類型</label>
                                         <div className="flex p-1 bg-gray-100 rounded-lg">
@@ -766,7 +793,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                 {viewMode !== 'puhe' && (
                                     <div>
                                         <label className="block text-sm font-bold text-gray-700 mb-1">
-                                            {viewMode === 'client_detail' ? '代墊費用 (會計科目)' : '費用類別'}
+                                            {(viewMode === 'client_detail' || !!modalClientId) ? '代墊費用 (會計科目)' : '費用類別'}
                                         </label>
                                         <EditableCombobox
                                             name="category"
@@ -783,7 +810,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                     <input name="description" defaultValue={editingRecord?.description} className="w-full p-2 border rounded-lg" placeholder="詳細內容..." />
                                 </div>
 
-                                {viewMode === 'client_detail' && (
+                                {/* 請款單編號：客戶代墊頁 或 碩業選了客戶時顯示 */}
+                                {(viewMode === 'client_detail' || !!modalClientId) && (
                                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
                                         <label className="block text-sm font-bold text-blue-800 mb-1">請款單編號 (用於分組)</label>
                                         <input name="requestId" defaultValue={editingRecord?.requestId} className="w-full p-2 border border-blue-200 rounded-lg" placeholder="例如：114R066" />
@@ -791,7 +819,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                     </div>
                                 )}
 
-                                {viewMode !== 'client_detail' && (
+                                {/* 已請款、傳票號碼、備註：代墊款模式下不顯示 */}
+                                {viewMode !== 'client_detail' && !modalClientId && (
                                     <div className="grid grid-cols-2 gap-4">
                                         {viewMode === 'shuoye' && (
                                             <label className="flex items-center gap-2 p-2 border rounded-lg cursor-pointer hover:bg-gray-50">
@@ -818,7 +847,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                     <div className="text-sm text-red-600 bg-red-50 border border-red-200 rounded-lg px-3 py-2">{modalError}</div>
                                 )}
                                 <div className="flex justify-end gap-2">
-                                <button type="button" onClick={() => { setIsModalOpen(false); setModalError(null); }} disabled={isProcessing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-bold">取消</button>
+                                <button type="button" onClick={() => { setIsModalOpen(false); setModalClientId(''); setModalError(null); }} disabled={isProcessing} className="px-4 py-2 text-gray-600 hover:bg-gray-100 rounded-lg font-bold">取消</button>
                                 <button type="submit" disabled={isProcessing} className={`px-4 py-2 text-white rounded-lg font-bold ${headerColor} hover:opacity-90 disabled:opacity-50 flex items-center gap-2`}>
                                     {isProcessing && <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>}
                                     儲存
