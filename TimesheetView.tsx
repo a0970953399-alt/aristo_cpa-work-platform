@@ -20,6 +20,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
 
     // 編輯狀態 (主管補登用)
     const [editingId, setEditingId] = useState<string | null>(null);
+    const [editDate, setEditDate] = useState('');
     const [editStart, setEditStart] = useState('');
     const [editEnd, setEditEnd] = useState('');
     const [editBreak, setEditBreak] = useState(1);
@@ -54,6 +55,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         const newTotal = calculateHours(editStart, editEnd, editBreak);
         const updated: CheckInRecord = {
             ...record,
+            date: editDate,
             startTime: editStart,
             endTime: editEnd,
             breakHours: editBreak,
@@ -73,6 +75,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
 
     const startEdit = (r: CheckInRecord) => {
         setEditingId(r.id);
+        setEditDate(r.date);
         setEditStart(r.startTime);
         setEditEnd(r.endTime || '');
         setEditBreak(r.breakHours);
@@ -146,8 +149,13 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                 filteredRecords.map(r => (
                                     <tr key={r.id} className="hover:bg-gray-50 transition-colors">
                                         <td className="p-4 font-bold text-gray-700">{r.userName}</td>
-                                        <td className="p-4 text-gray-600 font-mono">{r.date}</td>
-                                        
+                                        <td className="p-2 text-gray-600 font-mono">
+                                            {editingId === r.id
+                                                ? <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="border rounded p-1 w-full text-center font-mono" />
+                                                : r.date
+                                            }
+                                        </td>
+
                                         {/* 編輯模式 vs 檢視模式 */}
                                         {editingId === r.id ? (
                                             <>
