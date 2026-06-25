@@ -1009,8 +1009,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                                     <input name="description" defaultValue={editingRecord?.description} className="w-full p-2 border rounded-lg" placeholder="詳細內容..." />
                                 </div>
 
-                                {/* 請款單編號：客戶代墊頁、總覽頁 或 碩業選了客戶時顯示 */}
-                                {(viewMode === 'client_detail' || viewMode === 'all_advances' || !!modalClientId) && (
+                                {/* 請款單編號：只在編輯現有記錄時顯示（新增時由請款單流程寫入） */}
+                                {(viewMode === 'client_detail' || viewMode === 'all_advances' || !!modalClientId) && !!editingRecord && (
                                     <div className="bg-blue-50 p-3 rounded-lg border border-blue-100">
                                         <label className="block text-sm font-bold text-blue-800 mb-1">請款單編號 (用於分組)</label>
                                         <input name="requestId" defaultValue={editingRecord?.requestId} className="w-full p-2 border border-blue-200 rounded-lg" placeholder="例如：114R066" />

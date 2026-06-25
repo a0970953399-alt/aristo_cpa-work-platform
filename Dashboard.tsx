@@ -1490,9 +1490,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
       {/* Invoice Generator Modal */}
       {isInvoiceOpen && (
-          <InvoiceGenerator 
+          <InvoiceGenerator
               onClose={() => setIsInvoiceOpen(false)}
               cashRecords={cashRecords}
+              clients={clients}
+              onUpdate={loadData}
           />
       )}
 

@@ -1,7 +1,8 @@
-// src/InvoiceGenerator.tsx
+﻿// src/InvoiceGenerator.tsx
 
 import React, { useState, useEffect } from 'react';
-import { CashRecord } from './types';
+import { CashRecord, Client } from './types';
+import { TaskService } from './taskService';
 import ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
 import { CloudArrowDownIcon } from './Icons';
@@ -12,6 +13,8 @@ const TEMPLATE_BASE64 = "UEsDBBQABgAIAAAAIQCWKh08mwEAALYGAAATAAgCW0NvbnRlbnRfVHl
 interface InvoiceGeneratorProps {
     onClose: () => void;
     cashRecords: CashRecord[];
+    clients: Client[];
+    onUpdate?: () => void;
 }
 
 interface InvoiceItem {
@@ -19,9 +22,10 @@ interface InvoiceItem {
     amount: number;
 }
 
-export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cashRecords }) => {
+export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cashRecords, clients, onUpdate }) => {
     // --- State ---
     const [invoiceNo, setInvoiceNo] = useState('');
+    const [selectedClientId, setSelectedClientId] = useState('');
     const [clientName, setClientName] = useState('');
     const [invoiceDate, setInvoiceDate] = useState('');
     
@@ -36,30 +40,46 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     const [advanceTotal, setAdvanceTotal] = useState(0);
     const [taxAmount, setTaxAmount] = useState<number>(0);
     const [isGenerating, setIsGenerating] = useState(false);
+    const [isLoadingAdvances, setIsLoadingAdvances] = useState(false);
 
     // --- Init ---
     useEffect(() => {
         const d = new Date();
         const year = d.getFullYear() - 1911;
         setInvoiceDate(`${year}年${d.getMonth() + 1}月${d.getDate()}日`);
+
+        const detectNextId = async () => {
+            try {
+                const allRecords = await TaskService.fetchCashRecords();
+                let maxYear = 0, maxSeq = 0;
+                allRecords.forEach(r => {
+                    if (!r.requestId) return;
+                    const m = r.requestId.match(/^(\d+)R(\d+)$/i);
+                    if (!m) return;
+                    const y = parseInt(m[1]), s = parseInt(m[2]);
+                    if (y > maxYear || (y === maxYear && s > maxSeq)) { maxYear = y; maxSeq = s; }
+                });
+                if (maxYear > 0) setInvoiceNo(`${maxYear}R${String(maxSeq + 1).padStart(3, '0')}`);
+            } catch {}
+        };
+        detectNextId();
     }, []);
 
     // --- Logic ---
-    const handleSearch = () => {
-        if (!invoiceNo.trim()) { alert("請輸入單號"); return; }
-        const found = cashRecords.filter(r => r.requestId === invoiceNo.trim());
-        
-        if (found.length === 0) {
-            alert("找不到此單號的代墊款紀錄");
-            setAdvances([]);
-            setAdvanceTotal(0);
-            return;
-        }
-
-        if (found[0].clientName) setClientName(found[0].clientName);
-        found.sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
-        setAdvances(found);
-        setAdvanceTotal(found.reduce((sum, r) => sum + Number(r.amount), 0));
+    const handleClientChange = async (clientId: string) => {
+        setSelectedClientId(clientId);
+        if (!clientId) { setClientName(''); setAdvances([]); setAdvanceTotal(0); return; }
+        const client = clients.find(c => String(c.id) === clientId);
+        setClientName(client ? (client.fullName || client.name) : '');
+        setIsLoadingAdvances(true);
+        try {
+            const allRecords = await TaskService.fetchCashRecords();
+            const unreimbursed = allRecords
+                .filter(r => r.clientId === clientId && !r.isReimbursed)
+                .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
+            setAdvances(unreimbursed);
+            setAdvanceTotal(unreimbursed.reduce((sum, r) => sum + Number(r.amount), 0));
+        } catch { setAdvances([]); setAdvanceTotal(0); } finally { setIsLoadingAdvances(false); }
     };
 
     const serviceTotal = items.reduce((sum, item) => sum + Number(item.amount), 0);
@@ -83,6 +103,9 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
     };
 
     const handleDownloadExcel = async () => {
+        if (!selectedClientId) { alert('請先選擇客戶'); return; }
+        if (advances.length === 0) { alert('此客戶目前沒有未請款的代墊款'); return; }
+        if (!invoiceNo.trim()) { alert('請確認請款單編號'); return; }
         if (!TEMPLATE_BASE64 || TEMPLATE_BASE64.length < 100) {
             alert("⚠️ 尚未設定模版！\n請將 Excel 轉成的 Base64 字串貼入程式碼最上方的 TEMPLATE_BASE64 變數中。");
             return;
@@ -215,6 +238,11 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
 
             const outputBuffer = await workbook.xlsx.writeBuffer();
             saveAs(new Blob([outputBuffer]), `${clientName}_請款單_${invoiceDate}.xlsx`);
+
+            for (const record of advances) {
+                await TaskService.updateCashRecord({ ...record, isReimbursed: true, requestId: invoiceNo.trim() });
+            }
+            onUpdate?.();
             
         } catch (error: any) {
             console.error(error);
@@ -237,22 +265,33 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
                         <div className="space-y-4">
                             <h3 className="font-bold text-gray-700 border-b pb-2">1. 載入資料</h3>
-                            <div className="flex gap-2">
-                                <input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="單號 (如 115R001)" className="flex-1 p-2 border rounded-lg font-mono font-bold" onKeyDown={e => e.key === 'Enter' && handleSearch()} />
-                                <button onClick={handleSearch} className="bg-blue-600 hover:bg-blue-700 text-white px-4 py-2 rounded-lg font-bold">載入</button>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-500 mb-1">請款單編號</label>
+                                <input value={invoiceNo} onChange={e => setInvoiceNo(e.target.value)} placeholder="自動偵測中..." className="w-full p-2 border rounded-lg font-mono font-bold" />
+                            </div>
+                            <div>
+                                <label className="block text-sm font-bold text-gray-500 mb-1">選擇客戶</label>
+                                <select value={selectedClientId} onChange={e => handleClientChange(e.target.value)} className="w-full p-2 border rounded-lg bg-white">
+                                    <option value="">-- 請選擇客戶 --</option>
+                                    {[...clients].sort((a, b) => a.name.localeCompare(b.name, 'zh-TW')).map(c => (
+                                        <option key={c.id} value={String(c.id)}>{c.name}</option>
+                                    ))}
+                                </select>
                             </div>
                             <div className="grid grid-cols-2 gap-4">
                                 <div><label className="block text-sm font-bold text-gray-500 mb-1">客戶抬頭</label><input value={clientName} onChange={e => setClientName(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
                                 <div><label className="block text-sm font-bold text-gray-500 mb-1">請款日期</label><input value={invoiceDate} onChange={e => setInvoiceDate(e.target.value)} className="w-full p-2 border rounded-lg" /></div>
                             </div>
                             <div className="bg-white p-4 rounded-xl border shadow-sm">
-                                <div className="flex justify-between items-center mb-2"><h4 className="font-bold text-gray-700">代墊款明細</h4><span className="text-blue-600 font-bold text-xl">${advanceTotal.toLocaleString()}</span></div>
+                                <div className="flex justify-between items-center mb-2"><h4 className="font-bold text-gray-700">未請款代墊明細</h4><span className="text-blue-600 font-bold text-xl">${advanceTotal.toLocaleString()}</span></div>
                                 <div className="max-h-40 overflow-y-auto text-sm border-t mt-2">
-                                    {advances.length > 0 ? (
+                                    {isLoadingAdvances ? (
+                                        <p className="text-gray-400 py-4 text-center">載入中...</p>
+                                    ) : advances.length > 0 ? (
                                         <table className="w-full text-left mt-2"><thead className="text-gray-500"><tr><th>日期</th><th>項目</th><th className="text-right">金額</th></tr></thead><tbody>
-                                            {advances.map(r => (<tr key={r.id} className="border-b last:border-0"><td className="py-1 text-gray-500">{r.date.slice(5)}</td><td className="py-1">{r.description}</td><td className="py-1 text-right font-mono">${r.amount}</td></tr>))}
+                                            {advances.map(r => (<tr key={r.id} className="border-b last:border-0"><td className="py-1 text-gray-500">{r.date.slice(5)}</td><td className="py-1">{r.description || r.category}</td><td className="py-1 text-right font-mono">${r.amount}</td></tr>))}
                                         </tbody></table>
-                                    ) : <p className="text-gray-400 py-4 text-center">...</p>}
+                                    ) : <p className="text-gray-400 py-4 text-center">{selectedClientId ? '此客戶目前無未請款代墊款' : '請先選擇客戶'}</p>}
                                 </div>
                             </div>
                         </div>
@@ -292,3 +331,6 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
         </div>
     );
 };
+
+
+
