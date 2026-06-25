@@ -273,7 +273,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
                                 <label className="block text-sm font-bold text-gray-500 mb-1">選擇客戶</label>
                                 <select value={selectedClientId} onChange={e => handleClientChange(e.target.value)} className="w-full p-2 border rounded-lg bg-white">
                                     <option value="">-- 請選擇客戶 --</option>
-                                    {[...clients].sort((a, b) => a.name.localeCompare(b.name, 'zh-TW')).map(c => (
+                                    {[...clients].sort((a, b) => a.code.localeCompare(b.code)).map(c => (
                                         <option key={c.id} value={String(c.id)}>{c.name}</option>
                                     ))}
                                 </select>
