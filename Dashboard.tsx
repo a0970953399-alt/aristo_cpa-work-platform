@@ -681,6 +681,19 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       setSelectedCell(null);
     } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); }
   };
+  const handleRevokeAssignment = async () => {
+    if (!selectedCell?.task) return;
+    stopPolling();
+    setIsLoading(true);
+    try {
+      await TaskService.deleteTask(selectedCell.task.id);
+      const tData = await TaskService.fetchTasks();
+      setTasks(tData);
+      setIsAssignModalOpen(false);
+      setSelectedCell(null);
+    } catch (e) { alert("撤銷失敗"); } finally { setIsLoading(false); startPolling(); }
+  };
+
   const handleRevertStatus = async () => {
     if (!selectedCell || !selectedCell.task) return;
     stopPolling();
@@ -1321,6 +1334,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   </div>
                   
                   <div className="p-6 space-y-5 overflow-y-auto flex-1">
+                      {selectedCell.task?.assigneeId && (
+                          <div className="bg-gray-50 border border-gray-200 rounded-xl px-4 py-3 flex items-center justify-between">
+                              <span className="text-sm text-gray-500">目前負責人</span>
+                              <span className="font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded text-sm">{users.find(u => u.id === selectedCell.task?.assigneeId)?.name || selectedCell.task.assigneeName}</span>
+                          </div>
+                      )}
                       <div>
                           <label className="block text-sm font-bold text-gray-700 mb-1">指派給</label>
                           <select value={modalAssigneeId} onChange={e => setModalAssigneeId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base">
@@ -1347,9 +1366,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                       )}
                   </div>
 
-                  <div className="p-6 border-t bg-white flex gap-3">
-                      <button onClick={() => handleAssignSubmit(true)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 rounded-xl font-bold transition-colors text-sm">標記為 N/A</button>
-                      <button onClick={() => handleAssignSubmit(false)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold transition-colors shadow-lg shadow-blue-200 text-sm">確認派案</button>
+                  <div className="p-6 border-t bg-white space-y-3">
+                      {selectedCell.task?.assigneeId && (
+                          <button onClick={handleRevokeAssignment} className="w-full bg-white border border-red-300 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-sm">撤銷派案</button>
+                      )}
+                      <div className="flex gap-3">
+                          <button onClick={() => handleAssignSubmit(true)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 rounded-xl font-bold transition-colors text-sm">標記為 N/A</button>
+                          <button onClick={() => handleAssignSubmit(false)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold transition-colors shadow-lg shadow-blue-200 text-sm">確認派案</button>
+                      </div>
                   </div>
               </div>
           </div>
