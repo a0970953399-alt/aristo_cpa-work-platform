@@ -188,17 +188,17 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                 </div>
 
                 {/* Content */}
-                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                <div className={`flex-1 custom-scrollbar ${showHeatmap && canShowHeatmap ? 'overflow-hidden' : 'overflow-y-auto'}`}>
                     {showHeatmap && canShowHeatmap ? (
                         /* 熱力圖模式 */
-                        <div className="p-6">
-                            <div className="grid grid-cols-7 gap-2 mb-1">
+                        <div className="p-4">
+                            <div className="grid grid-cols-7 gap-1.5 mb-1">
                                 {['日', '一', '二', '三', '四', '五', '六'].map(d => (
                                     <div key={d} className="text-center text-sm font-bold text-gray-400 py-1">{d}</div>
                                 ))}
                             </div>
                             {calendarWeeks.map((week, wi) => (
-                                <div key={wi} className="grid grid-cols-7 gap-2 mb-2">
+                                <div key={wi} className="grid grid-cols-7 gap-1.5 mb-1.5">
                                     {week.map((day, di) => {
                                         if (!day) return <div key={di} />;
                                         const dateStr = `${monthFilter}-${String(day).padStart(2, '0')}`;
@@ -207,11 +207,11 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                         return (
                                             <div
                                                 key={di}
-                                                className={`${bg} ${text} rounded-xl flex flex-col items-center justify-center aspect-square transition-all`}
+                                                className={`${bg} ${text} rounded-xl h-10 flex flex-col items-center justify-center transition-all`}
                                             >
-                                                <span className="text-sm font-bold leading-tight">{day}</span>
+                                                <span className="text-base font-bold leading-tight">{day}</span>
                                                 {hours > 0 && (
-                                                    <span className="text-xs leading-tight opacity-80">{hours}h</span>
+                                                    <span className="text-sm font-semibold leading-tight">{hours}h</span>
                                                 )}
                                             </div>
                                         );
