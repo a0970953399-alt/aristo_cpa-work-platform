@@ -24,19 +24,19 @@ const ListIcon = ({ className }: { className?: string }) => (
 );
 
 const HEATMAP_COLORS = [
-    { label: '0h',    bg: 'bg-gray-200/50',   text: 'text-gray-400' },
-    { label: '1–5h',  bg: 'bg-green-300/50',  text: 'text-green-700' },
-    { label: '5–8h',  bg: 'bg-green-500/50',  text: 'text-green-800' },
-    { label: '8–10h', bg: 'bg-green-700/50',  text: 'text-green-900' },
-    { label: '10h+',  bg: 'bg-orange-500/50', text: 'text-orange-800' },
+    { label: '0h',    bg: 'bg-gray-200/50' },
+    { label: '1–5h',  bg: 'bg-green-300/50' },
+    { label: '5–8h',  bg: 'bg-green-500/50' },
+    { label: '8–10h', bg: 'bg-green-700/50' },
+    { label: '10h+',  bg: 'bg-orange-500/50' },
 ];
 
-const getHeatmapStyle = (hours: number): { bg: string; text: string } => {
-    if (hours <= 0) return { bg: 'bg-gray-200/50',   text: 'text-gray-400' };
-    if (hours < 5)  return { bg: 'bg-green-300/50',  text: 'text-green-700' };
-    if (hours < 8)  return { bg: 'bg-green-500/50',  text: 'text-green-800' };
-    if (hours < 10) return { bg: 'bg-green-700/50',  text: 'text-green-900' };
-    return { bg: 'bg-orange-500/50', text: 'text-orange-800' };
+const getHeatmapBg = (hours: number): string => {
+    if (hours <= 0) return 'bg-gray-200/50';
+    if (hours < 5)  return 'bg-green-300/50';
+    if (hours < 8)  return 'bg-green-500/50';
+    if (hours < 10) return 'bg-green-700/50';
+    return 'bg-orange-500/50';
 };
 
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
@@ -53,19 +53,22 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
     const [editBreak, setEditBreak] = useState(1);
 
     const bossIds = useMemo(() => new Set(users.filter(u => u.role === UserRole.BOSS).map(u => u.id)), [users]);
+    const nonBossUsers = useMemo(() => users.filter(u => !bossIds.has(u.id)), [users, bossIds]);
+
+    const isMultiMode = targetUserId === 'ALL';
 
     const filteredRecords = useMemo(() => {
         return records.filter(r => {
             if (bossIds.has(r.userId)) return false;
-            if (targetUserId !== 'ALL' && r.userId !== targetUserId) return false;
+            if (!isMultiMode && r.userId !== targetUserId) return false;
             if (!r.date.startsWith(monthFilter)) return false;
             return true;
         }).sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
-    }, [records, targetUserId, monthFilter, bossIds]);
+    }, [records, targetUserId, monthFilter, bossIds, isMultiMode]);
 
     const totalHours = useMemo(() => filteredRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0), [filteredRecords]);
 
-    // 每天工時加總（用於熱力圖）
+    // 個人月曆熱力圖：每天工時加總
     const dailyHours = useMemo(() => {
         const map: Record<string, number> = {};
         filteredRecords.forEach(r => {
@@ -73,6 +76,31 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         });
         return map;
     }, [filteredRecords]);
+
+    // 多人熱力圖：{ userId → { date → hours } }
+    const userDailyHours = useMemo(() => {
+        const map: Record<string, Record<string, number>> = {};
+        records.filter(r => !bossIds.has(r.userId) && r.date.startsWith(monthFilter)).forEach(r => {
+            if (!map[r.userId]) map[r.userId] = {};
+            map[r.userId][r.date] = (map[r.userId][r.date] || 0) + (r.totalHours || 0);
+        });
+        return map;
+    }, [records, monthFilter, bossIds]);
+
+    // 當月天數與日曆週（個人模式用）
+    const { daysInMonth, calendarWeeks } = useMemo(() => {
+        const [year, month] = monthFilter.split('-').map(Number);
+        const dim = new Date(year, month, 0).getDate();
+        const firstDayOfWeek = new Date(year, month - 1, 1).getDay();
+        const cells: (number | null)[] = Array(firstDayOfWeek).fill(null);
+        for (let d = 1; d <= dim; d++) cells.push(d);
+        while (cells.length % 7 !== 0) cells.push(null);
+        const weeks: (number | null)[][] = [];
+        for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+        return { daysInMonth: dim, calendarWeeks: weeks };
+    }, [monthFilter]);
+
+    const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => i + 1), [daysInMonth]);
 
     const calculateHours = (start: string, end: string, breakH: number) => {
         if (!start || !end) return 0;
@@ -107,20 +135,17 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         setEditBreak(r.breakHours);
     };
 
-    // 熱力圖：建立當月日曆格子
-    const calendarWeeks = useMemo(() => {
-        const [year, month] = monthFilter.split('-').map(Number);
-        const firstDayOfWeek = new Date(year, month - 1, 1).getDay(); // 0=日
-        const daysInMonth = new Date(year, month, 0).getDate();
-        const cells: (number | null)[] = Array(firstDayOfWeek).fill(null);
-        for (let d = 1; d <= daysInMonth; d++) cells.push(d);
-        while (cells.length % 7 !== 0) cells.push(null);
-        const weeks: (number | null)[][] = [];
-        for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
-        return weeks;
-    }, [monthFilter]);
-
-    const canShowHeatmap = targetUserId !== 'ALL';
+    const Legend = () => (
+        <div className="mt-4 pt-3 border-t flex items-center gap-3 flex-wrap">
+            <span className="text-xs text-gray-400 font-bold">工時區間</span>
+            {HEATMAP_COLORS.map(({ label, bg }) => (
+                <div key={label} className="flex items-center gap-1.5">
+                    <div className={`w-5 h-5 rounded ${bg}`} />
+                    <span className="text-xs text-gray-400">{label}</span>
+                </div>
+            ))}
+        </div>
+    );
 
     return (
         <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
@@ -168,17 +193,13 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                         <div className="bg-blue-50 text-blue-800 px-4 py-2 rounded-xl font-bold text-lg">
                             總工時：{totalHours} <span className="text-sm">小時</span>
                         </div>
-                        {/* 熱力圖切換按鈕 */}
                         <button
                             onClick={() => setShowHeatmap(v => !v)}
-                            disabled={!canShowHeatmap}
-                            title={canShowHeatmap ? (showHeatmap ? '切換回列表' : '顯示工時熱力圖') : '請先選擇特定人員'}
+                            title={showHeatmap ? '切換回列表' : (isMultiMode ? '顯示團隊熱力圖' : '顯示個人熱力圖')}
                             className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm transition-colors border
-                                ${!canShowHeatmap
-                                    ? 'opacity-30 cursor-not-allowed border-gray-200 text-gray-400'
-                                    : showHeatmap
-                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow'
-                                        : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'
+                                ${showHeatmap
+                                    ? 'bg-indigo-600 text-white border-indigo-600 shadow'
+                                    : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'
                                 }`}
                         >
                             {showHeatmap ? <ListIcon className="w-4 h-4" /> : <ChartIcon className="w-4 h-4" />}
@@ -188,48 +209,59 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                 </div>
 
                 {/* Content */}
-                <div className={`flex-1 custom-scrollbar ${showHeatmap && canShowHeatmap ? 'overflow-hidden' : 'overflow-y-auto'}`}>
-                    {showHeatmap && canShowHeatmap ? (
-                        /* 熱力圖模式 */
-                        <div className="p-4">
-                            <div className="grid grid-cols-7 gap-1.5 mb-1">
-                                {['日', '一', '二', '三', '四', '五', '六'].map(d => (
-                                    <div key={d} className="text-center text-sm font-bold text-gray-400 py-1">{d}</div>
-                                ))}
-                            </div>
-                            {calendarWeeks.map((week, wi) => (
-                                <div key={wi} className="grid grid-cols-7 gap-1.5 mb-1.5">
-                                    {week.map((day, di) => {
-                                        if (!day) return <div key={di} />;
-                                        const dateStr = `${monthFilter}-${String(day).padStart(2, '0')}`;
-                                        const hours = dailyHours[dateStr] || 0;
-                                        const { bg, text } = getHeatmapStyle(hours);
-                                        return (
-                                            <div
-                                                key={di}
-                                                className={`${bg} rounded-xl h-10 flex flex-col items-center justify-center transition-all`}
-                                            >
-                                                <span className="text-base font-bold leading-tight text-gray-800">{day}</span>
-                                                {hours > 0 && (
-                                                    <span className={`text-xs font-semibold leading-tight ${text}`}>{hours}h</span>
-                                                )}
-                                            </div>
-                                        );
-                                    })}
+                <div className={`flex-1 custom-scrollbar ${showHeatmap ? 'overflow-hidden' : 'overflow-y-auto'}`}>
+                    {showHeatmap ? (
+                        isMultiMode ? (
+                            /* 多人熱力圖：人員 × 日期 */
+                            <div className="p-4">
+                                <div className="flex items-center gap-1 mb-1.5">
+                                    <div className="w-20 shrink-0" />
+                                    {days.map(d => (
+                                        <div key={d} className="flex-1 text-center text-xs font-bold text-gray-400">{d}</div>
+                                    ))}
                                 </div>
-                            ))}
-
-                            {/* 圖例 */}
-                            <div className="mt-6 pt-4 border-t flex items-center gap-3 flex-wrap">
-                                <span className="text-sm text-gray-400 font-bold">工時區間</span>
-                                {HEATMAP_COLORS.map(({ label, bg, text }) => (
-                                    <div key={label} className="flex items-center gap-1.5">
-                                        <div className={`w-6 h-6 rounded-md ${bg}`} />
-                                        <span className="text-xs text-gray-500">{label}</span>
+                                {nonBossUsers.map(user => (
+                                    <div key={user.id} className="flex items-center gap-1 mb-1.5">
+                                        <div className="w-20 shrink-0 text-sm font-bold text-gray-700 truncate pr-1">{user.name}</div>
+                                        {days.map(d => {
+                                            const dateStr = `${monthFilter}-${String(d).padStart(2, '0')}`;
+                                            const hours = userDailyHours[user.id]?.[dateStr] || 0;
+                                            return (
+                                                <div key={d} className={`flex-1 h-8 rounded ${getHeatmapBg(hours)}`} />
+                                            );
+                                        })}
                                     </div>
                                 ))}
+                                <Legend />
                             </div>
-                        </div>
+                        ) : (
+                            /* 個人熱力圖：月曆格式 */
+                            <div className="p-4">
+                                <div className="grid grid-cols-7 gap-1.5 mb-1">
+                                    {['日', '一', '二', '三', '四', '五', '六'].map(d => (
+                                        <div key={d} className="text-center text-sm font-bold text-gray-400 py-1">{d}</div>
+                                    ))}
+                                </div>
+                                {calendarWeeks.map((week, wi) => (
+                                    <div key={wi} className="grid grid-cols-7 gap-1.5 mb-1.5">
+                                        {week.map((day, di) => {
+                                            if (!day) return <div key={di} />;
+                                            const dateStr = `${monthFilter}-${String(day).padStart(2, '0')}`;
+                                            const hours = dailyHours[dateStr] || 0;
+                                            return (
+                                                <div
+                                                    key={di}
+                                                    className={`${getHeatmapBg(hours)} rounded-xl h-10 flex items-center justify-center transition-all`}
+                                                >
+                                                    <span className="text-base font-bold text-gray-800">{day}</span>
+                                                </div>
+                                            );
+                                        })}
+                                    </div>
+                                ))}
+                                <Legend />
+                            </div>
+                        )
                     ) : (
                         /* 列表模式 */
                         <table className="w-full text-left border-collapse">
