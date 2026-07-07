@@ -214,6 +214,20 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                         isMultiMode ? (
                             /* 多人熱力圖：人員 × 日期 */
                             <div className="p-4">
+                                {/* 星期列 */}
+                                <div className="flex items-center gap-1 mb-0.5">
+                                    <div className="w-20 shrink-0" />
+                                    {days.map(d => {
+                                        const [year, month] = monthFilter.split('-').map(Number);
+                                        const dow = new Date(year, month - 1, d).getDay();
+                                        const label = ['日','一','二','三','四','五','六'][dow];
+                                        const isWeekend = dow === 0 || dow === 6;
+                                        return (
+                                            <div key={d} className={`flex-1 text-center text-xs font-bold ${isWeekend ? 'text-red-300' : 'text-gray-300'}`}>{label}</div>
+                                        );
+                                    })}
+                                </div>
+                                {/* 日期列 */}
                                 <div className="flex items-center gap-1 mb-1.5">
                                     <div className="w-20 shrink-0" />
                                     {days.map(d => (
