@@ -326,7 +326,7 @@ export const TaskService = {
   // ==========================================
   async fetchClients(): Promise<Client[]> {
       const snapshot = await getDocs(collection(db, "clients"));
-      const clients = snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Client));
+      const clients = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Client));
       // 依照代號 (A01, A02...) 排序
       return clients.sort((a, b) => {
           const codeA = a.code || '';
