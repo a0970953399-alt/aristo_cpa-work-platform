@@ -11,36 +11,69 @@ interface TimesheetViewProps {
     onClose: () => void;
 }
 
+const ChartIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-5 h-5"}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M3 13.125C3 12.504 3.504 12 4.125 12h2.25c.621 0 1.125.504 1.125 1.125v6.75C7.5 20.496 6.996 21 6.375 21h-2.25A1.125 1.125 0 0 1 3 19.875v-6.75ZM9.75 8.625c0-.621.504-1.125 1.125-1.125h2.25c.621 0 1.125.504 1.125 1.125v11.25c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V8.625ZM16.5 4.125c0-.621.504-1.125 1.125-1.125h2.25C20.496 3 21 3.504 21 4.125v15.75c0 .621-.504 1.125-1.125 1.125h-2.25a1.125 1.125 0 0 1-1.125-1.125V4.125Z" />
+    </svg>
+);
+
+const ListIcon = ({ className }: { className?: string }) => (
+    <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-5 h-5"}>
+        <path strokeLinecap="round" strokeLinejoin="round" d="M8.25 6.75h12M8.25 12h12m-12 5.25h12M3.75 6.75h.007v.008H3.75V6.75Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0ZM3.75 12h.007v.008H3.75V12Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Zm-.375 5.25h.007v.008H3.75v-.008Zm.375 0a.375.375 0 1 1-.75 0 .375.375 0 0 1 .75 0Z" />
+    </svg>
+);
+
+const HEATMAP_COLORS = [
+    { label: '0h', bg: 'bg-gray-100', text: 'text-gray-400' },
+    { label: '1–5h', bg: 'bg-green-100', text: 'text-green-700' },
+    { label: '5–8h', bg: 'bg-green-300', text: 'text-green-800' },
+    { label: '8–10h', bg: 'bg-green-600', text: 'text-white' },
+    { label: '10h+', bg: 'bg-orange-500', text: 'text-white' },
+];
+
+const getHeatmapStyle = (hours: number): { bg: string; text: string } => {
+    if (hours <= 0) return { bg: 'bg-gray-100', text: 'text-gray-400' };
+    if (hours < 5)  return { bg: 'bg-green-100', text: 'text-green-700' };
+    if (hours < 8)  return { bg: 'bg-green-300', text: 'text-green-800' };
+    if (hours < 10) return { bg: 'bg-green-600', text: 'text-white' };
+    return { bg: 'bg-orange-500', text: 'text-white' };
+};
+
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
     const isSupervisor = currentUser.role === UserRole.SUPERVISOR || currentUser.role === UserRole.BOSS;
 
-    // 篩選狀態
     const [targetUserId, setTargetUserId] = useState<string>(isSupervisor ? 'ALL' : currentUser.id);
-    const [monthFilter, setMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7)); // 預設本月 (YYYY-MM)
+    const [monthFilter, setMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7));
+    const [showHeatmap, setShowHeatmap] = useState(false);
 
-    // 編輯狀態 (主管補登用)
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editDate, setEditDate] = useState('');
     const [editStart, setEditStart] = useState('');
     const [editEnd, setEditEnd] = useState('');
     const [editBreak, setEditBreak] = useState(1);
 
-    // 計算與篩選邏輯
+    const bossIds = useMemo(() => new Set(users.filter(u => u.role === UserRole.BOSS).map(u => u.id)), [users]);
+
     const filteredRecords = useMemo(() => {
-        const bossIds = new Set(users.filter(u => u.role === UserRole.BOSS).map(u => u.id));
         return records.filter(r => {
-            if (bossIds.has(r.userId)) return false; // boss 不出現在工時紀錄
+            if (bossIds.has(r.userId)) return false;
             if (targetUserId !== 'ALL' && r.userId !== targetUserId) return false;
             if (!r.date.startsWith(monthFilter)) return false;
             return true;
         }).sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
-    }, [records, targetUserId, monthFilter, users]);
+    }, [records, targetUserId, monthFilter, bossIds]);
 
-    const totalHours = useMemo(() => {
-        return filteredRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0);
+    const totalHours = useMemo(() => filteredRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0), [filteredRecords]);
+
+    // 每天工時加總（用於熱力圖）
+    const dailyHours = useMemo(() => {
+        const map: Record<string, number> = {};
+        filteredRecords.forEach(r => {
+            map[r.date] = (map[r.date] || 0) + (r.totalHours || 0);
+        });
+        return map;
     }, [filteredRecords]);
 
-    // 工具：計算工時 (無條件捨去小數點後一位，即 0.5)
     const calculateHours = (start: string, end: string, breakH: number) => {
         if (!start || !end) return 0;
         const [sh, sm] = start.split(':').map(Number);
@@ -48,19 +81,12 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         const minutes = (eh * 60 + em) - (sh * 60 + sm);
         let hours = minutes / 60 - breakH;
         if (hours < 0) hours = 0;
-        return Math.floor(hours * 2) / 2; // 核心邏輯：0.5 為單位無條件捨去
+        return Math.floor(hours * 2) / 2;
     };
 
     const handleSaveEdit = async (record: CheckInRecord) => {
         const newTotal = calculateHours(editStart, editEnd, editBreak);
-        const updated: CheckInRecord = {
-            ...record,
-            date: editDate,
-            startTime: editStart,
-            endTime: editEnd,
-            breakHours: editBreak,
-            totalHours: newTotal
-        };
+        const updated: CheckInRecord = { ...record, date: editDate, startTime: editStart, endTime: editEnd, breakHours: editBreak, totalHours: newTotal };
         await TaskService.updateCheckIn(updated);
         setEditingId(null);
         onUpdate();
@@ -81,9 +107,25 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         setEditBreak(r.breakHours);
     };
 
+    // 熱力圖：建立當月日曆格子
+    const calendarWeeks = useMemo(() => {
+        const [year, month] = monthFilter.split('-').map(Number);
+        const firstDayOfWeek = new Date(year, month - 1, 1).getDay(); // 0=日
+        const daysInMonth = new Date(year, month, 0).getDate();
+        const cells: (number | null)[] = Array(firstDayOfWeek).fill(null);
+        for (let d = 1; d <= daysInMonth; d++) cells.push(d);
+        while (cells.length % 7 !== 0) cells.push(null);
+        const weeks: (number | null)[][] = [];
+        for (let i = 0; i < cells.length; i += 7) weeks.push(cells.slice(i, i + 7));
+        return weeks;
+    }, [monthFilter]);
+
+    const canShowHeatmap = targetUserId !== 'ALL';
+
     return (
         <div className="fixed inset-0 bg-black/50 z-[100] flex items-center justify-center p-4 animate-fade-in" onClick={onClose}>
             <div className="bg-white rounded-2xl shadow-2xl max-w-4xl w-full max-h-[90vh] flex flex-col" onClick={e => e.stopPropagation()}>
+
                 {/* Header */}
                 <div className="p-6 border-b flex justify-between items-center bg-gray-50 rounded-t-2xl">
                     <div className="flex items-center gap-3">
@@ -99,13 +141,12 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                         <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg">
                             <FunnelIcon className="w-5 h-5 text-gray-500" />
                             {isSupervisor ? (
-                                <select 
-                                    value={targetUserId} 
-                                    onChange={e => setTargetUserId(e.target.value)}
+                                <select
+                                    value={targetUserId}
+                                    onChange={e => { setTargetUserId(e.target.value); setShowHeatmap(false); }}
                                     className="bg-transparent font-bold text-gray-700 outline-none cursor-pointer"
                                 >
                                     <option value="ALL">全體人員</option>
-                                    {/* boss 不打卡，不顯示於工時清單 */}
                                     {users.filter(u => u.role !== UserRole.BOSS).map(u => (
                                         <option key={u.id} value={u.id}>
                                             {u.id === currentUser.id ? `${u.name} (自己)` : u.name}
@@ -116,79 +157,139 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                 <span className="font-bold text-gray-700">{currentUser.name}</span>
                             )}
                         </div>
-                        <input 
-                            type="month" 
-                            value={monthFilter} 
+                        <input
+                            type="month"
+                            value={monthFilter}
                             onChange={e => setMonthFilter(e.target.value)}
                             className="border border-gray-300 rounded-lg px-3 py-1.5 font-mono text-base outline-none focus:border-blue-500"
                         />
                     </div>
-                    <div className="bg-blue-50 text-blue-800 px-4 py-2 rounded-xl font-bold text-lg">
-                        總工時：{totalHours} <span className="text-sm">小時</span>
+                    <div className="flex items-center gap-3">
+                        <div className="bg-blue-50 text-blue-800 px-4 py-2 rounded-xl font-bold text-lg">
+                            總工時：{totalHours} <span className="text-sm">小時</span>
+                        </div>
+                        {/* 熱力圖切換按鈕 */}
+                        <button
+                            onClick={() => setShowHeatmap(v => !v)}
+                            disabled={!canShowHeatmap}
+                            title={canShowHeatmap ? (showHeatmap ? '切換回列表' : '顯示工時熱力圖') : '請先選擇特定人員'}
+                            className={`flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm transition-colors border
+                                ${!canShowHeatmap
+                                    ? 'opacity-30 cursor-not-allowed border-gray-200 text-gray-400'
+                                    : showHeatmap
+                                        ? 'bg-indigo-600 text-white border-indigo-600 shadow'
+                                        : 'bg-white text-indigo-600 border-indigo-300 hover:bg-indigo-50'
+                                }`}
+                        >
+                            {showHeatmap ? <ListIcon className="w-4 h-4" /> : <ChartIcon className="w-4 h-4" />}
+                            {showHeatmap ? '列表' : '熱力圖'}
+                        </button>
                     </div>
                 </div>
 
-                {/* List */}
-                <div className="flex-1 overflow-y-auto p-0 custom-scrollbar">
-                    <table className="w-full text-left border-collapse">
-                        <thead className="bg-gray-50 sticky top-0 shadow-sm z-10">
-                            <tr>
-                                <th className="p-4 font-bold text-gray-500 text-sm">人員</th>
-                                <th className="p-4 font-bold text-gray-500 text-sm">日期</th>
-                                <th className="p-4 font-bold text-gray-500 text-sm text-center">上班</th>
-                                <th className="p-4 font-bold text-gray-500 text-sm text-center">下班</th>
-                                <th className="p-4 font-bold text-gray-500 text-sm text-center">扣除午休</th>
-                                <th className="p-4 font-bold text-gray-500 text-sm text-center">小計工時</th>
-                                {isSupervisor && <th className="p-4 font-bold text-gray-500 text-sm text-center">操作</th>}
-                            </tr>
-                        </thead>
-                        <tbody className="divide-y divide-gray-100">
-                            {filteredRecords.length === 0 ? (
-                                <tr><td colSpan={7} className="p-10 text-center text-gray-400">沒有符合的紀錄</td></tr>
-                            ) : (
-                                filteredRecords.map(r => (
-                                    <tr key={r.id} className="hover:bg-gray-50 transition-colors">
-                                        <td className="p-4 font-bold text-gray-700">{r.userName}</td>
-                                        <td className="p-2 text-gray-600 font-mono">
-                                            {editingId === r.id
-                                                ? <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="border rounded p-1 w-full text-center font-mono" />
-                                                : r.date
-                                            }
-                                        </td>
-
-                                        {/* 編輯模式 vs 檢視模式 */}
-                                        {editingId === r.id ? (
-                                            <>
-                                                <td className="p-2 text-center"><input type="time" value={editStart} onChange={e => setEditStart(e.target.value)} className="border rounded p-1 w-full text-center" /></td>
-                                                <td className="p-2 text-center"><input type="time" value={editEnd} onChange={e => setEditEnd(e.target.value)} className="border rounded p-1 w-full text-center" /></td>
-                                                <td className="p-2 text-center"><input type="number" step="0.5" value={editBreak} onChange={e => setEditBreak(Number(e.target.value))} className="border rounded p-1 w-16 text-center" /></td>
-                                                <td className="p-4 text-center font-bold text-blue-600">{calculateHours(editStart, editEnd, editBreak)}</td>
-                                                <td className="p-4 text-center flex gap-2 justify-center">
-                                                    <button onClick={() => handleSaveEdit(r)} className="text-xs bg-green-500 text-white px-2 py-1 rounded">存</button>
-                                                    <button onClick={() => setEditingId(null)} className="text-xs bg-gray-300 text-gray-700 px-2 py-1 rounded">消</button>
-                                                </td>
-                                            </>
-                                        ) : (
-                                            <>
-                                                <td className="p-4 text-center font-mono text-gray-700">{r.startTime}</td>
-                                                <td className="p-4 text-center font-mono text-gray-700">{r.endTime || '--:--'}</td>
-                                                <td className="p-4 text-center text-gray-500">{r.breakHours} hr</td>
-                                                <td className="p-4 text-center font-bold text-blue-600 text-lg">{r.totalHours}</td>
-                                                {isSupervisor && (
-                                                    <td className="p-4 text-center">
-                                                        <div className="flex items-center justify-center gap-2">
-                                                            <button onClick={() => startEdit(r)} className="text-gray-400 hover:text-blue-600 text-sm">編輯</button>
-                                                            <button onClick={() => handleDelete(r.id)} className="text-gray-300 hover:text-red-500"><TrashIcon className="w-4 h-4"/></button>
-                                                        </div>
-                                                    </td>
+                {/* Content */}
+                <div className="flex-1 overflow-y-auto custom-scrollbar">
+                    {showHeatmap && canShowHeatmap ? (
+                        /* 熱力圖模式 */
+                        <div className="p-6">
+                            <div className="grid grid-cols-7 gap-2 mb-1">
+                                {['日', '一', '二', '三', '四', '五', '六'].map(d => (
+                                    <div key={d} className="text-center text-sm font-bold text-gray-400 py-1">{d}</div>
+                                ))}
+                            </div>
+                            {calendarWeeks.map((week, wi) => (
+                                <div key={wi} className="grid grid-cols-7 gap-2 mb-2">
+                                    {week.map((day, di) => {
+                                        if (!day) return <div key={di} />;
+                                        const dateStr = `${monthFilter}-${String(day).padStart(2, '0')}`;
+                                        const hours = dailyHours[dateStr] || 0;
+                                        const { bg, text } = getHeatmapStyle(hours);
+                                        return (
+                                            <div
+                                                key={di}
+                                                className={`${bg} ${text} rounded-xl flex flex-col items-center justify-center aspect-square transition-all`}
+                                            >
+                                                <span className="text-sm font-bold leading-tight">{day}</span>
+                                                {hours > 0 && (
+                                                    <span className="text-xs leading-tight opacity-80">{hours}h</span>
                                                 )}
-                                            </>
-                                        )}
-                                    </tr>
-                                ))
-                            )}
-                        </tbody>
-                    </table>
+                                            </div>
+                                        );
+                                    })}
+                                </div>
+                            ))}
+
+                            {/* 圖例 */}
+                            <div className="mt-6 pt-4 border-t flex items-center gap-3 flex-wrap">
+                                <span className="text-sm text-gray-400 font-bold">工時區間</span>
+                                {HEATMAP_COLORS.map(({ label, bg, text }) => (
+                                    <div key={label} className="flex items-center gap-1.5">
+                                        <div className={`w-6 h-6 rounded-md ${bg}`} />
+                                        <span className="text-xs text-gray-500">{label}</span>
+                                    </div>
+                                ))}
+                            </div>
+                        </div>
+                    ) : (
+                        /* 列表模式 */
+                        <table className="w-full text-left border-collapse">
+                            <thead className="bg-gray-50 sticky top-0 shadow-sm z-10">
+                                <tr>
+                                    <th className="p-4 font-bold text-gray-500 text-sm">人員</th>
+                                    <th className="p-4 font-bold text-gray-500 text-sm">日期</th>
+                                    <th className="p-4 font-bold text-gray-500 text-sm text-center">上班</th>
+                                    <th className="p-4 font-bold text-gray-500 text-sm text-center">下班</th>
+                                    <th className="p-4 font-bold text-gray-500 text-sm text-center">扣除午休</th>
+                                    <th className="p-4 font-bold text-gray-500 text-sm text-center">小計工時</th>
+                                    {isSupervisor && <th className="p-4 font-bold text-gray-500 text-sm text-center">操作</th>}
+                                </tr>
+                            </thead>
+                            <tbody className="divide-y divide-gray-100">
+                                {filteredRecords.length === 0 ? (
+                                    <tr><td colSpan={7} className="p-10 text-center text-gray-400">沒有符合的紀錄</td></tr>
+                                ) : (
+                                    filteredRecords.map(r => (
+                                        <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                                            <td className="p-4 font-bold text-gray-700">{r.userName}</td>
+                                            <td className="p-2 text-gray-600 font-mono">
+                                                {editingId === r.id
+                                                    ? <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="border rounded p-1 w-full text-center font-mono" />
+                                                    : r.date
+                                                }
+                                            </td>
+                                            {editingId === r.id ? (
+                                                <>
+                                                    <td className="p-2 text-center"><input type="time" value={editStart} onChange={e => setEditStart(e.target.value)} className="border rounded p-1 w-full text-center" /></td>
+                                                    <td className="p-2 text-center"><input type="time" value={editEnd} onChange={e => setEditEnd(e.target.value)} className="border rounded p-1 w-full text-center" /></td>
+                                                    <td className="p-2 text-center"><input type="number" step="0.5" value={editBreak} onChange={e => setEditBreak(Number(e.target.value))} className="border rounded p-1 w-16 text-center" /></td>
+                                                    <td className="p-4 text-center font-bold text-blue-600">{calculateHours(editStart, editEnd, editBreak)}</td>
+                                                    <td className="p-4 text-center flex gap-2 justify-center">
+                                                        <button onClick={() => handleSaveEdit(r)} className="text-xs bg-green-500 text-white px-2 py-1 rounded">存</button>
+                                                        <button onClick={() => setEditingId(null)} className="text-xs bg-gray-300 text-gray-700 px-2 py-1 rounded">消</button>
+                                                    </td>
+                                                </>
+                                            ) : (
+                                                <>
+                                                    <td className="p-4 text-center font-mono text-gray-700">{r.startTime}</td>
+                                                    <td className="p-4 text-center font-mono text-gray-700">{r.endTime || '--:--'}</td>
+                                                    <td className="p-4 text-center text-gray-500">{r.breakHours} hr</td>
+                                                    <td className="p-4 text-center font-bold text-blue-600 text-lg">{r.totalHours}</td>
+                                                    {isSupervisor && (
+                                                        <td className="p-4 text-center">
+                                                            <div className="flex items-center justify-center gap-2">
+                                                                <button onClick={() => startEdit(r)} className="text-gray-400 hover:text-blue-600 text-sm">編輯</button>
+                                                                <button onClick={() => handleDelete(r.id)} className="text-gray-300 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
+                                                            </div>
+                                                        </td>
+                                                    )}
+                                                </>
+                                            )}
+                                        </tr>
+                                    ))
+                                )}
+                            </tbody>
+                        </table>
+                    )}
                 </div>
             </div>
         </div>
