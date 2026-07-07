@@ -207,11 +207,11 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                         return (
                                             <div
                                                 key={di}
-                                                className={`${bg} ${text} rounded-xl h-10 flex flex-col items-center justify-center transition-all`}
+                                                className={`${bg} rounded-xl h-10 flex flex-col items-center justify-center transition-all`}
                                             >
-                                                <span className="text-base font-bold leading-tight">{day}</span>
+                                                <span className="text-base font-bold leading-tight bg-white/60 rounded-full w-6 h-6 flex items-center justify-center text-gray-800">{day}</span>
                                                 {hours > 0 && (
-                                                    <span className="text-sm font-semibold leading-tight">{hours}h</span>
+                                                    <span className={`text-xs font-semibold leading-tight ${text}`}>{hours}h</span>
                                                 )}
                                             </div>
                                         );
