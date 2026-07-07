@@ -24,19 +24,19 @@ const ListIcon = ({ className }: { className?: string }) => (
 );
 
 const HEATMAP_COLORS = [
-    { label: '0h', bg: 'bg-gray-100', text: 'text-gray-400' },
-    { label: '1–5h', bg: 'bg-green-100', text: 'text-green-700' },
-    { label: '5–8h', bg: 'bg-green-300', text: 'text-green-800' },
-    { label: '8–10h', bg: 'bg-green-600', text: 'text-white' },
-    { label: '10h+', bg: 'bg-orange-500', text: 'text-white' },
+    { label: '0h',    bg: 'bg-gray-200/50',   text: 'text-gray-400' },
+    { label: '1–5h',  bg: 'bg-green-300/50',  text: 'text-green-700' },
+    { label: '5–8h',  bg: 'bg-green-500/50',  text: 'text-green-800' },
+    { label: '8–10h', bg: 'bg-green-700/50',  text: 'text-green-900' },
+    { label: '10h+',  bg: 'bg-orange-500/50', text: 'text-orange-800' },
 ];
 
 const getHeatmapStyle = (hours: number): { bg: string; text: string } => {
-    if (hours <= 0) return { bg: 'bg-gray-100', text: 'text-gray-400' };
-    if (hours < 5)  return { bg: 'bg-green-100', text: 'text-green-700' };
-    if (hours < 8)  return { bg: 'bg-green-300', text: 'text-green-800' };
-    if (hours < 10) return { bg: 'bg-green-600', text: 'text-white' };
-    return { bg: 'bg-orange-500', text: 'text-white' };
+    if (hours <= 0) return { bg: 'bg-gray-200/50',   text: 'text-gray-400' };
+    if (hours < 5)  return { bg: 'bg-green-300/50',  text: 'text-green-700' };
+    if (hours < 8)  return { bg: 'bg-green-500/50',  text: 'text-green-800' };
+    if (hours < 10) return { bg: 'bg-green-700/50',  text: 'text-green-900' };
+    return { bg: 'bg-orange-500/50', text: 'text-orange-800' };
 };
 
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
