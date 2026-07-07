@@ -100,7 +100,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         return { daysInMonth: dim, calendarWeeks: weeks };
     }, [monthFilter]);
 
-    const days = useMemo(() => Array.from({ length: daysInMonth }, (_, i) => i + 1), [daysInMonth]);
+    const days = useMemo(() => Array.from({ length: 31 }, (_, i) => i + 1), []);
 
     const calculateHours = (start: string, end: string, breakH: number) => {
         if (!start || !end) return 0;
@@ -218,12 +218,13 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                 <div className="flex items-center gap-1 mb-0.5">
                                     <div className="w-20 shrink-0" />
                                     {days.map(d => {
+                                        if (d > daysInMonth) return <div key={d} className="w-5 shrink-0" />;
                                         const [year, month] = monthFilter.split('-').map(Number);
                                         const dow = new Date(year, month - 1, d).getDay();
                                         const label = ['日','一','二','三','四','五','六'][dow];
                                         const isWeekend = dow === 0 || dow === 6;
                                         return (
-                                            <div key={d} className={`flex-1 text-center text-xs font-bold ${isWeekend ? 'text-red-300' : 'text-gray-300'}`}>{label}</div>
+                                            <div key={d} className={`w-5 shrink-0 text-center text-xs font-bold ${isWeekend ? 'text-red-300' : 'text-gray-300'}`}>{label}</div>
                                         );
                                     })}
                                 </div>
@@ -231,17 +232,18 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                 <div className="flex items-center gap-1 mb-1.5">
                                     <div className="w-20 shrink-0" />
                                     {days.map(d => (
-                                        <div key={d} className="flex-1 text-center text-xs font-bold text-gray-400">{d}</div>
+                                        <div key={d} className="w-5 shrink-0 text-center text-xs font-bold text-gray-400">{d > daysInMonth ? '' : d}</div>
                                     ))}
                                 </div>
                                 {nonBossUsers.map(user => (
                                     <div key={user.id} className="flex items-center gap-1 mb-1.5">
                                         <div className="w-20 shrink-0 text-sm font-bold text-gray-700 truncate pr-1">{user.name}</div>
                                         {days.map(d => {
+                                            if (d > daysInMonth) return <div key={d} className="w-5 shrink-0 h-8" />;
                                             const dateStr = `${monthFilter}-${String(d).padStart(2, '0')}`;
                                             const hours = userDailyHours[user.id]?.[dateStr] || 0;
                                             return (
-                                                <div key={d} className={`flex-1 h-8 rounded ${getHeatmapBg(hours)}`} />
+                                                <div key={d} className={`w-5 shrink-0 h-8 rounded ${getHeatmapBg(hours)}`} />
                                             );
                                         })}
                                     </div>
