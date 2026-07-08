@@ -284,8 +284,8 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                                     onMouseEnter={() => setHoveredDate(dateStr)}
                                                     onMouseLeave={() => setHoveredDate(null)}
                                                 >
-                                                    <span className={`text-base font-bold drop-shadow-sm ${hoveredDate === dateStr ? 'text-white' : 'text-gray-800'}`}>
-                                                        {hoveredDate === dateStr ? `${hours}h` : day}
+                                                    <span className={`text-base font-bold drop-shadow-sm ${hoveredDate === dateStr && hours > 0 ? 'text-white/75' : 'text-gray-800'}`}>
+                                                        {hoveredDate === dateStr && hours > 0 ? `${hours}h` : day}
                                                     </span>
                                                 </div>
                                             );
