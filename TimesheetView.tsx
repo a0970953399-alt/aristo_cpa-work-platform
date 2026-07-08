@@ -254,7 +254,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                                     onMouseLeave={() => setHoveredMultiCell(null)}
                                                 >
                                                     {hoveredMultiCell === cellKey && hours > 0 && (
-                                                        <span className="text-[9px] font-bold text-gray-800 leading-none">{hours}</span>
+                                                        <span className="text-[9px] font-bold text-white drop-shadow-sm leading-none">{hours}</span>
                                                     )}
                                                 </div>
                                             );
@@ -284,7 +284,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                                     onMouseEnter={() => setHoveredDate(dateStr)}
                                                     onMouseLeave={() => setHoveredDate(null)}
                                                 >
-                                                    <span className="text-base font-bold text-gray-800">
+                                                    <span className={`text-base font-bold drop-shadow-sm ${hoveredDate === dateStr ? 'text-white' : 'text-gray-800'}`}>
                                                         {hoveredDate === dateStr ? `${hours}h` : day}
                                                     </span>
                                                 </div>
