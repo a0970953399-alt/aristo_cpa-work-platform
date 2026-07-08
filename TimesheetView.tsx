@@ -46,6 +46,9 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
     const [monthFilter, setMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7));
     const [showHeatmap, setShowHeatmap] = useState(false);
 
+    const [hoveredDate, setHoveredDate] = useState<string | null>(null);
+    const [hoveredMultiCell, setHoveredMultiCell] = useState<string | null>(null);
+
     const [editingId, setEditingId] = useState<string | null>(null);
     const [editDate, setEditDate] = useState('');
     const [editStart, setEditStart] = useState('');
@@ -242,8 +245,18 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                             if (d > daysInMonth) return <div key={d} className="w-5 shrink-0 h-8" />;
                                             const dateStr = `${monthFilter}-${String(d).padStart(2, '0')}`;
                                             const hours = userDailyHours[user.id]?.[dateStr] || 0;
+                                            const cellKey = `${user.id}:${dateStr}`;
                                             return (
-                                                <div key={d} className={`w-5 shrink-0 h-8 rounded ${getHeatmapBg(hours)}`} />
+                                                <div
+                                                    key={d}
+                                                    className={`w-5 shrink-0 h-8 rounded ${getHeatmapBg(hours)} flex items-center justify-center`}
+                                                    onMouseEnter={() => setHoveredMultiCell(cellKey)}
+                                                    onMouseLeave={() => setHoveredMultiCell(null)}
+                                                >
+                                                    {hoveredMultiCell === cellKey && hours > 0 && (
+                                                        <span className="text-[9px] font-bold text-gray-800 leading-none">{hours}</span>
+                                                    )}
+                                                </div>
                                             );
                                         })}
                                     </div>
@@ -267,9 +280,13 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                             return (
                                                 <div
                                                     key={di}
-                                                    className={`${getHeatmapBg(hours)} rounded-xl h-10 flex items-center justify-center transition-all`}
+                                                    className={`${getHeatmapBg(hours)} rounded-xl h-10 flex items-center justify-center transition-all cursor-default`}
+                                                    onMouseEnter={() => setHoveredDate(dateStr)}
+                                                    onMouseLeave={() => setHoveredDate(null)}
                                                 >
-                                                    <span className="text-base font-bold text-gray-800">{day}</span>
+                                                    <span className="text-base font-bold text-gray-800">
+                                                        {hoveredDate === dateStr ? `${hours}h` : day}
+                                                    </span>
                                                 </div>
                                             );
                                         })}
