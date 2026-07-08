@@ -83,7 +83,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
                 <span className="text-blue-600 font-bold font-mono text-xl">{timeStr}</span>
             </div>
         </div>
-        <div className="flex flex-nowrap justify-center gap-10 overflow-x-auto pb-2">
+        <div className="flex flex-nowrap justify-center gap-10">
           {users.map(renderUserCard)}
         </div>
       </div>
