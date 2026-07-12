@@ -105,9 +105,8 @@ npm run preview  # 預覽正式版本
 
 ```
 aristo_cpa-work-platform/
-├── App.tsx                  # 主路由（登入 → 桌面/行動版）
+├── App.tsx                  # 主路由（登入 → 網頁版工作平台）
 ├── Dashboard.tsx            # 桌面版主介面（9 個分頁）
-├── MobileDashboard.tsx      # 行動版介面
 ├── MatrixView.tsx           # 工作進度矩陣
 ├── ClientMasterView.tsx     # 客戶主檔
 ├── CashLogView.tsx          # 現金帳

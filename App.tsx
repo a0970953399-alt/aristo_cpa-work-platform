@@ -3,7 +3,6 @@
 import React, { useState, useEffect } from 'react';
 import LoginScreen from './LoginScreen';
 import Dashboard from './Dashboard';
-import MobileDashboard from './MobileDashboard';
 import { User } from './types';
 import { TaskService } from './taskService';
 // 1. 引入通知視窗
@@ -13,7 +12,6 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
-  const [isMobile] = useState(() => window.innerWidth < 768 || /Android|webOS|iPhone|iPad|iPod|BlackBerry|IEMobile|Opera Mini/i.test(navigator.userAgent));
 
   // Initialize Users
   useEffect(() => {
@@ -37,13 +35,6 @@ const App: React.FC = () => {
     <>
       {!currentUser ? (
         <LoginScreen onLogin={handleLogin} users={users} />
-      ) : isMobile ? (
-        <MobileDashboard
-          currentUser={currentUser}
-          onLogout={handleLogout}
-          users={users}
-          onUserUpdate={handleUserUpdate}
-        />
       ) : (
         <Dashboard
           currentUser={currentUser}
