@@ -9,6 +9,20 @@
 - 主要分支: `main`
 - 建議本機資料夾: `Desktop/aristo_cpa-work-platform`
 
+## 各裝置專案位置
+
+### 事務所筆電
+
+- 專案資料夾: `C:\Users\88698\Desktop\aristo_cpa-work-platform`
+- 狀態: 已確認可從 GitHub pull / push。
+- 備註: 這台電腦目前是 2026-07-14 新增本交接文件的裝置。
+
+### 家裡電腦
+
+- 專案資料夾: 請回家後補上。
+- 狀態: 請回家後先執行 pull，確認已同步到最新版本。
+- 備註: 如果資料夾位置不同，請直接更新這一段，方便之後 Codex 找到正確專案。
+
 ## 目前專案狀態
 
 - 前端框架: React 18 + TypeScript + Vite
