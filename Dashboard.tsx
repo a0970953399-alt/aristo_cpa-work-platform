@@ -5,7 +5,6 @@ import { ListView } from './ListView';
 import { TaskService } from './taskService';
 import { NotificationService } from './notificationService';
 
-const DataMigration = React.lazy(() => import('./DataMigration').then(module => ({ default: module.DataMigration })));
 const ClientMasterView = React.lazy(() => import('./ClientMasterView').then(module => ({ default: module.ClientMasterView })));
 const InvoiceGenerator = React.lazy(() => import('./InvoiceGenerator').then(module => ({ default: module.InvoiceGenerator })));
 const MessageBoard = React.lazy(() => import('./MessageBoard').then(module => ({ default: module.MessageBoard })));
@@ -35,7 +34,7 @@ import {
 import { 
     RefreshSvg, FolderIcon, LightningIcon, TrashIcon, UserGroupIcon, TableCellsIcon, 
     ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, LockClosedIcon, CalendarIcon, 
-    LightBulbIcon, ClockIcon, DocumentTextIcon, Squares2X2Icon, FunnelIcon, ChatBubbleIcon 
+    LightBulbIcon, ClockIcon, DocumentTextIcon, Squares2X2Icon, FunnelIcon
 } from './Icons';
 
 // ✨ 新增：用於編輯懶人包的鉛筆圖示
@@ -354,9 +353,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   // --- Keyboard Shortcuts ---
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
-      const tag = (e.target as HTMLElement).tagName;
-      const isTyping = tag === 'INPUT' || tag === 'TEXTAREA' || tag === 'SELECT' || (e.target as HTMLElement).isContentEditable;
-
       // Escape: close topmost modal
       if (e.key === 'Escape') {
         if (isShortcutHelpOpen) { setIsShortcutHelpOpen(false); return; }
@@ -381,12 +377,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         if (isClientMasterOpen) { setIsClientMasterOpen(false); return; }
         if (selectedClientForDrawer) { setSelectedClientForDrawer(null); return; }
         if (isAppMenuOpen) { setIsAppMenuOpen(false); return; }
-        return;
-      }
-
-      // ? : toggle shortcut help (only when not typing)
-      if (!isTyping && e.key === '?') {
-        setIsShortcutHelpOpen(prev => !prev);
         return;
       }
 
@@ -907,20 +897,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
                 {isAppMenuOpen && (
                     <div className="absolute right-0 top-full mt-2 w-64 bg-white rounded-2xl shadow-xl border border-gray-100 z-50 overflow-hidden animate-fade-in p-2 grid grid-cols-2 gap-2">
-                        <button onClick={() => { setIsMessageBoardOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-blue-50 rounded-xl text-gray-600 hover:text-blue-600 transition-colors">
-                            <ChatBubbleIcon className="w-6 h-6" />
-                            <span className="text-xs font-bold">留言板</span>
-                        </button>
-
-                        {/* 🔴 這裡！原本的 dbConnected 判斷式已經刪掉，換成我們的搬家按鈕 */}
-                        <React.Suspense fallback={null}>
-                            <DataMigration />
-                        </React.Suspense>
-                        
-                        <button onClick={() => { setIsGalleryOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-yellow-50 rounded-xl text-gray-600 hover:text-yellow-600 transition-colors">
-                            <LightBulbIcon className="w-6 h-6" />
-                            <span className="text-xs font-bold">懶人包</span>
-                        </button>
                         <button onClick={() => { setIsUserModalOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-gray-100 rounded-xl text-gray-600 hover:text-gray-900 transition-colors">
                             <GearIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">{isPrivileged ? "人員管理" : "個人設定"}</span>
@@ -955,11 +931,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                     <img src={activeUser.avatar} alt="User" className="w-9 h-9 rounded-full object-cover bg-white" />
                     <div className={`absolute bottom-0 right-0 w-3 h-3 rounded-full border-2 border-white ${isWorking ? 'bg-green-500' : 'bg-gray-300'}`}></div>
                 </div>
-
-                {/* 快捷鍵說明按鈕 */}
-                <button onClick={() => setIsShortcutHelpOpen(true)} title="快捷鍵說明 (?)" className="flex items-center justify-center p-2.5 bg-gray-100 text-gray-500 hover:text-blue-600 hover:bg-blue-50 rounded-xl transition-colors border border-transparent hover:border-blue-200 shadow-sm">
-                    <span className="text-sm font-bold leading-none w-5 h-5 flex items-center justify-center">?</span>
-                </button>
 
                 {/* 登出按鈕 (純圖示) */}
                 <button onClick={onLogout} title="登出系統" className="flex items-center justify-center p-2.5 bg-gray-100 text-gray-500 hover:text-red-600 hover:bg-red-50 rounded-xl transition-colors border border-transparent hover:border-red-200 shadow-sm">
