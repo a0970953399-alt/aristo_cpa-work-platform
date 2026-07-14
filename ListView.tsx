@@ -57,8 +57,9 @@ export const ListView: React.FC<ListViewProps> = ({
 
             // ✨ 新增邏輯：隱藏昨天以前「已完成」的工作
             if (t.status === 'done' || t.isNA) {
-                if (t.lastUpdatedAt) {
-                    const taskUpdateDate = new Date(t.lastUpdatedAt).toDateString();
+                const completedTimestamp = t.completedAt || t.lastUpdatedAt;
+                if (completedTimestamp) {
+                    const taskUpdateDate = new Date(completedTimestamp).toDateString();
                     // 如果任務的最後更新日期「不是今天」，就不顯示
                     if (taskUpdateDate !== todayStr) {
                         return false;

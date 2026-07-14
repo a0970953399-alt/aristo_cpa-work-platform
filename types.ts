@@ -34,6 +34,8 @@ export interface ClientTask {
   assigneeName?: string;
   year: string;
   completionDate?: string;
+  completedAt?: string;
+  entrySource?: 'assigned' | 'self_reported';
   isNA?: boolean;
   isMisc?: boolean;
   lastUpdatedBy: string;

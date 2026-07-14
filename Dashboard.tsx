@@ -107,6 +107,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [isGalleryOpen, setIsGalleryOpen] = useState(false);
   const [isInstructionModalOpen, setIsInstructionModalOpen] = useState(false); // ✨ 新增：懶人包編輯視窗狀態
   const [isAssignModalOpen, setIsAssignModalOpen] = useState(false);
+  const [isSelfCompleteModalOpen, setIsSelfCompleteModalOpen] = useState(false);
   const [isDateModalOpen, setIsDateModalOpen] = useState(false);
   const [isMiscModalOpen, setIsMiscModalOpen] = useState(false);
   const [isDeleteModalOpen, setIsDeleteModalOpen] = useState(false);
@@ -359,6 +360,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       // Escape: close topmost modal
       if (e.key === 'Escape') {
         if (isShortcutHelpOpen) { setIsShortcutHelpOpen(false); return; }
+        if (isSelfCompleteModalOpen) { setIsSelfCompleteModalOpen(false); return; }
         if (isAssignModalOpen) { setIsAssignModalOpen(false); return; }
         if (isDateModalOpen) { setIsDateModalOpen(false); return; }
         if (isMiscModalOpen) { setIsMiscModalOpen(false); return; }
@@ -400,7 +402,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isShortcutHelpOpen, isAssignModalOpen, isDateModalOpen, isMiscModalOpen, isDeleteModalOpen,
+  }, [isShortcutHelpOpen, isSelfCompleteModalOpen, isAssignModalOpen, isDateModalOpen, isMiscModalOpen, isDeleteModalOpen,
       isNoteEditModalOpen, isUserDeleteModalOpen, isUserModalOpen, isEventDeleteModalOpen,
       isEventModalOpen, isDailyReminderOpen, isCalendarOpen, isGalleryOpen, isInstructionModalOpen,
       isCheckOutModalOpen, isTimesheetOpen, isInvoiceOpen, isMessageBoardOpen, isClientMasterOpen,
@@ -484,8 +486,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     // 1. 過濾屬於自己的今日事項
     const myTodayTasks = tasks.filter(task => {
       if (task.assigneeId !== currentUser?.id) return false;
-      if (!task.lastUpdatedAt) return false;
-      const taskDate = new Date(task.lastUpdatedAt).toLocaleDateString('zh-TW');
+      const activityTimestamp = task.status === 'done' ? (task.completedAt || task.lastUpdatedAt) : task.lastUpdatedAt;
+      if (!activityTimestamp) return false;
+      const taskDate = new Date(activityTimestamp).toLocaleDateString('zh-TW');
       return taskDate === today;
     });
 
@@ -633,8 +636,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     setIsLoading(true);
     const today = `${currentTime.getMonth() + 1}/${currentTime.getDate()}`;
     const newTask: ClientTask = {
-      id: task?.id || Date.now().toString(),
-      clientId: client.id,
+      id: task?.id || TaskService.getMatrixTaskId(client.id, currentYear, activeTab, column),
+      clientId: String(client.id),
       clientName: client.name,
       category: activeTab,
       workItem: column,
@@ -644,14 +647,18 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       assigneeId: currentUser.id,
       assigneeName: currentUser.name,
       completionDate: today,
+      completedAt: new Date().toISOString(),
+      entrySource: 'assigned',
       note: task?.note || '',
       lastUpdatedBy: currentUser.name,
       lastUpdatedAt: new Date().toISOString(),
       history: task?.history || []
     };
     try {
-      await TaskService.addTask(newTask);
-    } catch (e) { alert("失敗"); } finally { setIsLoading(false); }
+      await TaskService.saveMatrixTask(newTask, !task);
+    } catch (e) {
+      alert(e instanceof Error && e.message === 'TASK_ALREADY_EXISTS' ? "此工作剛剛已被其他人登記，請重新確認。" : "失敗");
+    } finally { setIsLoading(false); }
   };
 
   // Matrix Logic
@@ -664,6 +671,19 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     if (task && (task.status === 'done' || task.isNA)) {
       setModalDate(task.completionDate || '');
       setIsDateModalOpen(true);
+      return;
+    }
+
+    if (!isPrivileged) {
+      if (isBossAssignableColumn(activeTab, column)) {
+        alert("此欄位由主管處理，無法自行登記。");
+        return;
+      }
+      if (task?.assigneeId && String(task.assigneeId) !== String(currentUser.id)) {
+        alert(`此工作已由 ${task.assigneeName || '其他同事'} 負責。`);
+        return;
+      }
+      setIsSelfCompleteModalOpen(true);
       return;
     }
 
@@ -687,6 +707,46 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       if (isSupervisor) { setIsAssignModalOpen(true); }
     }
   };
+
+  const handleSelfCompleteSubmit = async () => {
+    if (!selectedCell || isPrivileged) return;
+    setIsLoading(true);
+
+    const now = new Date();
+    const completionDate = `${now.getMonth() + 1}/${now.getDate()}`;
+    const task: ClientTask = {
+      id: selectedCell.task?.id || TaskService.getMatrixTaskId(selectedCell.client.id, currentYear, activeTab, selectedCell.column),
+      clientId: String(selectedCell.client.id),
+      clientName: selectedCell.client.name,
+      category: activeTab,
+      workItem: selectedCell.column,
+      year: currentYear,
+      status: 'done',
+      isNA: false,
+      assigneeId: currentUser.id,
+      assigneeName: currentUser.name,
+      completionDate,
+      completedAt: now.toISOString(),
+      entrySource: 'self_reported',
+      note: modalNote.trim(),
+      lastUpdatedBy: currentUser.name,
+      lastUpdatedAt: now.toISOString(),
+      history: selectedCell.task?.history || []
+    };
+
+    try {
+      await TaskService.completeMatrixTaskForSelf(task, currentUser);
+      setIsSelfCompleteModalOpen(false);
+      setSelectedCell(null);
+      setModalNote('');
+    } catch (error) {
+      const conflict = error instanceof Error && ['TASK_ALREADY_COMPLETED', 'TASK_ASSIGNED_TO_OTHER'].includes(error.message);
+      alert(conflict ? "此工作剛剛已被其他人登記或派發，請重新確認。" : "登記失敗，請確認網路連線後再試一次。");
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const handleClientNameClick = (client: Client) => { if (!dbConnected) return; setSelectedClientForDrawer(client); };
   const handleSaveProfile = (profile: ClientProfile) => { TaskService.saveClientProfile(profile); };
   const handleAssignSubmit = async (isNA: boolean = false) => {
@@ -695,8 +755,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     const assignee = users.find(u => u.id === modalAssigneeId);
     if (!isNA && !modalAssigneeId) { alert("請選擇負責人"); setIsLoading(false); return; }
     const newTask: ClientTask = {
-      id: selectedCell.task?.id || Date.now().toString(),
-      clientId: selectedCell.client.id,
+      id: selectedCell.task?.id || TaskService.getMatrixTaskId(selectedCell.client.id, currentYear, activeTab, selectedCell.column),
+      clientId: String(selectedCell.client.id),
       clientName: selectedCell.client.name,
       category: activeTab,
       workItem: selectedCell.column,
@@ -706,16 +766,19 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       assigneeId: isNA ? '' : modalAssigneeId,
       assigneeName: isNA ? '' : (assignee?.name.substring(assignee.name.length - 2) || ''),
       completionDate: '',
+      entrySource: 'assigned',
       note: modalNote,
       lastUpdatedBy: currentUser.name,
       lastUpdatedAt: new Date().toISOString(),
       history: selectedCell.task?.history || []
     };
     try {
-      await TaskService.addTask(newTask);
+      await TaskService.saveMatrixTask(newTask, !selectedCell.task);
       setIsAssignModalOpen(false);
       setSelectedCell(null);
-    } catch (e) { alert("失敗"); } finally { setIsLoading(false); }
+    } catch (e) {
+      alert(e instanceof Error && e.message === 'TASK_ALREADY_EXISTS' ? "此工作剛剛已被其他人登記，請重新確認。" : "失敗");
+    } finally { setIsLoading(false); }
   };
   const handleRevokeAssignment = async () => {
     if (!selectedCell?.task) return;
@@ -1372,6 +1435,43 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           </button>
                       </div>
                   </form>
+              </div>
+          </div>
+      )}
+
+      {/* Self-completion confirmation */}
+      {isSelfCompleteModalOpen && selectedCell && (
+          <div className="fixed inset-0 bg-black/50 z-[120] flex items-center justify-center p-4" onClick={() => setIsSelfCompleteModalOpen(false)}>
+              <div className="bg-white rounded-2xl shadow-2xl max-w-md w-full overflow-hidden animate-scale-up" onClick={e => e.stopPropagation()}>
+                  <div className="p-6 border-b border-gray-100">
+                      <h3 className="text-xl font-bold text-gray-800">登記完成工作</h3>
+                      <p className="mt-1 text-sm text-gray-500">確認後會同步更新工作矩陣與今日工作清單。</p>
+                  </div>
+                  <div className="p-6 space-y-4">
+                      <div className="bg-gray-50 border border-gray-200 rounded-xl divide-y divide-gray-200">
+                          <div className="flex justify-between gap-4 px-4 py-3"><span className="text-gray-500">客戶</span><span className="font-bold text-gray-800 text-right">{selectedCell.client.name}</span></div>
+                          <div className="flex justify-between gap-4 px-4 py-3"><span className="text-gray-500">分類</span><span className="font-bold text-gray-800 text-right">{activeTab}</span></div>
+                          <div className="flex justify-between gap-4 px-4 py-3"><span className="text-gray-500">工作</span><span className="font-bold text-blue-700 text-right">{selectedCell.column}</span></div>
+                          <div className="flex justify-between gap-4 px-4 py-3"><span className="text-gray-500">完成者</span><span className="font-bold text-gray-800 text-right">{currentUser.name}</span></div>
+                          <div className="flex justify-between gap-4 px-4 py-3"><span className="text-gray-500">完成日期</span><span className="font-bold text-gray-800 text-right">{currentTime.toLocaleDateString('zh-TW')}</span></div>
+                      </div>
+                      <div>
+                          <label className="block text-sm font-bold text-gray-700 mb-2" htmlFor="self-complete-note">備註（選填）</label>
+                          <textarea
+                              id="self-complete-note"
+                              value={modalNote}
+                              onChange={e => setModalNote(e.target.value)}
+                              className="w-full h-24 resize-none border border-gray-300 rounded-xl p-3 text-base outline-none focus:ring-2 focus:ring-green-500 focus:border-green-500"
+                              placeholder="補充完成內容..."
+                          />
+                      </div>
+                  </div>
+                  <div className="p-4 border-t border-gray-100 bg-gray-50 flex justify-end gap-3">
+                      <button onClick={() => setIsSelfCompleteModalOpen(false)} disabled={isLoading} className="px-5 py-2.5 bg-white border border-gray-300 text-gray-600 rounded-xl font-bold hover:bg-gray-100 disabled:opacity-50">取消</button>
+                      <button onClick={handleSelfCompleteSubmit} disabled={isLoading} className="px-5 py-2.5 bg-green-600 text-white rounded-xl font-bold hover:bg-green-700 shadow-sm disabled:opacity-50">
+                          {isLoading ? '登記中...' : '確認完成'}
+                      </button>
+                  </div>
               </div>
           </div>
       )}

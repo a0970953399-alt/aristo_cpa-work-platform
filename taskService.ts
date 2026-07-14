@@ -7,7 +7,7 @@ import { INITIAL_TASKS, DEFAULT_YEAR, USERS as DEFAULT_USERS, DUMMY_CLIENTS, INS
 import { StockClientConfig, StockTarget, StockTransaction } from './types';
 
 import { db } from './firebase'; 
-import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot, query, where, orderBy, limit } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc, deleteField, getDoc, onSnapshot, query, where, orderBy, limit, runTransaction } from "firebase/firestore";
 import type { DocumentData, QueryConstraint, QueryDocumentSnapshot, Unsubscribe } from "firebase/firestore";
 
 const USERS_STORAGE_KEY = 'shuoye_users_v1';
@@ -31,6 +31,11 @@ const sortClients = (clients: Client[]): Client[] => clients.sort((a, b) => {
     const codeB = b.code || '';
     return codeA.localeCompare(codeB, 'zh-Hant', { numeric: true });
 });
+
+const getMatrixTaskId = (clientId: string | number, year: string, category: string, workItem: string): string =>
+    ['matrix', clientId, year, category, workItem]
+        .map(value => encodeURIComponent(String(value)))
+        .join('__');
 
 const normalizeTask = (id: string, task: DocumentData): ClientTask => {
     let category = String(task.category || '').trim();
@@ -372,6 +377,72 @@ export const TaskService = {
       
   },
 
+  getMatrixTaskId,
+
+  async saveMatrixTask(task: ClientTask, createOnly: boolean): Promise<void> {
+      const taskRef = doc(db, "tasks", String(task.id));
+
+      await runTransaction(db, async transaction => {
+          const snapshot = await transaction.get(taskRef);
+          if (createOnly && snapshot.exists()) {
+              throw new Error('TASK_ALREADY_EXISTS');
+          }
+
+          const existing = snapshot.exists() ? snapshot.data() as ClientTask : undefined;
+          const historyEntry: HistoryEntry = {
+              timestamp: new Date().toISOString(),
+              userName: task.lastUpdatedBy,
+              action: task.isNA ? "標記為 N/A" : "指派工作",
+              ...(!task.isNA ? { details: `指派給: ${task.assigneeName || '無'}` } : {})
+          };
+
+          const { id, ...data } = task;
+          transaction.set(taskRef, {
+              ...data,
+              entrySource: task.entrySource || 'assigned',
+              history: [historyEntry, ...(existing?.history || task.history || [])].slice(0, 20)
+          });
+      });
+  },
+
+  async completeMatrixTaskForSelf(task: ClientTask, user: User): Promise<void> {
+      const taskRef = doc(db, "tasks", String(task.id));
+
+      await runTransaction(db, async transaction => {
+          const snapshot = await transaction.get(taskRef);
+          const existing = snapshot.exists() ? snapshot.data() as ClientTask : undefined;
+
+          if (existing?.isNA || existing?.status === 'done') {
+              throw new Error('TASK_ALREADY_COMPLETED');
+          }
+          if (existing?.assigneeId && String(existing.assigneeId) !== String(user.id)) {
+              throw new Error('TASK_ASSIGNED_TO_OTHER');
+          }
+
+          const now = new Date().toISOString();
+          const historyEntry: HistoryEntry = {
+              timestamp: now,
+              userName: user.name,
+              action: "由本人自行登記完成",
+              ...(task.completionDate ? { details: `完成日期: ${task.completionDate}` } : {})
+          };
+          const { id, ...data } = task;
+
+          transaction.set(taskRef, {
+              ...data,
+              status: 'done',
+              isNA: false,
+              assigneeId: user.id,
+              assigneeName: user.name,
+              completedAt: now,
+              entrySource: 'self_reported',
+              lastUpdatedBy: user.name,
+              lastUpdatedAt: now,
+              history: [historyEntry, ...(existing?.history || task.history || [])].slice(0, 20)
+          }, { merge: snapshot.exists() });
+      });
+  },
+
   async deleteTask(taskId: string): Promise<void> {
       // ✨ 雲端刪除指令：直接指定 ID 刪除，不影響其他任務！
       await deleteDoc(doc(db, "tasks", String(taskId)));
@@ -394,6 +465,7 @@ export const TaskService = {
           await setDoc(ref, {
               status: status,
               completionDate: completionDate !== undefined ? completionDate : taskData.completionDate,
+              completedAt: status === 'done' ? new Date().toISOString() : deleteField(),
               lastUpdatedBy: user,
               lastUpdatedAt: new Date().toISOString(),
               history: [historyEntry, ...(taskData.history || [])].slice(0, 20)
