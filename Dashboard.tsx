@@ -848,23 +848,18 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             </div>
 
             <div
-              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold ${
-                !isOnline || dataSyncStatus === 'error'
-                  ? 'bg-red-50 border-red-200 text-red-600'
-                  : dataSyncStatus === 'live'
-                    ? 'bg-green-50 border-green-200 text-green-700'
-                    : 'bg-amber-50 border-amber-200 text-amber-700'
-              }`}
+              className="flex h-5 w-5 items-center justify-center"
+              role="status"
+              aria-label={!isOnline ? '離線' : dataSyncStatus === 'live' ? '已同步' : dataSyncStatus === 'error' ? '同步失敗' : '連線中'}
               title={!isOnline ? '網路連線中斷' : dataSyncStatus === 'live' ? '平台資料會即時更新' : dataSyncStatus === 'error' ? '資料同步失敗，請重新整理' : '正在連接即時同步'}
             >
-              <span className={`w-2 h-2 rounded-full ${
+              <span className={`w-2.5 h-2.5 rounded-full ${
                 !isOnline || dataSyncStatus === 'error'
                   ? 'bg-red-500'
                   : dataSyncStatus === 'live'
                     ? 'bg-green-500'
                     : 'bg-amber-500 animate-pulse'
               }`}></span>
-              {!isOnline ? '離線' : dataSyncStatus === 'live' ? '已同步' : dataSyncStatus === 'error' ? '同步失敗' : '連線中'}
             </div>
             
             {/* 1. 臨時交辦 (純圖示：紙飛機) */}
