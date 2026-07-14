@@ -1,20 +1,29 @@
 // src/Dashboard.tsx
-import { DataMigration } from './DataMigration';
-import { ClientMasterView } from './ClientMasterView'; 
 import React, { useState, useEffect, useRef, useMemo } from 'react';
-import { InvoiceGenerator } from './InvoiceGenerator';
-import { MessageBoard } from './MessageBoard';
-import { TimesheetView } from './TimesheetView'; 
-import { ClientDrawer } from './ClientDrawer';
 import { MatrixView } from './MatrixView';
-import { CalendarView } from './CalendarView';
 import { ListView } from './ListView';
-import { MailLogView } from './MailLogView';
-import { CashLogView } from './CashLogView';
 import { TaskService } from './taskService';
 import { NotificationService } from './notificationService';
-import { StockInventoryView } from './StockInventoryView';
-import { PayrollView } from './PayrollView';
+
+const DataMigration = React.lazy(() => import('./DataMigration').then(module => ({ default: module.DataMigration })));
+const ClientMasterView = React.lazy(() => import('./ClientMasterView').then(module => ({ default: module.ClientMasterView })));
+const InvoiceGenerator = React.lazy(() => import('./InvoiceGenerator').then(module => ({ default: module.InvoiceGenerator })));
+const MessageBoard = React.lazy(() => import('./MessageBoard').then(module => ({ default: module.MessageBoard })));
+const TimesheetView = React.lazy(() => import('./TimesheetView').then(module => ({ default: module.TimesheetView })));
+const ClientDrawer = React.lazy(() => import('./ClientDrawer').then(module => ({ default: module.ClientDrawer })));
+const CalendarView = React.lazy(() => import('./CalendarView').then(module => ({ default: module.CalendarView })));
+const MailLogView = React.lazy(() => import('./MailLogView').then(module => ({ default: module.MailLogView })));
+const CashLogView = React.lazy(() => import('./CashLogView').then(module => ({ default: module.CashLogView })));
+const StockInventoryView = React.lazy(() => import('./StockInventoryView').then(module => ({ default: module.StockInventoryView })));
+const PayrollView = React.lazy(() => import('./PayrollView').then(module => ({ default: module.PayrollView })));
+
+const ModuleLoading = ({ overlay = false }: { overlay?: boolean }) => (
+  <div className={`${overlay ? 'fixed inset-0 z-[250] bg-black/20' : 'h-full min-h-48'} flex items-center justify-center`}>
+    <div className="rounded-lg bg-white px-5 py-3 text-sm font-medium text-gray-500 shadow-sm">
+      Loading...
+    </div>
+  </div>
+);
 
 // Types & Icons
 import { 
@@ -846,7 +855,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         </button>
 
                         {/* 🔴 這裡！原本的 dbConnected 判斷式已經刪掉，換成我們的搬家按鈕 */}
-                        <DataMigration />
+                        <React.Suspense fallback={null}>
+                            <DataMigration />
+                        </React.Suspense>
                         
                         <button onClick={() => { setIsGalleryOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-yellow-50 rounded-xl text-gray-600 hover:text-yellow-600 transition-colors">
                             <LightBulbIcon className="w-6 h-6" />
@@ -921,6 +932,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       <main className="flex-1 overflow-hidden relative w-full bg-gray-50">
         {((isPrivileged && !showMyList) || (!isPrivileged && showOverview)) ? (
             <div className="absolute inset-0 px-6 py-6">
+              <React.Suspense fallback={<ModuleLoading />}>
                 {!dbConnected ? (
                     <div className="flex flex-col items-center justify-center py-40 gap-5">
                         <p className="text-2xl font-bold text-gray-400">系統尚未取得本地資料庫授權</p>
@@ -970,6 +982,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         clients={clients}
                     />
                 )}
+              </React.Suspense>
             </div>
         ) : (
             <ListView
@@ -990,6 +1003,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       </main>
 
       {/* --- MODALS --- */}
+      <React.Suspense fallback={<ModuleLoading overlay />}>
 
       {/* Calendar Modal */}
       {isCalendarOpen && (
@@ -1606,6 +1620,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           </div>
         </div>
       )}
+
+      </React.Suspense>
 
       <style>{`
           @keyframes slideInRight {
