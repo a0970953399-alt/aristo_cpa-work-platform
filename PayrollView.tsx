@@ -2,7 +2,7 @@ import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { Client, PayrollClientConfig, PayrollRecord, Employee, EmploymentType, CompensationRecord, EmploymentRecord } from './types';
+import { Client, PayrollClientConfig, PayrollRecord, Employee, EmploymentType, CompensationRecord, EmploymentRecord, MonthlySalaryRecord } from './types';
 import { ReturnIcon, PlusIcon, TrashIcon } from './Icons';
 import { TaskService } from './taskService';
 
@@ -84,6 +84,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
+  const [monthlySalaries, setMonthlySalaries] = useState<MonthlySalaryRecord[]>([]);
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [activeInnerTab, setActiveInnerTab] = useState<'employees' | 'monthly' | 'yearly'>('employees');
@@ -128,7 +129,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   useEffect(() => {
       const loadMonthlyData = async () => {
           if (activeInnerTab === 'monthly' && selectedClient) {
-              const allSalaries = await TaskService.fetchMonthlySalaries();
+              const allSalaries = monthlySalaries;
               const targetMonth = `${selectedYear}-${selectedMonth}`;
               const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month === targetMonth);
               
@@ -165,7 +166,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
       const loadYearlyData = async () => {
           if (activeInnerTab === 'yearly' && selectedClient) {
-              const allSalaries = await TaskService.fetchMonthlySalaries();
+              const allSalaries = monthlySalaries;
               const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month.startsWith(`${selectedYear}-`));
               setYearlySalaries(savedRecords);
           }
@@ -173,7 +174,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
       loadMonthlyData();
       loadYearlyData();
-  }, [activeInnerTab, selectedClient, employees, selectedYear, selectedMonth, refreshTrigger]);
+  }, [activeInnerTab, selectedClient, employees, selectedYear, selectedMonth, refreshTrigger, monthlySalaries]);
 
   // ✨ 專門給 Modal 讀取指定月份資料用的函數
   const loadFormDataForMonth = async (emp: Employee, month: string) => {
@@ -1109,7 +1110,6 @@ const htmlContent = `
               await TaskService.addEmployee(emp);
           }
           alert(`✅ 成功匯入 ${newEmps.length} 筆員工資料！`);
-          await loadData();
         } else {
           alert('沒有找到有效的員工紀錄，請確認 Excel 是否有填寫「姓名」。');
         }
@@ -1123,8 +1123,26 @@ const htmlContent = `
   };
 
   useEffect(() => {
-    loadData();
+    const handleSyncError = (error: Error) => console.error('Payroll real-time sync failed:', error);
+    const unsubscribe = [
+      TaskService.subscribePayrollClients(setPayrollClients, handleSyncError),
+      TaskService.subscribePayrollRecords(setPayrollRecords, handleSyncError),
+      TaskService.subscribeEmployees(setEmployees, handleSyncError)
+    ];
+    return () => unsubscribe.forEach(stopListening => stopListening());
   }, []);
+
+  useEffect(() => {
+    if (!selectedClient) {
+      setMonthlySalaries([]);
+      return;
+    }
+    return TaskService.subscribeMonthlySalariesForClient(
+      String(selectedClient.id),
+      setMonthlySalaries,
+      error => console.error('Monthly salary real-time sync failed:', error)
+    );
+  }, [selectedClient]);
 
   // --- Keyboard Shortcuts ---
   useEffect(() => {
@@ -1152,15 +1170,6 @@ const htmlContent = `
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isMonthlyEditModalOpen, isEmpModalOpen]);
-
-  const loadData = async () => {
-    const fetchedClients = await TaskService.fetchPayrollClients();
-    const fetchedRecords = await TaskService.fetchPayrollRecords();
-    const fetchedEmps = await TaskService.fetchEmployees();
-    setPayrollClients(fetchedClients);
-    setPayrollRecords(fetchedRecords);
-    setEmployees(fetchedEmps);
-  };
 
   const handleOpenAddEmp = () => {
     setEditingEmp({
@@ -1216,14 +1225,12 @@ const htmlContent = `
     } else {
         await TaskService.addEmployee(empData);
     }
-    await loadData();
     setIsEmpModalOpen(false);
   };
 
   const handleDeleteEmp = async (id: string) => {
       if(!confirm("確定要刪除這位員工嗎？此動作無法復原！")) return;
       await TaskService.deleteEmployee(id);
-      await loadData();
       setIsEmpModalOpen(false);
   };
 
@@ -1235,7 +1242,6 @@ const htmlContent = `
     if (!newClientSelectId) return;
     const newConfig: PayrollClientConfig = { id: Date.now().toString(), clientId: newClientSelectId, createdAt: new Date().toISOString() };
     await TaskService.addPayrollClient(newConfig);
-    await loadData();
     setIsAddClientModalOpen(false);
     setNewClientSelectId('');
   };
@@ -1244,7 +1250,6 @@ const htmlContent = `
     for (const clientId of clientsToDelete) {
         await TaskService.deletePayrollClient(clientId);
     }
-    await loadData();
     setIsDeleteClientModalOpen(false);
     setClientsToDelete([]);
   };

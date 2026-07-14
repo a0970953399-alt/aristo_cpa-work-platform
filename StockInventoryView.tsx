@@ -405,7 +405,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
               await TaskService.addStockTransaction(tx);
           }
           alert(`✅ 成功匯入 ${newTxs.length} 筆紀錄！系統已自動完成 FIFO 結算。`);
-          await loadData();
         } else {
           alert('沒有找到有效的紀錄，請確認 Excel 是否有漏填 (必填：日期、類型、股數、單價)。');
         }
@@ -476,7 +475,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         await TaskService.addStockTransaction(newTx);
     }
     
-    await loadData();
     setIsAddTxModalOpen(false);
     resetTxForm();
   };
@@ -487,7 +485,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     if (!confirm("確定要刪除這筆交易紀錄嗎？此動作無法復原，並會影響後續餘額計算！")) return;
     
     await TaskService.deleteStockTransaction(editingTxId);
-    await loadData();
     setIsAddTxModalOpen(false);
     resetTxForm();
   };
@@ -496,9 +493,14 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
   // ✨ 生命週期與資料載入 (對接 Firebase / JSON)
   // ==========================================
   
-  // 當一進入這個頁面時，立刻去資料庫抓資料
   useEffect(() => {
-    loadData();
+    const handleSyncError = (error: Error) => console.error('Stock real-time sync failed:', error);
+    const unsubscribe = [
+      TaskService.subscribeStockClients(setStockClients, handleSyncError),
+      TaskService.subscribeStockTargets(setStockTargets, handleSyncError),
+      TaskService.subscribeStockTransactions(setTransactions, handleSyncError)
+    ];
+    return () => unsubscribe.forEach(stopListening => stopListening());
   }, []);
 
   // --- Keyboard Shortcuts ---
@@ -519,15 +521,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     return () => document.removeEventListener('keydown', handleKeyDown);
   }, [isDateFilterOpen, isAddTxModalOpen, isAddStockModalOpen, isDeleteStockModalOpen, isAddClientModalOpen, isDeleteClientModalOpen, selectedStock, selectedClient]);
 
-  const loadData = async () => {
-    const fetchedClients = await TaskService.fetchStockClients();
-    const fetchedTargets = await TaskService.fetchStockTargets();
-    const fetchedTxs = await TaskService.fetchStockTransactions();
-    setStockClients(fetchedClients);
-    setStockTargets(fetchedTargets);
-    setTransactions(fetchedTxs);
-  };
-
   // ==========================================
   // ✨ 操作邏輯 (改寫為呼叫 TaskService)
   // ==========================================
@@ -540,8 +533,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         createdAt: new Date().toISOString()
     };
     // 呼叫 API 寫入資料庫，並用回傳的新資料更新畫面
-    const updated = await TaskService.addStockClient(newConfig);
-    setStockClients(updated);
+    await TaskService.addStockClient(newConfig);
     setIsAddClientModalOpen(false);
     setNewClientSelectId('');
   };
@@ -554,7 +546,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
             await TaskService.deleteStockClient(targetConfig.id);
         }
     }
-    await loadData(); // 刪除完後重新抓取最新資料
     setIsDeleteClientModalOpen(false);
     setClientsToDelete([]);
   };
@@ -568,8 +559,7 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
         name: newStockName.trim(),
         createdAt: new Date().toISOString()
     };
-    const updated = await TaskService.addStockTarget(newTarget);
-    setStockTargets(updated);
+    await TaskService.addStockTarget(newTarget);
     setIsAddStockModalOpen(false);
     setNewStockCode('');
     setNewStockName('');
@@ -579,7 +569,6 @@ export const StockInventoryView: React.FC<StockInventoryViewProps> = ({ clients 
     for (const stockId of stocksToDelete) {
         await TaskService.deleteStockTarget(stockId);
     }
-    await loadData();
     setIsDeleteStockModalOpen(false);
     setStocksToDelete([]);
   };

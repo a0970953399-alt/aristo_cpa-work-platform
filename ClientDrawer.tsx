@@ -21,14 +21,14 @@ export const ClientDrawer: React.FC<ClientDrawerProps> = ({ client, isOpen, onCl
     const [editingAccounting, setEditingAccounting] = useState(false);
 
     useEffect(() => {
-        if (isOpen) {
-            // ✨ 改為非同步等待 Firebase 回傳資料
-            TaskService.getClientProfile(client.id).then(data => {
-                setProfile(data);
-                setEditingSpecial(false);
-                setEditingAccounting(false);
-            });
-        }
+        if (!isOpen) return;
+        setEditingSpecial(false);
+        setEditingAccounting(false);
+        return TaskService.subscribeClientProfile(
+            client.id,
+            setProfile,
+            error => console.error('Client profile real-time sync failed:', error)
+        );
     }, [isOpen, client.id]);
 
     const handleChange = (field: keyof ClientProfile, value: any) => {

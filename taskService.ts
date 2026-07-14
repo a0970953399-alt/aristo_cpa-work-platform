@@ -1,12 +1,70 @@
 import { TabCategory } from './types';
-import type { ClientTask, TaskStatusType, HistoryEntry, ClientProfile, User, CalendarEvent, Client } from './types';
+import type {
+  ClientTask, TaskStatusType, HistoryEntry, ClientProfile, User, CalendarEvent, Client,
+  CheckInRecord, Message, MailRecord, CashRecord, Instruction
+} from './types';
 import { INITIAL_TASKS, DEFAULT_YEAR, USERS as DEFAULT_USERS, DUMMY_CLIENTS, INSTRUCTIONS } from './constants';
 import { StockClientConfig, StockTarget, StockTransaction } from './types';
 
 import { db } from './firebase'; 
-import { collection, getDocs, doc, setDoc, deleteDoc, getDoc } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc, getDoc, onSnapshot, query, where, orderBy, limit } from "firebase/firestore";
+import type { DocumentData, QueryConstraint, QueryDocumentSnapshot, Unsubscribe } from "firebase/firestore";
 
 const USERS_STORAGE_KEY = 'shuoye_users_v1';
+
+type RealtimeErrorHandler = (error: Error) => void;
+
+const subscribeCollection = <T>(
+    collectionName: string,
+    mapDocument: (document: QueryDocumentSnapshot<DocumentData, DocumentData>) => T,
+    onChanged: (items: T[]) => void,
+    onError: RealtimeErrorHandler,
+    constraints: QueryConstraint[] = []
+): Unsubscribe => onSnapshot(
+    query(collection(db, collectionName), ...constraints),
+    snapshot => onChanged(snapshot.docs.map(mapDocument)),
+    onError
+);
+
+const sortClients = (clients: Client[]): Client[] => clients.sort((a, b) => {
+    const codeA = a.code || '';
+    const codeB = b.code || '';
+    return codeA.localeCompare(codeB, 'zh-Hant', { numeric: true });
+});
+
+const normalizeTask = (id: string, task: DocumentData): ClientTask => {
+    let category = String(task.category || '').trim();
+
+    if (['入帳', '記帳', '帳務', '帳務處理', 'accounting'].includes(category) || category === TabCategory.ACCOUNTING) {
+        category = TabCategory.ACCOUNTING;
+    } else if (['營業稅', '營業稅申報', '營業稅整理', 'vat'].includes(category) || category === TabCategory.TAX) {
+        category = TabCategory.TAX;
+    } else if (['所得/扣繳', '各類扣繳', '扣繳', '扣繳申報', '所得扣繳', 'income_tax'].includes(category) || category === TabCategory.INCOME_TAX) {
+        category = TabCategory.INCOME_TAX;
+    } else if (['結算', '營所稅', '結算申報', '年度申報', 'corporate_tax'].includes(category) || category === TabCategory.ANNUAL) {
+        category = TabCategory.ANNUAL;
+    }
+
+    let status = task.status || 'todo';
+    if (status === 'completed') status = 'done';
+    if (status === 'pending') status = 'todo';
+
+    return {
+        ...task,
+        id: String(id),
+        clientId: String(task.clientId || ''),
+        year: String(task.year || DEFAULT_YEAR),
+        status: status as TaskStatusType,
+        workItem: String(task.workItem || ''),
+        category,
+        isNA: Boolean(task.isNA),
+        isMisc: Boolean(task.isMisc),
+        assigneeId: String(task.assigneeId || ''),
+        assigneeName: String(task.assigneeName || ''),
+        completionDate: String(task.completionDate || ''),
+        history: task.history || []
+    } as ClientTask;
+};
 
 export const TaskService = {
   // ==========================================
@@ -170,51 +228,133 @@ export const TaskService = {
 
   async fetchTasks(): Promise<ClientTask[]> {
       const snapshot = await getDocs(collection(db, "tasks"));
-      const tasks = snapshot.docs.map(d => {
-          const t = d.data();
-          
-          // 🛡️ 防線 1：分類名稱智能對齊 (終極完美對齊版)
-          // 直接對齊 types.ts 裡面的 TabCategory，絕對不會再有一字之差！
-          let cat = String(t.category || '').trim();
-          
-          if (['入帳', '記帳', '帳務', '帳務處理', 'accounting'].includes(cat) || cat === TabCategory.ACCOUNTING) {
-              cat = TabCategory.ACCOUNTING; // ➔ '帳務處理'
-          } else if (['營業稅', '營業稅申報', '營業稅整理', 'vat'].includes(cat) || cat === TabCategory.TAX) {
-              cat = TabCategory.TAX;        // ➔ '營業稅申報' (👈 就是這裡救回你的資料)
-          } else if (['所得/扣繳', '各類扣繳', '扣繳', '扣繳申報', '所得扣繳', 'income_tax'].includes(cat) || cat === TabCategory.INCOME_TAX) {
-              cat = TabCategory.INCOME_TAX; // ➔ '所得扣繳'
-          } else if (['結算', '營所稅', '結算申報', '年度申報', 'corporate_tax'].includes(cat) || cat === TabCategory.ANNUAL) {
-              cat = TabCategory.ANNUAL;     // ➔ '年度申報'
-          }
+      return snapshot.docs.map(d => normalizeTask(d.id, d.data()));
+  },
 
-          // 🛡️ 防線 2：確保狀態符合前端的燈號邏輯
-          let finalStatus = t.status || 'todo';
-          if (finalStatus === 'completed') finalStatus = 'done';
-          if (finalStatus === 'pending') finalStatus = 'todo';
+  subscribeTasks(
+      onTasksChanged: (tasks: ClientTask[]) => void,
+      onError: RealtimeErrorHandler
+  ): Unsubscribe {
+      return subscribeCollection("tasks", d => normalizeTask(d.id, d.data()), onTasksChanged, onError);
+  },
 
-          return {
-              ...t,
-              id: String(d.id), 
-              
-              // 🚨 致命關鍵防線 3：強制將 clientId 與 year 轉為「字串」
-              clientId: String(t.clientId || ''),
-              year: String(t.year || DEFAULT_YEAR),
-              
-              status: finalStatus as TaskStatusType,
-              workItem: String(t.workItem || ''),
-              category: cat,  // 🌟 輸出與前端分頁 100% 吻合的標準名稱
-              isNA: Boolean(t.isNA),
-              isMisc: Boolean(t.isMisc),
-              assigneeId: String(t.assigneeId || ''),
-              assigneeName: String(t.assigneeName || ''),
-              completionDate: String(t.completionDate || ''),
-              history: t.history || []
-          } as ClientTask;
-      });
-      return tasks;
+  subscribeTasksForYear(year: string, onChanged: (items: ClientTask[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("tasks", d => normalizeTask(d.id, d.data()), onChanged, onError, [where("year", "==", year)]);
+  },
+
+  subscribeUsers(onChanged: (items: User[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection(
+          "users",
+          d => ({ ...d.data(), id: d.id } as User),
+          cloudUsers => {
+              const finalUsers = DEFAULT_USERS.map(defaultUser => {
+                  const cloudUser = cloudUsers.find(user => user.id === defaultUser.id);
+                  return cloudUser ? { ...cloudUser, role: defaultUser.role } : defaultUser;
+              });
+              cloudUsers.forEach(cloudUser => {
+                  if (!DEFAULT_USERS.find(defaultUser => defaultUser.id === cloudUser.id)) finalUsers.push(cloudUser);
+              });
+              localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(finalUsers));
+              onChanged(finalUsers);
+          },
+          onError
+      );
+  },
+
+  subscribeEvents(onChanged: (items: CalendarEvent[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("events", d => ({ id: d.id, ...d.data() } as CalendarEvent), onChanged, onError);
+  },
+
+  subscribeEventsForRange(startDate: string, endDate: string, onChanged: (items: CalendarEvent[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("events", d => ({ id: d.id, ...d.data() } as CalendarEvent), onChanged, onError, [
+          where("date", ">=", startDate),
+          where("date", "<=", endDate)
+      ]);
+  },
+
+  subscribeClients(onChanged: (items: Client[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("clients", d => ({ ...d.data(), id: d.id } as Client), items => onChanged(sortClients(items)), onError);
+  },
+
+  subscribeClientProfile(clientId: string | number, onChanged: (profile: ClientProfile) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return onSnapshot(
+          doc(db, "clientProfiles", String(clientId)),
+          snapshot => onChanged(snapshot.exists()
+              ? snapshot.data() as ClientProfile
+              : { clientId, specialNotes: "", accountingNotes: "", tags: [] }),
+          onError
+      );
+  },
+
+  subscribeCheckIns(onChanged: (items: CheckInRecord[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("checkIns", d => ({ id: d.id, ...d.data() } as CheckInRecord), onChanged, onError);
+  },
+
+  subscribeCheckInsForMonth(month: string, onChanged: (items: CheckInRecord[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("checkIns", d => ({ id: d.id, ...d.data() } as CheckInRecord), onChanged, onError, [
+          where("date", ">=", `${month}-01`),
+          where("date", "<=", `${month}-31`)
+      ]);
+  },
+
+  subscribeMessages(onChanged: (items: Message[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("messages", d => ({ id: d.id, ...d.data() } as Message), onChanged, onError);
+  },
+
+  subscribeLatestMessages(maxItems: number, onChanged: (items: Message[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("messages", d => ({ id: d.id, ...d.data() } as Message), onChanged, onError, [
+          orderBy("createdAt", "desc"),
+          limit(maxItems)
+      ]);
+  },
+
+  subscribeMailRecords(onChanged: (items: MailRecord[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("mailRecords", d => ({ id: d.id, ...d.data() } as MailRecord), onChanged, onError);
+  },
+
+  subscribeCashRecords(onChanged: (items: CashRecord[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("cashRecords", d => ({ id: d.id, ...d.data() } as CashRecord), onChanged, onError);
+  },
+
+  subscribeInstructions(onChanged: (items: Instruction[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("instructions", d => ({ id: d.id, ...d.data() } as Instruction), onChanged, onError);
+  },
+
+  subscribeStockClients(onChanged: (items: StockClientConfig[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("stockClients", d => ({ id: d.id, ...d.data() } as StockClientConfig), onChanged, onError);
+  },
+
+  subscribeStockTargets(onChanged: (items: StockTarget[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("stockTargets", d => ({ id: d.id, ...d.data() } as StockTarget), onChanged, onError);
+  },
+
+  subscribeStockTransactions(onChanged: (items: StockTransaction[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("stockTransactions", d => ({ id: d.id, ...d.data() } as StockTransaction), onChanged, onError);
+  },
+
+  subscribePayrollClients(onChanged: (items: import('./types').PayrollClientConfig[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("payrollClients", d => ({ ...d.data(), clientId: d.id } as import('./types').PayrollClientConfig), onChanged, onError);
+  },
+
+  subscribePayrollRecords(onChanged: (items: import('./types').PayrollRecord[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("payrollRecords", d => ({ id: d.id, ...d.data() } as import('./types').PayrollRecord), onChanged, onError);
+  },
+
+  subscribeEmployees(onChanged: (items: import('./types').Employee[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("employees", d => ({ id: d.id, ...d.data() } as import('./types').Employee), onChanged, onError);
+  },
+
+  subscribeMonthlySalaries(onChanged: (items: import('./types').MonthlySalaryRecord[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("monthlySalaries", d => ({ id: d.id, ...d.data() } as import('./types').MonthlySalaryRecord), onChanged, onError);
+  },
+
+  subscribeMonthlySalariesForClient(clientId: string, onChanged: (items: import('./types').MonthlySalaryRecord[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("monthlySalaries", d => ({ id: d.id, ...d.data() } as import('./types').MonthlySalaryRecord), onChanged, onError, [
+          where("clientId", "==", clientId)
+      ]);
   },
   
-  async addTask(task: ClientTask): Promise<ClientTask[]> {
+  async addTask(task: ClientTask): Promise<void> {
       const { id, ...data } = task; // 把本機的隨機 id 抽掉，準備存入 Firebase
       
       const historyEntry: HistoryEntry = {
@@ -230,16 +370,14 @@ export const TaskService = {
           history: [historyEntry]
       });
       
-      return this.fetchTasks();
   },
 
-  async deleteTask(taskId: string): Promise<ClientTask[]> {
+  async deleteTask(taskId: string): Promise<void> {
       // ✨ 雲端刪除指令：直接指定 ID 刪除，不影響其他任務！
       await deleteDoc(doc(db, "tasks", String(taskId)));
-      return this.fetchTasks();
   },
 
-  async updateTaskStatus(taskId: string, status: TaskStatusType, user: string, completionDate?: string): Promise<ClientTask[]> {
+  async updateTaskStatus(taskId: string, status: TaskStatusType, user: string, completionDate?: string): Promise<void> {
       const ref = doc(db, "tasks", String(taskId));
       const docSnap = await getDoc(ref);
       
@@ -261,10 +399,9 @@ export const TaskService = {
               history: [historyEntry, ...(taskData.history || [])].slice(0, 20)
           }, { merge: true });
       }
-      return this.fetchTasks();
   },
 
-  async updateTaskNote(taskId: string, note: string, user: string): Promise<ClientTask[]> {
+  async updateTaskNote(taskId: string, note: string, user: string): Promise<void> {
       const ref = doc(db, "tasks", String(taskId));
       const docSnap = await getDoc(ref);
       
@@ -284,7 +421,6 @@ export const TaskService = {
               history: [historyEntry, ...(taskData.history || [])].slice(0, 20)
           }, { merge: true });
       }
-      return this.fetchTasks();
   },
   // ==========================================
 
@@ -298,26 +434,23 @@ export const TaskService = {
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CalendarEvent));
   },
 
-  async addEvent(event: CalendarEvent): Promise<CalendarEvent[]> {
+  async addEvent(event: CalendarEvent): Promise<void> {
       const { id, ...data } = event;
       
       // 2. 寫入單筆行事曆事件
       await setDoc(doc(db, "events", String(id)), data);
-      return this.fetchEvents();
   },
 
-  async updateEvent(updatedEvent: CalendarEvent): Promise<CalendarEvent[]> {
+  async updateEvent(updatedEvent: CalendarEvent): Promise<void> {
       const { id, ...data } = updatedEvent;
       
       // 3. 雲端局部更新事件 (例如把請假改成排班，或修改備註)
       await setDoc(doc(db, "events", String(id)), data, { merge: true });
-      return this.fetchEvents();
   },
 
-  async deleteEvent(eventId: string): Promise<CalendarEvent[]> {
+  async deleteEvent(eventId: string): Promise<void> {
       // 4. 精準刪除單一事件
       await deleteDoc(doc(db, "events", String(eventId)));
-      return this.fetchEvents();
   },
 
 
@@ -327,12 +460,7 @@ export const TaskService = {
   async fetchClients(): Promise<Client[]> {
       const snapshot = await getDocs(collection(db, "clients"));
       const clients = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as Client));
-      // 依照代號 (A01, A02...) 排序
-      return clients.sort((a, b) => {
-          const codeA = a.code || '';
-          const codeB = b.code || '';
-          return codeA.localeCompare(codeB, 'zh-Hant', { numeric: true });
-      });
+      return sortClients(clients);
   },
 
   async saveClients(clients: Client[]): Promise<void> {
@@ -353,7 +481,7 @@ export const TaskService = {
       return this.fetchClients();
   },
 
-  async getClientProfile(clientId: string): Promise<ClientProfile> {
+  async getClientProfile(clientId: string | number): Promise<ClientProfile> {
       // 去 Firebase 拿這家客戶的專屬備註抽屜
       const docSnap = await getDoc(doc(db, "clientProfiles", String(clientId)));
       if (docSnap.exists()) {
@@ -374,19 +502,16 @@ export const TaskService = {
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CheckInRecord));
   },
 
-  async addCheckIn(record: CheckInRecord): Promise<CheckInRecord[]> {
+  async addCheckIn(record: CheckInRecord): Promise<void> {
       await setDoc(doc(db, "checkIns", String(record.id)), record);
-      return this.fetchCheckIns();
   },
 
-  async updateCheckIn(updatedRecord: CheckInRecord): Promise<CheckInRecord[]> {
+  async updateCheckIn(updatedRecord: CheckInRecord): Promise<void> {
       await setDoc(doc(db, "checkIns", String(updatedRecord.id)), updatedRecord, { merge: true });
-      return this.fetchCheckIns();
   },
 
-  async deleteCheckIn(recordId: string): Promise<CheckInRecord[]> {
+  async deleteCheckIn(recordId: string): Promise<void> {
       await deleteDoc(doc(db, "checkIns", String(recordId)));
-      return this.fetchCheckIns();
   },
 
   // ==========================================
@@ -397,14 +522,12 @@ export const TaskService = {
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Message));
   },
 
-  async addMessage(msg: Message): Promise<Message[]> {
+  async addMessage(msg: Message): Promise<void> {
       await setDoc(doc(db, "messages", String(msg.id)), msg);
-      return this.fetchMessages();
   },
 
-  async deleteMessage(msgId: string): Promise<Message[]> {
+  async deleteMessage(msgId: string): Promise<void> {
       await deleteDoc(doc(db, "messages", String(msgId)));
-      return this.fetchMessages();
   },
 
   // ==========================================
@@ -415,26 +538,22 @@ export const TaskService = {
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as MailRecord));
   },
 
-  async addMailRecord(record: MailRecord): Promise<MailRecord[]> {
+  async addMailRecord(record: MailRecord): Promise<void> {
       await setDoc(doc(db, "mailRecords", String(record.id)), record);
-      return this.fetchMailRecords();
   },
 
-  async addMailRecordsBatch(records: MailRecord[]): Promise<MailRecord[]> {
+  async addMailRecordsBatch(records: MailRecord[]): Promise<void> {
       for (const record of records) {
           await setDoc(doc(db, "mailRecords", String(record.id)), record);
       }
-      return this.fetchMailRecords();
   },
 
-  async updateMailRecord(updated: MailRecord): Promise<MailRecord[]> {
+  async updateMailRecord(updated: MailRecord): Promise<void> {
       await setDoc(doc(db, "mailRecords", String(updated.id)), updated, { merge: true });
-      return this.fetchMailRecords();
   },
 
-  async deleteMailRecord(id: string): Promise<MailRecord[]> {
+  async deleteMailRecord(id: string): Promise<void> {
       await deleteDoc(doc(db, "mailRecords", String(id)));
-      return this.fetchMailRecords();
   },
 
   // ==========================================
@@ -445,21 +564,18 @@ export const TaskService = {
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as CashRecord));
   },
 
-  async addCashRecord(record: CashRecord): Promise<CashRecord[]> {
+  async addCashRecord(record: CashRecord): Promise<void> {
       const clean = Object.fromEntries(Object.entries(record).filter(([, v]) => v !== undefined));
       await setDoc(doc(db, "cashRecords", String(record.id)), clean);
-      return this.fetchCashRecords();
   },
 
-  async updateCashRecord(updated: CashRecord): Promise<CashRecord[]> {
+  async updateCashRecord(updated: CashRecord): Promise<void> {
       const clean = Object.fromEntries(Object.entries(updated).filter(([, v]) => v !== undefined));
       await setDoc(doc(db, "cashRecords", String(updated.id)), clean, { merge: true });
-      return this.fetchCashRecords();
   },
 
-  async deleteCashRecord(id: string): Promise<CashRecord[]> {
+  async deleteCashRecord(id: string): Promise<void> {
       await deleteDoc(doc(db, "cashRecords", String(id)));
-      return this.fetchCashRecords();
   },
 
 // ==========================================
@@ -470,19 +586,16 @@ export const TaskService = {
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as Instruction));
   },
 
-  async addInstruction(instruction: Instruction): Promise<Instruction[]> {
+  async addInstruction(instruction: Instruction): Promise<void> {
       await setDoc(doc(db, "instructions", String(instruction.id)), instruction);
-      return this.fetchInstructions();
   },
 
-  async updateInstruction(updated: Instruction): Promise<Instruction[]> {
+  async updateInstruction(updated: Instruction): Promise<void> {
       await setDoc(doc(db, "instructions", String(updated.id)), updated, { merge: true });
-      return this.fetchInstructions();
   },
 
-  async deleteInstruction(id: string): Promise<Instruction[]> {
+  async deleteInstruction(id: string): Promise<void> {
       await deleteDoc(doc(db, "instructions", String(id)));
-      return this.fetchInstructions();
   },
 
   // ==========================================
@@ -493,14 +606,12 @@ export const TaskService = {
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StockClientConfig));
   },
 
-  async addStockClient(config: StockClientConfig): Promise<StockClientConfig[]> {
+  async addStockClient(config: StockClientConfig): Promise<void> {
       await setDoc(doc(db, "stockClients", String(config.id)), config);
-      return this.fetchStockClients();
   },
 
-  async deleteStockClient(id: string): Promise<StockClientConfig[]> {
+  async deleteStockClient(id: string): Promise<void> {
       await deleteDoc(doc(db, "stockClients", String(id)));
-      return this.fetchStockClients();
   },
 
   async fetchStockTargets(): Promise<StockTarget[]> {
@@ -508,14 +619,12 @@ export const TaskService = {
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StockTarget));
   },
 
-  async addStockTarget(target: StockTarget): Promise<StockTarget[]> {
+  async addStockTarget(target: StockTarget): Promise<void> {
       await setDoc(doc(db, "stockTargets", String(target.id)), target);
-      return this.fetchStockTargets();
   },
 
-  async deleteStockTarget(id: string): Promise<StockTarget[]> {
+  async deleteStockTarget(id: string): Promise<void> {
       await deleteDoc(doc(db, "stockTargets", String(id)));
-      return this.fetchStockTargets();
   },
     
   async fetchStockTransactions(): Promise<StockTransaction[]> {
@@ -523,19 +632,16 @@ export const TaskService = {
       return snapshot.docs.map(d => ({ id: d.id, ...d.data() } as StockTransaction));
   },
 
-  async addStockTransaction(tx: StockTransaction): Promise<StockTransaction[]> {
+  async addStockTransaction(tx: StockTransaction): Promise<void> {
       await setDoc(doc(db, "stockTransactions", String(tx.id)), tx);
-      return this.fetchStockTransactions();
   },
 
-  async updateStockTransaction(updatedTx: StockTransaction): Promise<StockTransaction[]> {
+  async updateStockTransaction(updatedTx: StockTransaction): Promise<void> {
       await setDoc(doc(db, "stockTransactions", String(updatedTx.id)), updatedTx, { merge: true });
-      return this.fetchStockTransactions();
   },
 
-  async deleteStockTransaction(id: string): Promise<StockTransaction[]> {
+  async deleteStockTransaction(id: string): Promise<void> {
       await deleteDoc(doc(db, "stockTransactions", String(id)));
-      return this.fetchStockTransactions();
   },
 
   // ==========================================
@@ -553,14 +659,12 @@ export const TaskService = {
       }
   },
     
-  async addPayrollClient(client: import('./types').PayrollClientConfig): Promise<import('./types').PayrollClientConfig[]> {
+  async addPayrollClient(client: import('./types').PayrollClientConfig): Promise<void> {
       await setDoc(doc(db, "payrollClients", String(client.clientId)), client);
-      return this.fetchPayrollClients();
   },
     
-  async deletePayrollClient(clientId: string): Promise<import('./types').PayrollClientConfig[]> {
+  async deletePayrollClient(clientId: string): Promise<void> {
       await deleteDoc(doc(db, "payrollClients", String(clientId)));
-      return this.fetchPayrollClients();
   },
 
   async fetchPayrollRecords(): Promise<import('./types').PayrollRecord[]> {
@@ -586,19 +690,16 @@ export const TaskService = {
       }
   },
 
-  async addEmployee(employee: import('./types').Employee): Promise<import('./types').Employee[]> {
+  async addEmployee(employee: import('./types').Employee): Promise<void> {
       await setDoc(doc(db, "employees", String(employee.id)), employee);
-      return this.fetchEmployees();
   },
 
-  async updateEmployee(updated: import('./types').Employee): Promise<import('./types').Employee[]> {
+  async updateEmployee(updated: import('./types').Employee): Promise<void> {
       await setDoc(doc(db, "employees", String(updated.id)), updated, { merge: true });
-      return this.fetchEmployees();
   },
 
-  async deleteEmployee(id: string): Promise<import('./types').Employee[]> {
+  async deleteEmployee(id: string): Promise<void> {
       await deleteDoc(doc(db, "employees", String(id)));
-      return this.fetchEmployees();
   },
 
   // ✨ 每月薪資結算 API (Monthly Salary)

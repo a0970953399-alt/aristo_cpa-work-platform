@@ -17,12 +17,14 @@ const App: React.FC = () => {
   useEffect(() => {
     const loadedUsers = TaskService.getUsers();
     setUsers(loadedUsers);
-    // Sync latest user list from Firebase (picks up users added on other devices)
-    TaskService.syncUsersFromCloud().then(() => {
-      setUsers(TaskService.getUsers());
-    }).catch(console.error);
+    const unsubscribeUsers = TaskService.subscribeUsers(setUsers, error => {
+      console.error('User real-time sync failed:', error);
+    });
     const timer = setTimeout(() => { setIsLoading(false); }, 500);
-    return () => clearTimeout(timer);
+    return () => {
+      unsubscribeUsers();
+      clearTimeout(timer);
+    };
   }, []);
 
   const handleLogin = (user: User) => setCurrentUser(user);

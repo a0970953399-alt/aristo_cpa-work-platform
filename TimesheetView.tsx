@@ -1,4 +1,4 @@
-import React, { useState, useMemo } from 'react';
+import React, { useState, useMemo, useEffect } from 'react';
 import { User, CheckInRecord, UserRole } from './types';
 import { TaskService } from './taskService';
 import { TrashIcon, FunnelIcon } from './Icons';
@@ -44,6 +44,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
 
     const [targetUserId, setTargetUserId] = useState<string>(isSupervisor ? 'ALL' : currentUser.id);
     const [monthFilter, setMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7));
+    const [liveRecords, setLiveRecords] = useState<CheckInRecord[]>(records);
     const [showHeatmap, setShowHeatmap] = useState(false);
 
     const [hoveredDate, setHoveredDate] = useState<string | null>(null);
@@ -60,14 +61,20 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
 
     const isMultiMode = targetUserId === 'ALL';
 
+    useEffect(() => TaskService.subscribeCheckInsForMonth(
+        monthFilter,
+        setLiveRecords,
+        error => console.error('Timesheet real-time sync failed:', error)
+    ), [monthFilter]);
+
     const filteredRecords = useMemo(() => {
-        return records.filter(r => {
+        return liveRecords.filter(r => {
             if (bossIds.has(r.userId)) return false;
             if (!isMultiMode && r.userId !== targetUserId) return false;
             if (!r.date.startsWith(monthFilter)) return false;
             return true;
         }).sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
-    }, [records, targetUserId, monthFilter, bossIds, isMultiMode]);
+    }, [liveRecords, targetUserId, monthFilter, bossIds, isMultiMode]);
 
     const totalHours = useMemo(() => filteredRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0), [filteredRecords]);
 
@@ -83,12 +90,12 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
     // 多人熱力圖：{ userId → { date → hours } }
     const userDailyHours = useMemo(() => {
         const map: Record<string, Record<string, number>> = {};
-        records.filter(r => !bossIds.has(r.userId) && r.date.startsWith(monthFilter)).forEach(r => {
+        liveRecords.filter(r => !bossIds.has(r.userId) && r.date.startsWith(monthFilter)).forEach(r => {
             if (!map[r.userId]) map[r.userId] = {};
             map[r.userId][r.date] = (map[r.userId][r.date] || 0) + (r.totalHours || 0);
         });
         return map;
-    }, [records, monthFilter, bossIds]);
+    }, [liveRecords, monthFilter, bossIds]);
 
     // 當月天數與日曆週（個人模式用）
     const { daysInMonth, calendarWeeks } = useMemo(() => {

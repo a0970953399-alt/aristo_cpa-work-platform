@@ -82,6 +82,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [isLoading, setIsLoading] = useState(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [permissionNeeded, setPermissionNeeded] = useState(false);
+  const [dataSyncStatus, setDataSyncStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
+  const [isOnline, setIsOnline] = useState(() => navigator.onLine);
   const [currentTime, setCurrentTime] = useState(new Date());
 
   // --- UI State ---
@@ -147,7 +149,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const fileInputRef = useRef<HTMLInputElement>(null);
   const instructionFileInputRef = useRef<HTMLInputElement>(null); // ✨ 新增：懶人包圖片上傳的 Ref
   const prevCompletedColsRef = useRef<Set<string>>(new Set());
-  const pollingRef = useRef<number | null>(null);
   const appMenuRef = useRef<HTMLDivElement>(null);
 
   // --- Computed ---
@@ -157,6 +158,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
   const isPrivileged = isSupervisor || isBoss; // boss 或主管都有的權限
   const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
+  const handleRealtimeUpdate = () => {};
 
   // -----------------------------------------------------------
   const getTodayString = () => {
@@ -196,13 +198,94 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
     const initConnection = async () => {
       const status = await TaskService.restoreConnection(false);
-      if (status === 'connected') { setDbConnected(true); setPermissionNeeded(false); await loadData(); startPolling(); }
+      if (status === 'connected') { setDbConnected(true); setPermissionNeeded(false); }
       else if (status === 'permission_needed') { setDbConnected(false); setPermissionNeeded(true); }
       else { setDbConnected(false); setPermissionNeeded(false); }
     };
     initConnection();
-    return () => { stopPolling(); clearInterval(clockTimer); };
+    return () => clearInterval(clockTimer);
   }, []);
+
+  useEffect(() => {
+    const handleOnline = () => setIsOnline(true);
+    const handleOffline = () => setIsOnline(false);
+    window.addEventListener('online', handleOnline);
+    window.addEventListener('offline', handleOffline);
+    return () => {
+      window.removeEventListener('online', handleOnline);
+      window.removeEventListener('offline', handleOffline);
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!dbConnected) {
+      setDataSyncStatus('connecting');
+      return;
+    }
+
+    setDataSyncStatus('connecting');
+    const readyCollections = new Set<string>();
+    const markReady = (collectionName: string) => {
+      readyCollections.add(collectionName);
+      if (readyCollections.size === 4) setDataSyncStatus('live');
+    };
+    const handleSyncError = (error: Error) => {
+      console.error('Real-time sync failed:', error);
+      setDataSyncStatus('error');
+    };
+    const updateIfChanged = <T,>(setter: React.Dispatch<React.SetStateAction<T[]>>, collectionName: string) => (items: T[]) => {
+      setter(previous => JSON.stringify(previous) !== JSON.stringify(items) ? items : previous);
+      markReady(collectionName);
+    };
+
+    const formatDate = (date: Date) => `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, '0')}-${String(date.getDate()).padStart(2, '0')}`;
+    const calendarStart = new Date(currentMonth.getFullYear(), currentMonth.getMonth(), 1);
+    calendarStart.setDate(calendarStart.getDate() - calendarStart.getDay());
+    const calendarEnd = new Date(calendarStart);
+    calendarEnd.setDate(calendarEnd.getDate() + 41);
+    const currentCheckInMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
+
+    const unsubscribe = [
+      TaskService.subscribeTasksForYear(currentYear, updateIfChanged(setTasks, 'tasks'), handleSyncError),
+      TaskService.subscribeEventsForRange(formatDate(calendarStart), formatDate(calendarEnd), updateIfChanged(setEvents, 'events'), handleSyncError),
+      TaskService.subscribeClients(updateIfChanged(setClients, 'clients'), handleSyncError),
+      TaskService.subscribeCheckInsForMonth(currentCheckInMonth, updateIfChanged(setCheckInRecords, 'checkIns'), handleSyncError)
+    ];
+
+    return () => unsubscribe.forEach(stopListening => stopListening());
+  }, [dbConnected, currentYear, currentMonth]);
+
+  useEffect(() => {
+    if (!dbConnected || !isMessageBoardOpen) return;
+    return TaskService.subscribeLatestMessages(50, setMessages, error => {
+      console.error('Message real-time sync failed:', error);
+      setDataSyncStatus('error');
+    });
+  }, [dbConnected, isMessageBoardOpen]);
+
+  useEffect(() => {
+    if (!dbConnected || activeTab !== '收發信件') return;
+    return TaskService.subscribeMailRecords(setMailRecords, error => {
+      console.error('Mail real-time sync failed:', error);
+      setDataSyncStatus('error');
+    });
+  }, [dbConnected, activeTab]);
+
+  useEffect(() => {
+    if (!dbConnected || activeTab !== '零用金/代墊款') return;
+    return TaskService.subscribeCashRecords(setCashRecords, error => {
+      console.error('Cash real-time sync failed:', error);
+      setDataSyncStatus('error');
+    });
+  }, [dbConnected, activeTab]);
+
+  useEffect(() => {
+    if (!dbConnected || (!isGalleryOpen && !isInstructionModalOpen)) return;
+    return TaskService.subscribeInstructions(setInstructions, error => {
+      console.error('Instruction real-time sync failed:', error);
+      setDataSyncStatus('error');
+    });
+  }, [dbConnected, isGalleryOpen, isInstructionModalOpen]);
 
   useEffect(() => { if (events.length > 0) checkDailyReminders(); }, [events]);
 
@@ -314,50 +397,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       isCheckOutModalOpen, isTimesheetOpen, isInvoiceOpen, isMessageBoardOpen, isClientMasterOpen,
       selectedClientForDrawer, isAppMenuOpen]);
 
-    const startPolling = () => { 
-      if (pollingRef.current) return; 
-      pollingRef.current = window.setInterval(async () => { 
-          // 🛑 暫時將自動刷新關閉，阻止 Firebase 讀取暴增！
-          // if (TaskService.isConnected() && !hasOpenModal()) { 
-          //     try { await loadData(); } catch (e) { } 
-          // } 
-      }, 300000); // 改為 300000 (5分鐘) 甚至不執行
-  };
-  
-  const hasOpenModal = () => {
-      return isAssignModalOpen || isDateModalOpen || isNoteEditModalOpen || isMiscModalOpen || 
-             isDeleteModalOpen || isGalleryOpen || selectedClientForDrawer || isUserModalOpen || 
-             isUserDeleteModalOpen || isEventModalOpen || isCalendarOpen || isEventDeleteModalOpen || 
-             isCheckOutModalOpen || isTimesheetOpen || isClientMasterOpen || isInstructionModalOpen;
-  };
-
-  const stopPolling = () => { if (pollingRef.current) { clearInterval(pollingRef.current); pollingRef.current = null; } };
-
-  const loadData = async () => { 
-      if (!TaskService.isConnected()) return; 
-      try { 
-          const tData = await TaskService.fetchTasks(); 
-          const eData = await TaskService.fetchEvents(); 
-          const cData = await TaskService.fetchClients();
-          const checkInData = await TaskService.fetchCheckIns();
-          const messageData = await TaskService.fetchMessages();
-          const mailData = await TaskService.fetchMailRecords();
-          const cashData = await TaskService.fetchCashRecords();
-          const instData = await TaskService.fetchInstructions(); // ✨ 新增：讀取懶人包
-          
-          setTasks(prev => JSON.stringify(prev) !== JSON.stringify(tData) ? tData : prev); 
-          setEvents(prev => JSON.stringify(prev) !== JSON.stringify(eData) ? eData : prev); 
-          setClients(prev => JSON.stringify(prev) !== JSON.stringify(cData) ? cData : prev);
-          setCheckInRecords(prev => JSON.stringify(prev) !== JSON.stringify(checkInData) ? checkInData : prev);
-          setMessages(prev => JSON.stringify(prev) !== JSON.stringify(messageData) ? messageData : prev);
-          setMailRecords(prev => JSON.stringify(prev) !== JSON.stringify(mailData) ? mailData : prev);
-          setCashRecords(prev => JSON.stringify(prev) !== JSON.stringify(cashData) ? cashData : prev);
-          setInstructions(prev => JSON.stringify(prev) !== JSON.stringify(instData) ? instData : prev); // ✨ 新增：更新懶人包狀態
-      } catch (error) { 
-          setDbConnected(false); setPermissionNeeded(true); 
-      } 
-  };
-
   // 🔌 連線邏輯
   const handleConnectDB = async () => {
       setIsLoading(true);
@@ -365,8 +404,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       if (success) { 
           setDbConnected(true); 
           setPermissionNeeded(false); 
-          await loadData(); 
-          startPolling(); 
       } else { 
           setDbConnected(false); 
           setPermissionNeeded(true); 
@@ -393,7 +430,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       await TaskService.addCheckIn(newRecord);
       NotificationService.send(currentUser.name, 'CLOCK_IN');
 
-      await loadData();
       setIsLoading(false);
       alert("✅ 上班打卡成功！");
   };
@@ -421,16 +457,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       NotificationService.send(currentUser.name, 'CLOCK_OUT');
       
       setIsCheckOutModalOpen(false);
-      await loadData();
       alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時`);
   };
 
-  const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => { stopPolling(); const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : undefined; try { const updatedList = await TaskService.updateTaskStatus(task.id, newStatus, currentUser.name, completionDateStr); setTasks(updatedList); } catch (error) { alert("失敗"); } finally { startPolling(); } };
-  const openInternNoteEdit = (task: ClientTask) => { setEditingTask(task); setModalNote(task.note); setIsNoteEditModalOpen(true); stopPolling(); };
-  const handleInternNoteSubmit = async () => { if (!editingTask) return; setIsLoading(true); try { const updatedList = await TaskService.updateTaskNote(editingTask.id, modalNote, currentUser.name); setTasks(updatedList); setIsNoteEditModalOpen(false); setEditingTask(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
-  const handleDeleteNote = async (task: ClientTask) => { stopPolling(); try { const updatedList = await TaskService.updateTaskNote(task.id, '', currentUser.name); setTasks(updatedList); } catch (e) { alert("失敗"); } finally { startPolling(); } };
-  const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); stopPolling(); }
-  const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { const updatedList = await TaskService.addTask(newTask); setTasks(updatedList); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } }
+  const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => { const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : undefined; try { await TaskService.updateTaskStatus(task.id, newStatus, currentUser.name, completionDateStr); } catch (error) { alert("失敗"); } };
+  const openInternNoteEdit = (task: ClientTask) => { setEditingTask(task); setModalNote(task.note); setIsNoteEditModalOpen(true); };
+  const handleInternNoteSubmit = async () => { if (!editingTask) return; setIsLoading(true); try { await TaskService.updateTaskNote(editingTask.id, modalNote, currentUser.name); setIsNoteEditModalOpen(false); setEditingTask(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } };
+  const handleDeleteNote = async (task: ClientTask) => { try { await TaskService.updateTaskNote(task.id, '', currentUser.name); } catch (e) { alert("失敗"); } };
+  const handleOpenMiscModal = () => { if(!dbConnected) return; setModalAssigneeId(''); setModalNote(''); setIsMiscModalOpen(true); }
+  const handleMiscSubmit = async () => { if (!modalAssigneeId || !modalNote.trim()) return; setIsLoading(true); const assignee = users.find(u => u.id === modalAssigneeId); const newTask: ClientTask = { id: Date.now().toString(), clientId: 'MISC', clientName: '⚡ 行政交辦', category: 'MISC_TASK', workItem: '臨時事項', year: currentYear, status: 'todo', isNA: false, isMisc: true, assigneeId: modalAssigneeId, assigneeName: assignee?.name || '未知', note: modalNote, lastUpdatedBy: currentUser.name, lastUpdatedAt: new Date().toISOString() }; try { await TaskService.addTask(newTask); setIsMiscModalOpen(false); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } }
 
 // 修正後的「精簡版」工作匯報功能
   const handleGenerateDailyReport = () => {
@@ -509,11 +544,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
     
   // Calendar
-  const handleDayClick = (dateStr: string) => { if (!dbConnected) return; setSelectedCalendarDate(dateStr); setNewEventTitle(''); setNewEventDesc(''); setNewEventType('reminder'); setNewEventOwnerId(currentUser.id); setShiftStart('09:00'); setShiftEnd('18:00'); setSelectedEvent(null); setIsEventModalOpen(true); stopPolling(); };
-  const handleEventClick = (e: React.MouseEvent, event: CalendarEvent) => { e.stopPropagation(); if (!dbConnected) return; setSelectedCalendarDate(event.date); setNewEventTitle(event.title); setNewEventDesc(event.description || ''); setNewEventType(event.type); setNewEventOwnerId(event.ownerId); if (event.type === 'shift' && event.title.includes(' - ')) { const parts = event.title.split(' - '); if (parts.length === 2) { setShiftStart(parts[0]); setShiftEnd(parts[1]); } else { setShiftStart('09:00'); setShiftEnd('18:00'); } } else { setShiftStart('09:00'); setShiftEnd('18:00'); } setSelectedEvent(event); setIsEventModalOpen(true); stopPolling(); };
-  const handleEventSubmit = async () => { let finalTitle = newEventTitle; if (newEventType === 'shift') { finalTitle = `${shiftStart} - ${shiftEnd}`; } else { if (!newEventTitle.trim()) { alert("請輸入標題"); return; } } const owner = users.find(u => u.id === newEventOwnerId); if (newEventType === 'reminder' && newEventOwnerId !== currentUser.id) { alert("提醒事項只能設定給自己"); return; } setIsLoading(true); try { const eventPayload: CalendarEvent = { id: selectedEvent ? selectedEvent.id : Date.now().toString(), date: selectedCalendarDate, type: newEventType, title: finalTitle, description: newEventDesc, ownerId: newEventOwnerId, ownerName: owner?.name || '未知', creatorId: selectedEvent ? selectedEvent.creatorId : currentUser.id, createdAt: selectedEvent ? selectedEvent.createdAt : new Date().toISOString() }; let updatedList; if (selectedEvent) { updatedList = await TaskService.updateEvent(eventPayload); } else { updatedList = await TaskService.addEvent(eventPayload); } setEvents(updatedList); setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
+  const handleDayClick = (dateStr: string) => { if (!dbConnected) return; setSelectedCalendarDate(dateStr); setNewEventTitle(''); setNewEventDesc(''); setNewEventType('reminder'); setNewEventOwnerId(currentUser.id); setShiftStart('09:00'); setShiftEnd('18:00'); setSelectedEvent(null); setIsEventModalOpen(true); };
+  const handleEventClick = (e: React.MouseEvent, event: CalendarEvent) => { e.stopPropagation(); if (!dbConnected) return; setSelectedCalendarDate(event.date); setNewEventTitle(event.title); setNewEventDesc(event.description || ''); setNewEventType(event.type); setNewEventOwnerId(event.ownerId); if (event.type === 'shift' && event.title.includes(' - ')) { const parts = event.title.split(' - '); if (parts.length === 2) { setShiftStart(parts[0]); setShiftEnd(parts[1]); } else { setShiftStart('09:00'); setShiftEnd('18:00'); } } else { setShiftStart('09:00'); setShiftEnd('18:00'); } setSelectedEvent(event); setIsEventModalOpen(true); };
+  const handleEventSubmit = async () => { let finalTitle = newEventTitle; if (newEventType === 'shift') { finalTitle = `${shiftStart} - ${shiftEnd}`; } else { if (!newEventTitle.trim()) { alert("請輸入標題"); return; } } const owner = users.find(u => u.id === newEventOwnerId); if (newEventType === 'reminder' && newEventOwnerId !== currentUser.id) { alert("提醒事項只能設定給自己"); return; } setIsLoading(true); try { const eventPayload: CalendarEvent = { id: selectedEvent ? selectedEvent.id : Date.now().toString(), date: selectedCalendarDate, type: newEventType, title: finalTitle, description: newEventDesc, ownerId: newEventOwnerId, ownerName: owner?.name || '未知', creatorId: selectedEvent ? selectedEvent.creatorId : currentUser.id, createdAt: selectedEvent ? selectedEvent.createdAt : new Date().toISOString() }; if (selectedEvent) { await TaskService.updateEvent(eventPayload); } else { await TaskService.addEvent(eventPayload); } setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } };
   const handleEventDelete = () => { if (!selectedEvent) return; setIsEventDeleteModalOpen(true); };
-  const handleConfirmEventDelete = async () => { if (!selectedEvent) return; setIsLoading(true); try { const updatedList = await TaskService.deleteEvent(selectedEvent.id); setEvents(updatedList); setIsEventDeleteModalOpen(false); setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
+  const handleConfirmEventDelete = async () => { if (!selectedEvent) return; setIsLoading(true); try { await TaskService.deleteEvent(selectedEvent.id); setIsEventDeleteModalOpen(false); setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } };
 
   // ✨ 懶人包 (Instructions) 專用 Handlers
   const handleInstructionSubmit = async (e: React.FormEvent<HTMLFormElement>) => {
@@ -535,7 +570,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           } else {
               await TaskService.addInstruction(newInst);
           }
-          await loadData();
           setIsInstructionModalOpen(false);
           setEditingInstruction(null);
       } catch (error) {
@@ -550,7 +584,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       setIsLoading(true);
       try {
           await TaskService.deleteInstruction(id);
-          await loadData();
           setSelectedInstruction(null);
       } catch (error) {
           alert("刪除失敗");
@@ -588,7 +621,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   // Boss 直接完成：點擊即標記 done + 今日日期
   const handleBossDirectComplete = async (client: Client, column: string, task?: ClientTask) => {
     if (!dbConnected) return;
-    stopPolling();
     setIsLoading(true);
     const today = `${currentTime.getMonth() + 1}/${currentTime.getDate()}`;
     const newTask: ClientTask = {
@@ -609,9 +641,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       history: task?.history || []
     };
     try {
-      const updatedList = await TaskService.addTask(newTask);
-      setTasks(updatedList);
-    } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); }
+      await TaskService.addTask(newTask);
+    } catch (e) { alert("失敗"); } finally { setIsLoading(false); }
   };
 
   // Matrix Logic
@@ -624,7 +655,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     if (task && (task.status === 'done' || task.isNA)) {
       setModalDate(task.completionDate || '');
       setIsDateModalOpen(true);
-      stopPolling();
       return;
     }
 
@@ -637,20 +667,18 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         setSelectedCell({ client, column, task });
         setModalDate('');
         setIsDateModalOpen(true);
-        stopPolling();
       }
       return;
     }
 
     if (task) {
-      if (!isSupervisor) { setModalDate(''); setIsDateModalOpen(true); stopPolling(); return; }
+      if (!isSupervisor) { setModalDate(''); setIsDateModalOpen(true); return; }
       setIsAssignModalOpen(true);
-      stopPolling();
     } else {
-      if (isSupervisor) { setIsAssignModalOpen(true); stopPolling(); }
+      if (isSupervisor) { setIsAssignModalOpen(true); }
     }
   };
-  const handleClientNameClick = (client: Client) => { if (!dbConnected) return; setSelectedClientForDrawer(client); stopPolling(); };
+  const handleClientNameClick = (client: Client) => { if (!dbConnected) return; setSelectedClientForDrawer(client); };
   const handleSaveProfile = (profile: ClientProfile) => { TaskService.saveClientProfile(profile); };
   const handleAssignSubmit = async (isNA: boolean = false) => {
     if (!selectedCell) return;
@@ -675,28 +703,23 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       history: selectedCell.task?.history || []
     };
     try {
-      const updatedList = await TaskService.addTask(newTask);
-      setTasks(updatedList);
+      await TaskService.addTask(newTask);
       setIsAssignModalOpen(false);
       setSelectedCell(null);
-    } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); }
+    } catch (e) { alert("失敗"); } finally { setIsLoading(false); }
   };
   const handleRevokeAssignment = async () => {
     if (!selectedCell?.task) return;
-    stopPolling();
     setIsLoading(true);
     try {
       await TaskService.deleteTask(selectedCell.task.id);
-      const tData = await TaskService.fetchTasks();
-      setTasks(tData);
       setIsAssignModalOpen(false);
       setSelectedCell(null);
-    } catch (e) { alert("撤銷失敗"); } finally { setIsLoading(false); startPolling(); }
+    } catch (e) { alert("撤銷失敗"); } finally { setIsLoading(false); }
   };
 
   const handleRevertStatus = async () => {
     if (!selectedCell || !selectedCell.task) return;
-    stopPolling();
     setIsLoading(true);
     try {
       const isBossOwnTask = isBoss && isBossAssignableColumn(activeTab, selectedCell.column);
@@ -706,13 +729,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       } else {
         await TaskService.updateTaskStatus(selectedCell.task.id, 'in_progress', currentUser.name);
       }
-      const tData = await TaskService.fetchTasks();
-      setTasks(tData);
       setIsDateModalOpen(false);
       setSelectedCell(null);
-    } catch(e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); }
+    } catch(e) { alert("失敗"); } finally { setIsLoading(false); }
   };
-  const handleConfirmDelete = async () => { if(!taskToDelete) return; setIsLoading(true); try { const updatedList = await TaskService.deleteTask(taskToDelete.id); setTasks(updatedList); setIsDeleteModalOpen(false); setTaskToDelete(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); startPolling(); } };
+  const handleConfirmDelete = async () => { if(!taskToDelete) return; setIsLoading(true); try { await TaskService.deleteTask(taskToDelete.id); setIsDeleteModalOpen(false); setTaskToDelete(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } };
   
   const toggleColumn = (col: string) => { const newSet = new Set(collapsedColumns); if (newSet.has(col)) newSet.delete(col); else newSet.add(col); setCollapsedColumns(newSet); };
 
@@ -739,7 +760,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 <h1 className="font-bold text-2xl text-gray-800 hidden md:block tracking-tight">碩業工作平台</h1>
             </div>
             <div className="flex items-center bg-gray-100 rounded-lg p-1">
-                <select value={currentYear} onChange={(e) => { setCurrentYear(e.target.value); stopPolling(); setTimeout(() => { loadData(); startPolling(); }, 100); }} className="bg-transparent text-lg font-bold text-gray-700 focus:outline-none px-3 py-1 cursor-pointer">
+                <select value={currentYear} onChange={(e) => setCurrentYear(e.target.value)} className="bg-transparent text-lg font-bold text-gray-700 focus:outline-none px-3 py-1 cursor-pointer">
                     {YEAR_OPTIONS.map(y => <option key={y} value={y}>民國{y}年</option>)}
                 </select>
             </div>
@@ -752,6 +773,26 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             <div className="flex flex-col items-end mr-2 leading-tight">
                 <span className="text-xs text-gray-400 font-medium">{dateStr}</span>
                 <span className="text-base font-bold text-gray-600 font-mono">{timeStr}</span>
+            </div>
+
+            <div
+              className={`flex items-center gap-2 px-3 py-2 rounded-lg border text-xs font-bold ${
+                !isOnline || dataSyncStatus === 'error'
+                  ? 'bg-red-50 border-red-200 text-red-600'
+                  : dataSyncStatus === 'live'
+                    ? 'bg-green-50 border-green-200 text-green-700'
+                    : 'bg-amber-50 border-amber-200 text-amber-700'
+              }`}
+              title={!isOnline ? '網路連線中斷' : dataSyncStatus === 'live' ? '平台資料會即時更新' : dataSyncStatus === 'error' ? '資料同步失敗，請重新整理' : '正在連接即時同步'}
+            >
+              <span className={`w-2 h-2 rounded-full ${
+                !isOnline || dataSyncStatus === 'error'
+                  ? 'bg-red-500'
+                  : dataSyncStatus === 'live'
+                    ? 'bg-green-500'
+                    : 'bg-amber-500 animate-pulse'
+              }`}></span>
+              {!isOnline ? '離線' : dataSyncStatus === 'live' ? '已同步' : dataSyncStatus === 'error' ? '同步失敗' : '連線中'}
             </div>
             
             {/* 1. 臨時交辦 (純圖示：紙飛機) */}
@@ -892,7 +933,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 activeTab === '收發信件' ? (
                     <MailLogView
                         records={mailRecords}
-                        onUpdate={loadData}
+                        onUpdate={handleRealtimeUpdate}
                         isSupervisor={true}
                     />
                 ) :
@@ -900,7 +941,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                     <CashLogView
                         records={cashRecords}
                         clients={clients}
-                        onUpdate={loadData}
+                        onUpdate={handleRealtimeUpdate}
                         isSupervisor={true}
                     />
                     ) :
@@ -1184,7 +1225,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           <ClientDrawer 
               client={selectedClientForDrawer} 
               isOpen={true} 
-              onClose={() => { setSelectedClientForDrawer(null); startPolling(); }}
+              onClose={() => setSelectedClientForDrawer(null)}
               onSave={handleSaveProfile}
               currentYear={currentYear}
               tasks={tasks}
@@ -1497,7 +1538,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               currentUser={currentUser}
               users={users}
               records={checkInRecords}
-              onUpdate={loadData}
+              onUpdate={handleRealtimeUpdate}
               onClose={() => setIsTimesheetOpen(false)}
           />
       )}
@@ -1507,7 +1548,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           <MessageBoard 
               currentUser={currentUser}
               messages={messages}
-              onUpdate={loadData}
+              onUpdate={handleRealtimeUpdate}
               onClose={() => setIsMessageBoardOpen(false)}
           />
       )}
@@ -1518,7 +1559,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               onClose={() => setIsInvoiceOpen(false)}
               cashRecords={cashRecords}
               clients={clients}
-              onUpdate={loadData}
+              onUpdate={handleRealtimeUpdate}
           />
       )}
 
@@ -1528,7 +1569,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             clients={clients}
             currentUser={currentUser}
             onClose={() => setIsClientMasterOpen(false)} 
-            onUpdate={loadData} 
+            onUpdate={handleRealtimeUpdate}
             />
       )}
         

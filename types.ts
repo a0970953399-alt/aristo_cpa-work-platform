@@ -114,6 +114,13 @@ export interface Client {
     paymentRecords?: PaymentRecord[];
 }
 
+export interface ClientProfile {
+    clientId: string | number;
+    specialNotes: string;
+    accountingNotes: string;
+    tags?: string[];
+}
+
 export interface Instruction {
     id: string;
     title: string;
