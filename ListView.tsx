@@ -1,7 +1,7 @@
 // src/ListView.tsx
 
 import React, { useRef, useState, useEffect } from 'react';
-import { ClientTask, TaskStatusType, User } from './types';
+import { ClientTask, TaskStatusType, User, UserRole } from './types';
 import { FunnelIcon, ChevronDownIcon, DocumentTextIcon } from './Icons'; // 記得引入 DocumentTextIcon
 import { TaskListItem } from './TaskListItem';
 
@@ -24,6 +24,10 @@ export const ListView: React.FC<ListViewProps> = ({
     tasks, currentUser, isSupervisor, currentYear, users,
     viewTargetId, setViewTargetId, onUpdateStatus, onEditNote, onDelete, onDeleteNote, onGenerateReport // ✨ 記得解構出來
 }) => {
+    const progressUsers = React.useMemo(
+        () => users.filter(user => user.role !== UserRole.BOSS),
+        [users]
+    );
     const [filterStatus, setFilterStatus] = useState<'ALL' | TaskStatusType>('ALL');
     const [isFilterOpen, setIsFilterOpen] = useState(false);
     const [isStatusFilterOpen, setIsStatusFilterOpen] = useState(false);
@@ -110,7 +114,7 @@ export const ListView: React.FC<ListViewProps> = ({
                                 <button onClick={() => setIsFilterOpen(!isFilterOpen)} className="flex items-center gap-2 bg-white border border-gray-300 px-4 py-2 rounded-xl text-base font-bold text-gray-700 shadow-sm hover:bg-gray-50 transition-colors"><span>{viewTargetId === 'ALL' ? '👥 全員總覽' : users.find(u => u.id === viewTargetId)?.name}</span><ChevronDownIcon /></button>
                                 {isFilterOpen && <div className="absolute right-0 top-full mt-2 w-56 bg-white rounded-xl shadow-xl border border-gray-100 z-50 overflow-hidden">
                                     <button onClick={() => { setViewTargetId('ALL'); setIsFilterOpen(false); }} className="block w-full text-left px-4 py-3 hover:bg-gray-50 text-base font-medium border-b border-gray-100 last:border-0">👥 全員總覽</button>
-                                    {users.map(user => (
+                                    {progressUsers.map(user => (
                                         <button key={user.id} onClick={() => { setViewTargetId(user.id); setIsFilterOpen(false); }} className="block w-full text-left px-4 py-3 hover:bg-gray-50 text-base font-medium border-b border-gray-100 last:border-0">{user.name}</button>
                                     ))}
                                 </div>}
