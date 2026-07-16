@@ -1130,6 +1130,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                               currentMonth={currentMonth}
                               setCurrentMonth={setCurrentMonth}
                               events={events}
+                              users={users}
                               currentUser={currentUser}
                               isSupervisor={isPrivileged}
                               onDayClick={handleDayClick}

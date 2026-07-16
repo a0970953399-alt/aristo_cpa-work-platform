@@ -5,6 +5,7 @@ import type {
 } from './types';
 import { DEFAULT_YEAR, USERS as DEFAULT_USERS } from './constants';
 import { StockClientConfig, StockTarget, StockTransaction } from './types';
+import { assignUniqueInternShiftColors } from './shiftColors';
 
 import { db } from './firebase'; 
 import { collection, getDocs, doc, setDoc, deleteDoc, deleteField, getDoc, onSnapshot, query, where, orderBy, limit, runTransaction } from "firebase/firestore";
@@ -31,6 +32,20 @@ const sortClients = (clients: Client[]): Client[] => clients.sort((a, b) => {
     const codeB = b.code || '';
     return codeA.localeCompare(codeB, 'zh-Hant', { numeric: true });
 });
+
+const mergeUsersWithDefaults = (sourceUsers: User[]): User[] => {
+    const defaultUsers = DEFAULT_USERS.map(defaultUser => {
+        const sourceUser = sourceUsers.find(user => String(user.id) === String(defaultUser.id));
+        return sourceUser
+            ? { ...defaultUser, ...sourceUser, id: defaultUser.id, role: defaultUser.role }
+            : defaultUser;
+    });
+    const additionalUsers = sourceUsers
+        .filter(user => !DEFAULT_USERS.some(defaultUser => String(defaultUser.id) === String(user.id)))
+        .sort((a, b) => String(a.id).localeCompare(String(b.id), undefined, { numeric: true }));
+
+    return assignUniqueInternShiftColors([...defaultUsers, ...additionalUsers]);
+};
 
 const getMatrixTaskId = (clientId: string | number, year: string, category: string, workItem: string): string =>
     ['matrix', clientId, year, category, workItem]
@@ -98,32 +113,22 @@ export const TaskService = {
       // 1. 維持瞬間讀取本機快取，確保登入畫面秒開不白屏
       const cached = localStorage.getItem(USERS_STORAGE_KEY);
       if (cached) {
-          let parsedUsers: User[] = JSON.parse(cached);
-          // 以 DEFAULT_USERS 的 role 為權威來源，避免快取角色過時
-          parsedUsers = parsedUsers.map(u => {
-              const defaultUser = DEFAULT_USERS.find(d => d.id === u.id);
-              return defaultUser ? { ...u, role: defaultUser.role } : u;
-          });
-          // 防呆：確保預設名單(如新主管)一定存在
-          let hasNewUser = false;
-          DEFAULT_USERS.forEach(defaultUser => {
-              if (!parsedUsers.find(u => u.id === defaultUser.id)) {
-                  parsedUsers.unshift(defaultUser);
-                  hasNewUser = true;
-              }
-          });
-          if (hasNewUser) localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(parsedUsers));
-          return parsedUsers;
+          const users = mergeUsersWithDefaults(JSON.parse(cached) as User[]);
+          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+          return users;
       }
-      return DEFAULT_USERS;
+      const users = mergeUsersWithDefaults(DEFAULT_USERS);
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+      return users;
   },
 
   async saveUsers(users: User[]): Promise<void> {
+      const usersWithColors = mergeUsersWithDefaults(users);
       // 2. 自己換完頭貼，立刻存入自己的電腦
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(users));
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersWithColors));
       
       // 3. ✨ 同時把新頭貼上傳到 Firebase 的 "users" 抽屜，讓全世界看到！
-      for (const user of users) {
+      for (const user of usersWithColors) {
           await setDoc(doc(db, "users", String(user.id)), user);
       }
   },
@@ -132,26 +137,13 @@ export const TaskService = {
       // 4. 去 Firebase 抓大家最新的頭貼下來
       const snapshot = await getDocs(collection(db, "users"));
       if (!snapshot.empty) {
-          let cloudUsers = snapshot.docs.map(d => d.data() as User);
-
-          // DEFAULT_USERS 依定義順序排前面，新增使用者依序補在最後
-          let finalUsers: User[] = DEFAULT_USERS.map(defaultUser => {
-              const cloudUser = cloudUsers.find(u => u.id === defaultUser.id);
-              return cloudUser ? { ...cloudUser, role: defaultUser.role } : defaultUser;
-          });
-          cloudUsers.forEach(cloudUser => {
-              if (!DEFAULT_USERS.find(d => d.id === cloudUser.id)) {
-                  finalUsers.push(cloudUser);
-              }
-          });
+          const cloudUsers = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as User));
+          const finalUsers = mergeUsersWithDefaults(cloudUsers);
           localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(finalUsers));
 
-          // 把修正後的角色同步回 Firebase，確保雲端也是最新狀態
+          // 把修正後的角色與排班顏色同步回 Firebase。
           for (const u of finalUsers) {
-              const defaultUser = DEFAULT_USERS.find(d => d.id === u.id);
-              if (defaultUser) {
-                  await setDoc(doc(db, "users", String(u.id)), u);
-              }
+              await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
           }
       } else {
           // 如果 Firebase 裡面還沒有名單，就把預設名單推上去建立檔案
@@ -184,15 +176,22 @@ export const TaskService = {
           "users",
           d => ({ ...d.data(), id: d.id } as User),
           cloudUsers => {
-              const finalUsers = DEFAULT_USERS.map(defaultUser => {
-                  const cloudUser = cloudUsers.find(user => user.id === defaultUser.id);
-                  return cloudUser ? { ...cloudUser, role: defaultUser.role } : defaultUser;
-              });
-              cloudUsers.forEach(cloudUser => {
-                  if (!DEFAULT_USERS.find(defaultUser => defaultUser.id === cloudUser.id)) finalUsers.push(cloudUser);
-              });
+              const finalUsers = mergeUsersWithDefaults(cloudUsers);
               localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(finalUsers));
               onChanged(finalUsers);
+
+              const cloudUsersById = new Map(cloudUsers.map(user => [String(user.id), user]));
+              const usersNeedingColorSync = finalUsers.filter(user => {
+                  const cloudUser = cloudUsersById.get(String(user.id));
+                  return !cloudUser
+                      || cloudUser.role !== user.role
+                      || cloudUser.shiftColorHue !== user.shiftColorHue;
+              });
+              if (usersNeedingColorSync.length > 0) {
+                  void Promise.all(usersNeedingColorSync.map(user =>
+                      setDoc(doc(db, "users", String(user.id)), user, { merge: true })
+                  )).catch(onError);
+              }
           },
           onError
       );

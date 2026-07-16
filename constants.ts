@@ -25,21 +25,24 @@ export const USERS: User[] = [
     name: "洪煥喆",
     role: UserRole.INTERN,
     avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=洪煥喆&backgroundColor=b6e3f4&radius=50',
-    pin: DEFAULT_PIN
+    pin: DEFAULT_PIN,
+    shiftColorHue: 170
   },
   {
     id: 'u3',
     name: "吳東曄",
     role: UserRole.INTERN,
     avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=吳東曄&backgroundColor=c0aede&radius=50',
-    pin: DEFAULT_PIN
+    pin: DEFAULT_PIN,
+    shiftColorHue: 346
   },
   {
     id: 'u4',
     name: "彭耀宣",
     role: UserRole.INTERN,
     avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=彭耀宣&backgroundColor=d1d4f9&radius=50',
-    pin: DEFAULT_PIN
+    pin: DEFAULT_PIN,
+    shiftColorHue: 270
   }
 ];
 

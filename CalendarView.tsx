@@ -1,6 +1,7 @@
 
 import React, { useState } from 'react';
 import { CalendarEvent, User } from './types';
+import { getLegacyShiftHue, getShiftColorStyles } from './shiftColors';
 
 const SHIFT_LABELS: Record<string, string> = {
     morning: '上午',
@@ -26,28 +27,18 @@ const SHIFT_BADGE_STYLES: Record<string, string> = {
     '09:30 - 17:30': 'bg-emerald-100 text-emerald-700 border-emerald-200',
 };
 
-const PERSON_COLORS = [
-    { card: 'bg-rose-50 border-rose-200 text-rose-900', accent: 'bg-rose-600', chip: 'bg-rose-700 text-white' },
-    { card: 'bg-violet-50 border-violet-200 text-violet-900', accent: 'bg-violet-600', chip: 'bg-violet-700 text-white' },
-    { card: 'bg-cyan-50 border-cyan-200 text-cyan-900', accent: 'bg-cyan-600', chip: 'bg-cyan-700 text-white' },
-    { card: 'bg-lime-50 border-lime-200 text-lime-900', accent: 'bg-lime-600', chip: 'bg-lime-700 text-white' },
-    { card: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-900', accent: 'bg-fuchsia-600', chip: 'bg-fuchsia-700 text-white' },
-    { card: 'bg-orange-50 border-orange-200 text-orange-900', accent: 'bg-orange-600', chip: 'bg-orange-700 text-white' },
-    { card: 'bg-indigo-50 border-indigo-200 text-indigo-900', accent: 'bg-indigo-600', chip: 'bg-indigo-700 text-white' },
-    { card: 'bg-teal-50 border-teal-200 text-teal-900', accent: 'bg-teal-600', chip: 'bg-teal-700 text-white' },
-];
-
 const getShiftLabel = (event: CalendarEvent) => SHIFT_LABELS[event.title] || event.title;
 const getShiftBadgeStyle = (event: CalendarEvent) => SHIFT_BADGE_STYLES[event.title] || 'bg-blue-100 text-blue-700 border-blue-200';
-const getPersonStyle = (ownerId: string) => {
-    const index = Array.from(ownerId).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PERSON_COLORS.length;
-    return PERSON_COLORS[index];
+const getPersonStyle = (ownerId: string, users: User[]) => {
+    const owner = users.find(user => String(user.id) === String(ownerId));
+    return getShiftColorStyles(owner?.shiftColorHue ?? getLegacyShiftHue(ownerId));
 };
 
 interface CalendarViewProps {
     currentMonth: Date;
     setCurrentMonth: (date: Date) => void;
     events: CalendarEvent[];
+    users: User[];
     currentUser: User;
     isSupervisor: boolean;
     onDayClick: (dateStr: string) => void;
@@ -55,7 +46,7 @@ interface CalendarViewProps {
 }
 
 export const CalendarView: React.FC<CalendarViewProps> = ({ 
-    currentMonth, setCurrentMonth, events, currentUser, isSupervisor, onDayClick, onEventClick 
+    currentMonth, setCurrentMonth, events, users, currentUser, isSupervisor, onDayClick, onEventClick
 }) => {
     const [hoveredCalendarDate, setHoveredCalendarDate] = useState<string | null>(null);
 
@@ -128,13 +119,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           <div className="flex-1 flex flex-col gap-1 overflow-y-auto max-h-[140px] custom-scrollbar"> 
                               {dayEvents.map(ev => { 
                                   const isShift = ev.type === 'shift';
-                                  const personStyle = isShift ? getPersonStyle(ev.ownerId) : null;
+                                  const personStyle = isShift ? getPersonStyle(ev.ownerId, users) : null;
                                   return (
-                                      <div key={ev.id} onClick={(e) => onEventClick(e, ev)} className={`relative overflow-hidden text-xs rounded border shadow-sm font-medium hover:brightness-95 transition-all ${isShift && personStyle ? personStyle.card : 'bg-yellow-100 border-yellow-200 text-yellow-800'}`}> 
+                                      <div
+                                          key={ev.id}
+                                          onClick={(e) => onEventClick(e, ev)}
+                                          className={`relative overflow-hidden text-xs rounded border shadow-sm font-medium hover:brightness-95 transition-all ${isShift ? '' : 'bg-yellow-100 border-yellow-200 text-yellow-800'}`}
+                                          style={isShift && personStyle ? personStyle.card : undefined}
+                                      >
                                           {isShift ? (
                                               <span className="flex items-center gap-1.5 min-w-0 pl-2 pr-1.5 py-1.5">
-                                                  <span className={`absolute left-0 top-0 h-full w-1 ${personStyle?.accent}`}></span>
-                                                  <span className={`ml-1 rounded px-2 py-1 text-xs font-black leading-none shrink-0 shadow-sm ring-1 ring-black/10 ${personStyle?.chip}`}>{ev.ownerName}</span>
+                                                  <span className="absolute left-0 top-0 h-full w-1" style={personStyle?.accent}></span>
+                                                  <span className="ml-1 rounded px-2 py-1 text-xs font-black leading-none shrink-0 shadow-sm ring-1 ring-black/10" style={personStyle?.chip}>{ev.ownerName}</span>
                                                   <span className={`rounded border px-1.5 py-0.5 text-[11px] font-black leading-none shrink-0 ${getShiftBadgeStyle(ev)}`}>{getShiftLabel(ev)}</span>
                                               </span>
                                           ) : <span className="block px-2 py-1.5 truncate">{ev.title}</span>}
@@ -151,14 +147,18 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   </h4>
                                   <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
                                       {dayEvents.map(ev => {
-                                          const personStyle = ev.type === 'shift' ? getPersonStyle(ev.ownerId) : null;
+                                          const personStyle = ev.type === 'shift' ? getPersonStyle(ev.ownerId, users) : null;
                                           return (
-                                          <div key={`tooltip-${ev.id}`} className={`relative overflow-hidden p-2 rounded border text-left ${ev.type === 'shift' && personStyle ? personStyle.card : 'bg-yellow-50 border-yellow-100'}`}>
-                                              {ev.type === 'shift' && <span className={`absolute left-0 top-0 h-full w-1 ${personStyle?.accent}`}></span>}
+                                          <div
+                                              key={`tooltip-${ev.id}`}
+                                              className={`relative overflow-hidden p-2 rounded border text-left ${ev.type === 'shift' ? '' : 'bg-yellow-50 border-yellow-100'}`}
+                                              style={ev.type === 'shift' && personStyle ? personStyle.card : undefined}
+                                          >
+                                              {ev.type === 'shift' && <span className="absolute left-0 top-0 h-full w-1" style={personStyle?.accent}></span>}
                                               <div className="text-xs font-bold mb-0.5 flex items-center gap-1">
                                                   {ev.type === 'shift' ? (
                                                       <>
-                                                          <span className={`ml-1 rounded px-2 py-1 text-xs font-black leading-none shadow-sm ring-1 ring-black/10 ${personStyle?.chip}`}>{ev.ownerName}</span>
+                                                          <span className="ml-1 rounded px-2 py-1 text-xs font-black leading-none shadow-sm ring-1 ring-black/10" style={personStyle?.chip}>{ev.ownerName}</span>
                                                           <span className={`rounded border px-1.5 py-0.5 text-[11px] font-black leading-none ${getShiftBadgeStyle(ev)}`}>{getShiftLabel(ev)}</span>
                                                       </>
                                                   ) : (

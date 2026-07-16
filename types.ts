@@ -12,6 +12,7 @@ export interface User {
   role: UserRole;
   avatar: string;
   pin?: string;
+  shiftColorHue?: number;
 }
 
 export type TaskStatusType = 'todo' | 'in_progress' | 'done';
