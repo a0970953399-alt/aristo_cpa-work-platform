@@ -14,32 +14,32 @@ const SHIFT_LABELS: Record<string, string> = {
     '09:30 - 17:30': '整天',
 };
 
-const SHIFT_STYLES: Record<string, string> = {
-    morning: 'bg-sky-50 border-sky-200 text-sky-800',
-    afternoon: 'bg-amber-50 border-amber-200 text-amber-800',
-    full_day: 'bg-emerald-50 border-emerald-200 text-emerald-800',
-    '上午': 'bg-sky-50 border-sky-200 text-sky-800',
-    '下午': 'bg-amber-50 border-amber-200 text-amber-800',
-    '整天': 'bg-emerald-50 border-emerald-200 text-emerald-800',
-    '09:30 - 12:00': 'bg-sky-50 border-sky-200 text-sky-800',
-    '13:00 - 17:30': 'bg-amber-50 border-amber-200 text-amber-800',
-    '09:30 - 17:30': 'bg-emerald-50 border-emerald-200 text-emerald-800',
+const SHIFT_BADGE_STYLES: Record<string, string> = {
+    morning: 'bg-sky-100 text-sky-700 border-sky-200',
+    afternoon: 'bg-amber-100 text-amber-700 border-amber-200',
+    full_day: 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    '上午': 'bg-sky-100 text-sky-700 border-sky-200',
+    '下午': 'bg-amber-100 text-amber-700 border-amber-200',
+    '整天': 'bg-emerald-100 text-emerald-700 border-emerald-200',
+    '09:30 - 12:00': 'bg-sky-100 text-sky-700 border-sky-200',
+    '13:00 - 17:30': 'bg-amber-100 text-amber-700 border-amber-200',
+    '09:30 - 17:30': 'bg-emerald-100 text-emerald-700 border-emerald-200',
 };
 
 const PERSON_COLORS = [
-    'bg-rose-500',
-    'bg-violet-500',
-    'bg-cyan-500',
-    'bg-lime-500',
-    'bg-fuchsia-500',
-    'bg-orange-500',
-    'bg-indigo-500',
-    'bg-teal-500',
+    { card: 'bg-rose-50 border-rose-200 text-rose-900', accent: 'bg-rose-500', chip: 'bg-rose-500 text-white' },
+    { card: 'bg-violet-50 border-violet-200 text-violet-900', accent: 'bg-violet-500', chip: 'bg-violet-500 text-white' },
+    { card: 'bg-cyan-50 border-cyan-200 text-cyan-900', accent: 'bg-cyan-500', chip: 'bg-cyan-500 text-white' },
+    { card: 'bg-lime-50 border-lime-200 text-lime-900', accent: 'bg-lime-500', chip: 'bg-lime-600 text-white' },
+    { card: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-900', accent: 'bg-fuchsia-500', chip: 'bg-fuchsia-500 text-white' },
+    { card: 'bg-orange-50 border-orange-200 text-orange-900', accent: 'bg-orange-500', chip: 'bg-orange-500 text-white' },
+    { card: 'bg-indigo-50 border-indigo-200 text-indigo-900', accent: 'bg-indigo-500', chip: 'bg-indigo-500 text-white' },
+    { card: 'bg-teal-50 border-teal-200 text-teal-900', accent: 'bg-teal-500', chip: 'bg-teal-500 text-white' },
 ];
 
 const getShiftLabel = (event: CalendarEvent) => SHIFT_LABELS[event.title] || event.title;
-const getShiftStyle = (event: CalendarEvent) => SHIFT_STYLES[event.title] || 'bg-blue-50 border-blue-200 text-blue-800';
-const getPersonColor = (ownerId: string) => {
+const getShiftBadgeStyle = (event: CalendarEvent) => SHIFT_BADGE_STYLES[event.title] || 'bg-blue-100 text-blue-700 border-blue-200';
+const getPersonStyle = (ownerId: string) => {
     const index = Array.from(ownerId).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PERSON_COLORS.length;
     return PERSON_COLORS[index];
 };
@@ -94,12 +94,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
               {days.map((dayObj, idx) => { 
                   const dateStr = `${dayObj.date.getFullYear()}-${String(dayObj.date.getMonth() + 1).padStart(2, '0')}-${String(dayObj.date.getDate()).padStart(2, '0')}`; 
                   const isToday = dateStr === new Date().toISOString().split('T')[0]; 
-                  const dayEvents = events.filter(e => { 
+                  const dayEvents = dayObj.isCurrentMonth ? events.filter(e => { 
                       if (e.date !== dateStr) return false; 
                       if (e.type === 'shift') { if (isSupervisor) return true; return e.ownerId === currentUser.id; } 
                       else if (e.type === 'reminder') { return e.ownerId === currentUser.id; } 
                       return false; 
-                  }); 
+                  }) : []; 
                   
                   const colIndex = idx % 7;
                   const rowIndex = Math.floor(idx / 7);
@@ -128,15 +128,16 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           <div className="flex-1 flex flex-col gap-1 overflow-y-auto max-h-[140px] custom-scrollbar"> 
                               {dayEvents.map(ev => { 
                                   const isShift = ev.type === 'shift';
+                                  const personStyle = isShift ? getPersonStyle(ev.ownerId) : null;
                                   return (
-                                      <div key={ev.id} onClick={(e) => onEventClick(e, ev)} className={`text-xs px-2 py-1.5 rounded border truncate shadow-sm font-medium hover:brightness-95 transition-all ${isShift ? getShiftStyle(ev) : 'bg-yellow-100 border-yellow-200 text-yellow-800'}`}> 
+                                      <div key={ev.id} onClick={(e) => onEventClick(e, ev)} className={`relative overflow-hidden text-xs rounded border shadow-sm font-medium hover:brightness-95 transition-all ${isShift && personStyle ? personStyle.card : 'bg-yellow-100 border-yellow-200 text-yellow-800'}`}> 
                                           {isShift ? (
-                                              <span className="flex items-center gap-1.5 min-w-0">
-                                                  <span className={`w-2 h-2 rounded-full shrink-0 ${getPersonColor(ev.ownerId)}`}></span>
-                                                  <span className="font-bold truncate">{ev.ownerName}</span>
-                                                  <span className="shrink-0 opacity-80">{getShiftLabel(ev)}</span>
+                                              <span className="flex items-center gap-1.5 min-w-0 pl-2 pr-1.5 py-1.5">
+                                                  <span className={`absolute left-0 top-0 h-full w-1 ${personStyle?.accent}`}></span>
+                                                  <span className={`ml-1 rounded px-1.5 py-0.5 text-[11px] font-black leading-none shrink-0 ${personStyle?.chip}`}>{ev.ownerName}</span>
+                                                  <span className={`rounded border px-1.5 py-0.5 text-[11px] font-black leading-none shrink-0 ${getShiftBadgeStyle(ev)}`}>{getShiftLabel(ev)}</span>
                                               </span>
-                                          ) : ev.title}
+                                          ) : <span className="block px-2 py-1.5 truncate">{ev.title}</span>}
                                       </div>
                                   );
                               })} 
@@ -149,17 +150,28 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       <span>{dayEvents.length} 項活動</span>
                                   </h4>
                                   <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
-                                      {dayEvents.map(ev => (
-                                          <div key={`tooltip-${ev.id}`} className={`p-2 rounded border text-left ${ev.type === 'shift' ? getShiftStyle(ev) : 'bg-yellow-50 border-yellow-100'}`}>
+                                      {dayEvents.map(ev => {
+                                          const personStyle = ev.type === 'shift' ? getPersonStyle(ev.ownerId) : null;
+                                          return (
+                                          <div key={`tooltip-${ev.id}`} className={`relative overflow-hidden p-2 rounded border text-left ${ev.type === 'shift' && personStyle ? personStyle.card : 'bg-yellow-50 border-yellow-100'}`}>
+                                              {ev.type === 'shift' && <span className={`absolute left-0 top-0 h-full w-1 ${personStyle?.accent}`}></span>}
                                               <div className="text-xs font-bold mb-0.5 flex items-center gap-1">
-                                                  <span className={`w-2 h-2 rounded-full ${ev.type === 'shift' ? getPersonColor(ev.ownerId) : 'bg-yellow-500'}`}></span>
-                                                  <span className={ev.type === 'shift' ? 'text-blue-700' : 'text-yellow-700'}>
-                                                      {ev.type === 'shift' ? `${ev.ownerName} ${getShiftLabel(ev)}` : ev.title}
-                                                  </span>
+                                                  {ev.type === 'shift' ? (
+                                                      <>
+                                                          <span className={`ml-1 rounded px-1.5 py-0.5 text-[11px] font-black leading-none ${personStyle?.chip}`}>{ev.ownerName}</span>
+                                                          <span className={`rounded border px-1.5 py-0.5 text-[11px] font-black leading-none ${getShiftBadgeStyle(ev)}`}>{getShiftLabel(ev)}</span>
+                                                      </>
+                                                  ) : (
+                                                      <>
+                                                          <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
+                                                          <span className="text-yellow-700">{ev.title}</span>
+                                                      </>
+                                                  )}
                                               </div>
                                               {ev.description && <div className="text-xs text-gray-500 pl-3 border-l-2 border-gray-200 ml-1 whitespace-pre-wrap">{ev.description}</div>}
                                           </div>
-                                      ))}
+                                      );
+                                      })}
                                   </div>
                               </div>
                           )}
