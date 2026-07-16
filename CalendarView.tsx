@@ -27,14 +27,14 @@ const SHIFT_BADGE_STYLES: Record<string, string> = {
 };
 
 const PERSON_COLORS = [
-    { card: 'bg-rose-50 border-rose-200 text-rose-900', accent: 'bg-rose-500', chip: 'bg-rose-500 text-white' },
-    { card: 'bg-violet-50 border-violet-200 text-violet-900', accent: 'bg-violet-500', chip: 'bg-violet-500 text-white' },
-    { card: 'bg-cyan-50 border-cyan-200 text-cyan-900', accent: 'bg-cyan-500', chip: 'bg-cyan-500 text-white' },
-    { card: 'bg-lime-50 border-lime-200 text-lime-900', accent: 'bg-lime-500', chip: 'bg-lime-600 text-white' },
-    { card: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-900', accent: 'bg-fuchsia-500', chip: 'bg-fuchsia-500 text-white' },
-    { card: 'bg-orange-50 border-orange-200 text-orange-900', accent: 'bg-orange-500', chip: 'bg-orange-500 text-white' },
-    { card: 'bg-indigo-50 border-indigo-200 text-indigo-900', accent: 'bg-indigo-500', chip: 'bg-indigo-500 text-white' },
-    { card: 'bg-teal-50 border-teal-200 text-teal-900', accent: 'bg-teal-500', chip: 'bg-teal-500 text-white' },
+    { card: 'bg-rose-50 border-rose-200 text-rose-900', accent: 'bg-rose-600', chip: 'bg-rose-700 text-white' },
+    { card: 'bg-violet-50 border-violet-200 text-violet-900', accent: 'bg-violet-600', chip: 'bg-violet-700 text-white' },
+    { card: 'bg-cyan-50 border-cyan-200 text-cyan-900', accent: 'bg-cyan-600', chip: 'bg-cyan-700 text-white' },
+    { card: 'bg-lime-50 border-lime-200 text-lime-900', accent: 'bg-lime-600', chip: 'bg-lime-700 text-white' },
+    { card: 'bg-fuchsia-50 border-fuchsia-200 text-fuchsia-900', accent: 'bg-fuchsia-600', chip: 'bg-fuchsia-700 text-white' },
+    { card: 'bg-orange-50 border-orange-200 text-orange-900', accent: 'bg-orange-600', chip: 'bg-orange-700 text-white' },
+    { card: 'bg-indigo-50 border-indigo-200 text-indigo-900', accent: 'bg-indigo-600', chip: 'bg-indigo-700 text-white' },
+    { card: 'bg-teal-50 border-teal-200 text-teal-900', accent: 'bg-teal-600', chip: 'bg-teal-700 text-white' },
 ];
 
 const getShiftLabel = (event: CalendarEvent) => SHIFT_LABELS[event.title] || event.title;
@@ -134,7 +134,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                           {isShift ? (
                                               <span className="flex items-center gap-1.5 min-w-0 pl-2 pr-1.5 py-1.5">
                                                   <span className={`absolute left-0 top-0 h-full w-1 ${personStyle?.accent}`}></span>
-                                                  <span className={`ml-1 rounded px-1.5 py-0.5 text-[11px] font-black leading-none shrink-0 ${personStyle?.chip}`}>{ev.ownerName}</span>
+                                                  <span className={`ml-1 rounded px-2 py-1 text-xs font-black leading-none shrink-0 shadow-sm ring-1 ring-black/10 ${personStyle?.chip}`}>{ev.ownerName}</span>
                                                   <span className={`rounded border px-1.5 py-0.5 text-[11px] font-black leading-none shrink-0 ${getShiftBadgeStyle(ev)}`}>{getShiftLabel(ev)}</span>
                                               </span>
                                           ) : <span className="block px-2 py-1.5 truncate">{ev.title}</span>}
@@ -158,7 +158,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                               <div className="text-xs font-bold mb-0.5 flex items-center gap-1">
                                                   {ev.type === 'shift' ? (
                                                       <>
-                                                          <span className={`ml-1 rounded px-1.5 py-0.5 text-[11px] font-black leading-none ${personStyle?.chip}`}>{ev.ownerName}</span>
+                                                          <span className={`ml-1 rounded px-2 py-1 text-xs font-black leading-none shadow-sm ring-1 ring-black/10 ${personStyle?.chip}`}>{ev.ownerName}</span>
                                                           <span className={`rounded border px-1.5 py-0.5 text-[11px] font-black leading-none ${getShiftBadgeStyle(ev)}`}>{getShiftLabel(ev)}</span>
                                                       </>
                                                   ) : (
