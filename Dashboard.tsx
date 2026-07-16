@@ -65,12 +65,19 @@ const LogoutIcon = ({ className }: { className?: string }) => (
 
 const TABS = ['帳務處理', '營業稅申報', '所得扣繳', '年度申報', '送件', '收發信件', '零用金/代墊款', '股票進銷存', '薪資計算'];
 
-const TIME_OPTIONS = Array.from({ length: 48 }, (_, i) => {
-    const totalMinutes = i * 30;
-    const hours = Math.floor(totalMinutes / 60);
-    const minutes = totalMinutes % 60;
-    return `${String(hours).padStart(2, '0')}:${String(minutes).padStart(2, '0')}`;
-});
+const SHIFT_OPTIONS = [
+    { id: 'morning', label: '上午', time: '9:30~12:00', title: '上午', tone: 'border-sky-200 bg-sky-50 text-sky-700' },
+    { id: 'afternoon', label: '下午', time: '13:00~17:30', title: '下午', tone: 'border-amber-200 bg-amber-50 text-amber-700' },
+    { id: 'full_day', label: '整天', time: '9:30~17:30', title: '整天', tone: 'border-emerald-200 bg-emerald-50 text-emerald-700' },
+];
+
+const getShiftTitleFromLegacyTime = (title: string) => {
+    if (title === '09:30 - 12:00') return '上午';
+    if (title === '13:00 - 17:30') return '下午';
+    if (title === '09:30 - 17:30') return '整天';
+    if (['上午', '下午', '整天'].includes(title)) return title;
+    return '整天';
+};
 
 interface DashboardProps {
   currentUser: User;
@@ -129,8 +136,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [newEventType, setNewEventType] = useState<EventType>('reminder');
   const [newEventOwnerId, setNewEventOwnerId] = useState('');
   const [newEventDesc, setNewEventDesc] = useState('');
-  const [shiftStart, setShiftStart] = useState('09:00');
-  const [shiftEnd, setShiftEnd] = useState('18:00');
+  const [selectedShiftTitle, setSelectedShiftTitle] = useState('整天');
   const [dailyReminders, setDailyReminders] = useState<CalendarEvent[]>([]);
   const [dontShowDailyAgain, setDontShowDailyAgain] = useState(false);
   const [selectedInstruction, setSelectedInstruction] = useState<Instruction | null>(null);
@@ -546,9 +552,88 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
     
   // Calendar
-  const handleDayClick = (dateStr: string) => { if (!dbConnected) return; setSelectedCalendarDate(dateStr); setNewEventTitle(''); setNewEventDesc(''); setNewEventType('reminder'); setNewEventOwnerId(currentUser.id); setShiftStart('09:00'); setShiftEnd('18:00'); setSelectedEvent(null); setIsEventModalOpen(true); };
-  const handleEventClick = (e: React.MouseEvent, event: CalendarEvent) => { e.stopPropagation(); if (!dbConnected) return; setSelectedCalendarDate(event.date); setNewEventTitle(event.title); setNewEventDesc(event.description || ''); setNewEventType(event.type); setNewEventOwnerId(event.ownerId); if (event.type === 'shift' && event.title.includes(' - ')) { const parts = event.title.split(' - '); if (parts.length === 2) { setShiftStart(parts[0]); setShiftEnd(parts[1]); } else { setShiftStart('09:00'); setShiftEnd('18:00'); } } else { setShiftStart('09:00'); setShiftEnd('18:00'); } setSelectedEvent(event); setIsEventModalOpen(true); };
-  const handleEventSubmit = async () => { let finalTitle = newEventTitle; if (newEventType === 'shift') { finalTitle = `${shiftStart} - ${shiftEnd}`; } else { if (!newEventTitle.trim()) { alert("請輸入標題"); return; } } const owner = users.find(u => u.id === newEventOwnerId); if (newEventType === 'reminder' && newEventOwnerId !== currentUser.id) { alert("提醒事項只能設定給自己"); return; } setIsLoading(true); try { const eventPayload: CalendarEvent = { id: selectedEvent ? selectedEvent.id : Date.now().toString(), date: selectedCalendarDate, type: newEventType, title: finalTitle, description: newEventDesc, ownerId: newEventOwnerId, ownerName: owner?.name || '未知', creatorId: selectedEvent ? selectedEvent.creatorId : currentUser.id, createdAt: selectedEvent ? selectedEvent.createdAt : new Date().toISOString() }; if (selectedEvent) { await TaskService.updateEvent(eventPayload); } else { await TaskService.addEvent(eventPayload); } setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } };
+  const handleDayClick = (dateStr: string) => {
+    if (!dbConnected) return;
+    setSelectedCalendarDate(dateStr);
+    setNewEventTitle('');
+    setNewEventDesc('');
+    setNewEventType('reminder');
+    setNewEventOwnerId(currentUser.id);
+    setSelectedShiftTitle('整天');
+    setSelectedEvent(null);
+    setIsEventModalOpen(true);
+  };
+
+  const handleEventClick = (e: React.MouseEvent, event: CalendarEvent) => {
+    e.stopPropagation();
+    if (!dbConnected) return;
+    setSelectedCalendarDate(event.date);
+    setNewEventTitle(event.title);
+    setNewEventDesc(event.description || '');
+    setNewEventType(event.type);
+    setNewEventOwnerId(event.ownerId);
+    setSelectedShiftTitle(event.type === 'shift' ? getShiftTitleFromLegacyTime(event.title) : '整天');
+    setSelectedEvent(event);
+    setIsEventModalOpen(true);
+  };
+
+  const handleEventSubmit = async () => {
+    let finalTitle = newEventTitle;
+    if (newEventType === 'shift') {
+      const owner = users.find(u => u.id === newEventOwnerId);
+      if (!owner || owner.role !== UserRole.INTERN) {
+        alert("排班對象只能選擇工讀生");
+        return;
+      }
+      finalTitle = selectedShiftTitle;
+      const existingShift = events.find(event =>
+        event.type === 'shift' &&
+        event.date === selectedCalendarDate &&
+        event.ownerId === newEventOwnerId &&
+        event.id !== selectedEvent?.id
+      );
+      if (existingShift) {
+        alert(`${owner.name} 這一天已經有排班，請先編輯或刪除原本的班別。`);
+        return;
+      }
+    } else {
+      if (!newEventTitle.trim()) {
+        alert("請輸入標題");
+        return;
+      }
+      if (newEventOwnerId !== currentUser.id) {
+        alert("提醒事項只能設定給自己");
+        return;
+      }
+    }
+
+    const owner = users.find(u => u.id === newEventOwnerId);
+    setIsLoading(true);
+    try {
+      const eventPayload: CalendarEvent = {
+        id: selectedEvent ? selectedEvent.id : Date.now().toString(),
+        date: selectedCalendarDate,
+        type: newEventType,
+        title: finalTitle,
+        description: newEventDesc,
+        ownerId: newEventOwnerId,
+        ownerName: owner?.name || '未知',
+        creatorId: selectedEvent ? selectedEvent.creatorId : currentUser.id,
+        createdAt: selectedEvent ? selectedEvent.createdAt : new Date().toISOString()
+      };
+      if (selectedEvent) {
+        await TaskService.updateEvent(eventPayload);
+      } else {
+        await TaskService.addEvent(eventPayload);
+      }
+      setIsEventModalOpen(false);
+      setSelectedEvent(null);
+    } catch (e) {
+      alert("失敗");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const handleEventDelete = () => { if (!selectedEvent) return; setIsEventDeleteModalOpen(true); };
   const handleConfirmEventDelete = async () => { if (!selectedEvent) return; setIsLoading(true); try { await TaskService.deleteEvent(selectedEvent.id); setIsEventDeleteModalOpen(false); setIsEventModalOpen(false); setSelectedEvent(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } };
 
@@ -1119,26 +1204,40 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           <label className="block text-sm font-bold text-gray-700 mb-1">類型</label>
                           <div className="flex p-1 bg-gray-100 rounded-xl">
                               <button onClick={() => setNewEventType('reminder')} disabled={selectedEvent && selectedEvent.type === 'shift' && !isPrivileged} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'reminder' ? 'bg-white shadow text-yellow-600' : 'text-gray-500 hover:bg-gray-200'}`}>提醒</button>
-                              {isPrivileged && <button onClick={() => { setNewEventType('shift'); if(selectedEvent && selectedEvent.type === 'reminder') setNewEventOwnerId(''); }} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'shift' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-200'}`}>排班</button>}
+                              {isPrivileged && <button onClick={() => { setNewEventType('shift'); if(!users.find(u => u.id === newEventOwnerId && u.role === UserRole.INTERN)) setNewEventOwnerId(''); }} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'shift' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-200'}`}>排班</button>}
                           </div>
                       </div>
 
                       {newEventType === 'shift' ? (
-                          <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-1">排班對象</label>
+                          <div className="space-y-2">
+                              <label className="block text-sm font-bold text-gray-700">排班對象</label>
                               <select value={newEventOwnerId} onChange={(e) => setNewEventOwnerId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-base" disabled={!isPrivileged}>
-                                  <option value="">請選擇人員...</option>
+                                  <option value="">請選擇工讀生...</option>
                                   {users.filter(u => u.role === UserRole.INTERN).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                               </select>
+                              <p className="text-xs text-gray-400">每位工讀生同一天只能有一個班別。</p>
                           </div>
                       ) : <div className="text-xs text-gray-400 italic">* 提醒事項僅自己可見</div>}
 
                       {newEventType === 'shift' ? (
                           <div>
-                              <label className="block text-sm font-bold text-gray-700 mb-1">時間</label>
-                              <div className="grid grid-cols-2 gap-3">
-                                  <div><span className="text-xs text-gray-500 mb-1 block">上班</span><select value={shiftStart} onChange={(e) => setShiftStart(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono text-base" disabled={!isPrivileged}>{TIME_OPTIONS.map(t => <option key={`start-${t}`} value={t}>{t}</option>)}</select></div>
-                                  <div><span className="text-xs text-gray-500 mb-1 block">下班</span><select value={shiftEnd} onChange={(e) => setShiftEnd(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white font-mono text-base" disabled={!isPrivileged}>{TIME_OPTIONS.map(t => <option key={`end-${t}`} value={t}>{t}</option>)}</select></div>
+                              <label className="block text-sm font-bold text-gray-700 mb-2">班別</label>
+                              <div className="grid grid-cols-3 gap-3">
+                                  {SHIFT_OPTIONS.map(option => {
+                                      const isSelected = selectedShiftTitle === option.title;
+                                      return (
+                                          <button
+                                              key={option.id}
+                                              type="button"
+                                              onClick={() => setSelectedShiftTitle(option.title)}
+                                              disabled={!isPrivileged}
+                                              className={`rounded-2xl border p-3 text-left transition-all ${option.tone} ${isSelected ? 'ring-2 ring-blue-500 shadow-md scale-[1.02]' : 'hover:brightness-95'}`}
+                                          >
+                                              <div className="text-base font-black">{option.label}</div>
+                                              <div className="mt-1 text-xs font-bold opacity-75">{option.time}</div>
+                                          </button>
+                                      );
+                                  })}
                               </div>
                           </div>
                       ) : (
@@ -1150,7 +1249,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
                   <div className="p-6 border-t bg-white flex gap-3">
                       {selectedEvent && ((isPrivileged || (selectedEvent.type === 'reminder' && selectedEvent.ownerId === currentUser.id)) && <button onClick={handleEventDelete} disabled={isLoading} className="px-5 py-2.5 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors text-base">刪除</button>)}
-                      {(!selectedEvent || isPrivileged || (selectedEvent.type === 'reminder' && selectedEvent.ownerId === currentUser.id)) && <button onClick={handleEventSubmit} disabled={isLoading || (newEventType === 'shift' && !newEventOwnerId)} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed text-base">{selectedEvent ? '更新' : '新增'}</button>}
+                      {(!selectedEvent || isPrivileged || (selectedEvent.type === 'reminder' && selectedEvent.ownerId === currentUser.id)) && <button onClick={handleEventSubmit} disabled={isLoading || (newEventType === 'shift' && (!newEventOwnerId || !selectedShiftTitle))} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed text-base">{selectedEvent ? '更新' : '新增'}</button>}
                   </div>
               </div>
           </div>

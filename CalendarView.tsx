@@ -2,6 +2,48 @@
 import React, { useState } from 'react';
 import { CalendarEvent, User } from './types';
 
+const SHIFT_LABELS: Record<string, string> = {
+    morning: '上午',
+    afternoon: '下午',
+    full_day: '整天',
+    '上午': '上午',
+    '下午': '下午',
+    '整天': '整天',
+    '09:30 - 12:00': '上午',
+    '13:00 - 17:30': '下午',
+    '09:30 - 17:30': '整天',
+};
+
+const SHIFT_STYLES: Record<string, string> = {
+    morning: 'bg-sky-50 border-sky-200 text-sky-800',
+    afternoon: 'bg-amber-50 border-amber-200 text-amber-800',
+    full_day: 'bg-emerald-50 border-emerald-200 text-emerald-800',
+    '上午': 'bg-sky-50 border-sky-200 text-sky-800',
+    '下午': 'bg-amber-50 border-amber-200 text-amber-800',
+    '整天': 'bg-emerald-50 border-emerald-200 text-emerald-800',
+    '09:30 - 12:00': 'bg-sky-50 border-sky-200 text-sky-800',
+    '13:00 - 17:30': 'bg-amber-50 border-amber-200 text-amber-800',
+    '09:30 - 17:30': 'bg-emerald-50 border-emerald-200 text-emerald-800',
+};
+
+const PERSON_COLORS = [
+    'bg-rose-500',
+    'bg-violet-500',
+    'bg-cyan-500',
+    'bg-lime-500',
+    'bg-fuchsia-500',
+    'bg-orange-500',
+    'bg-indigo-500',
+    'bg-teal-500',
+];
+
+const getShiftLabel = (event: CalendarEvent) => SHIFT_LABELS[event.title] || event.title;
+const getShiftStyle = (event: CalendarEvent) => SHIFT_STYLES[event.title] || 'bg-blue-50 border-blue-200 text-blue-800';
+const getPersonColor = (ownerId: string) => {
+    const index = Array.from(ownerId).reduce((sum, char) => sum + char.charCodeAt(0), 0) % PERSON_COLORS.length;
+    return PERSON_COLORS[index];
+};
+
 interface CalendarViewProps {
     currentMonth: Date;
     setCurrentMonth: (date: Date) => void;
@@ -24,7 +66,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
         const startPad = firstDay.getDay(); 
         for (let i = startPad; i > 0; i--) { const d = new Date(year, month, 1 - i); days.push({ date: d, isCurrentMonth: false }); } 
         for (let i = 1; i <= lastDay.getDate(); i++) { const d = new Date(year, month, i); days.push({ date: d, isCurrentMonth: true }); } 
-        const remaining = 42 - days.length; 
+        const targetCells = days.length <= 35 ? 35 : 42;
+        const remaining = targetCells - days.length; 
         for (let i = 1; i <= remaining; i++) { const d = new Date(year, month + 1, i); days.push({ date: d, isCurrentMonth: false }); } 
         return days; 
     };
@@ -83,11 +126,20 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                           </div>
                           
                           <div className="flex-1 flex flex-col gap-1 overflow-y-auto max-h-[140px] custom-scrollbar"> 
-                              {dayEvents.map(ev => ( 
-                                  <div key={ev.id} onClick={(e) => onEventClick(e, ev)} className={`text-xs px-2 py-1.5 rounded border truncate shadow-sm font-medium hover:brightness-95 transition-all ${ev.type === 'shift' ? 'bg-blue-100 border-blue-200 text-blue-800' : 'bg-yellow-100 border-yellow-200 text-yellow-800'}`}> 
-                                      {ev.type === 'shift' && <span className="font-bold mr-1">[{ev.ownerName}]</span>} {ev.title} 
-                                  </div> 
-                              ))} 
+                              {dayEvents.map(ev => { 
+                                  const isShift = ev.type === 'shift';
+                                  return (
+                                      <div key={ev.id} onClick={(e) => onEventClick(e, ev)} className={`text-xs px-2 py-1.5 rounded border truncate shadow-sm font-medium hover:brightness-95 transition-all ${isShift ? getShiftStyle(ev) : 'bg-yellow-100 border-yellow-200 text-yellow-800'}`}> 
+                                          {isShift ? (
+                                              <span className="flex items-center gap-1.5 min-w-0">
+                                                  <span className={`w-2 h-2 rounded-full shrink-0 ${getPersonColor(ev.ownerId)}`}></span>
+                                                  <span className="font-bold truncate">{ev.ownerName}</span>
+                                                  <span className="shrink-0 opacity-80">{getShiftLabel(ev)}</span>
+                                              </span>
+                                          ) : ev.title}
+                                      </div>
+                                  );
+                              })} 
                           </div>
 
                           {hoveredCalendarDate === dateStr && dayEvents.length > 0 && (
@@ -98,11 +150,11 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                   </h4>
                                   <div className="space-y-2 max-h-[200px] overflow-y-auto custom-scrollbar">
                                       {dayEvents.map(ev => (
-                                          <div key={`tooltip-${ev.id}`} className={`p-2 rounded border text-left ${ev.type === 'shift' ? 'bg-blue-50 border-blue-100' : 'bg-yellow-50 border-yellow-100'}`}>
+                                          <div key={`tooltip-${ev.id}`} className={`p-2 rounded border text-left ${ev.type === 'shift' ? getShiftStyle(ev) : 'bg-yellow-50 border-yellow-100'}`}>
                                               <div className="text-xs font-bold mb-0.5 flex items-center gap-1">
-                                                  <span className={`w-2 h-2 rounded-full ${ev.type === 'shift' ? 'bg-blue-500' : 'bg-yellow-500'}`}></span>
+                                                  <span className={`w-2 h-2 rounded-full ${ev.type === 'shift' ? getPersonColor(ev.ownerId) : 'bg-yellow-500'}`}></span>
                                                   <span className={ev.type === 'shift' ? 'text-blue-700' : 'text-yellow-700'}>
-                                                      {ev.type === 'shift' && `[${ev.ownerName}] `}{ev.title}
+                                                      {ev.type === 'shift' ? `${ev.ownerName} ${getShiftLabel(ev)}` : ev.title}
                                                   </span>
                                               </div>
                                               {ev.description && <div className="text-xs text-gray-500 pl-3 border-l-2 border-gray-200 ml-1 whitespace-pre-wrap">{ev.description}</div>}
