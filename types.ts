@@ -2,7 +2,8 @@
 export const UserRole = {
   BOSS: 'boss',
   SUPERVISOR: 'supervisor',
-  INTERN: 'intern'
+  INTERN: 'intern',
+  TRAINEE: 'trainee'
 } as const;
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
@@ -13,6 +14,7 @@ export interface User {
   avatar: string;
   pin?: string;
   shiftColorHue?: number;
+  isActive?: boolean;
 }
 
 export type TaskStatusType = 'todo' | 'in_progress' | 'done';

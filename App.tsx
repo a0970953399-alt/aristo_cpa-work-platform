@@ -40,12 +40,18 @@ const App: React.FC = () => {
   const handleLogout = () => setCurrentUser(null);
   const handleUserUpdate = () => setUsers(TaskService.getUsers());
 
+  useEffect(() => {
+    if (!currentUser) return;
+    const latestUser = users.find(user => String(user.id) === String(currentUser.id));
+    if (latestUser?.isActive === false) setCurrentUser(null);
+  }, [users, currentUser]);
+
   if (isLoading) return <div>Loading...</div>;
 
   return (
     <>
       {!currentUser ? (
-        <LoginScreen onLogin={handleLogin} users={users} />
+        <LoginScreen onLogin={handleLogin} users={users.filter(user => user.isActive !== false)} />
       ) : (
         <Suspense fallback={<AppLoading />}>
           <Dashboard

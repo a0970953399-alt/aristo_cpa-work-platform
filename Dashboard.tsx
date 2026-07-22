@@ -150,6 +150,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [taskToDelete, setTaskToDelete] = useState<ClientTask | null>(null);
   const [editingTask, setEditingTask] = useState<ClientTask | null>(null);
   const [newUserName, setNewUserName] = useState('');
+  const [newUserRole, setNewUserRole] = useState<UserRole>(UserRole.INTERN);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [newUserPin, setNewUserPin] = useState('');
@@ -172,7 +173,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const timeStr = currentTime.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
   const isBoss = currentUser.role === UserRole.BOSS;
   const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
+  const isTrainee = currentUser.role === UserRole.TRAINEE;
   const isPrivileged = isSupervisor || isBoss; // boss 或主管都有的權限
+  const canViewMatrix = !isTrainee && ((isPrivileged && !showMyList) || (!isPrivileged && showOverview));
+  const activeAssignableUsers = users.filter(user => user.role !== UserRole.BOSS && user.isActive !== false);
+  const activeShiftUsers = users.filter(user =>
+    (user.role === UserRole.INTERN || user.role === UserRole.TRAINEE) && user.isActive !== false
+  );
   const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
   const handleRealtimeUpdate = () => {};
 
@@ -598,8 +605,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     let finalTitle = newEventTitle;
     if (newEventType === 'shift') {
       const owner = users.find(u => u.id === newEventOwnerId);
-      if (!owner || owner.role !== UserRole.INTERN) {
-        alert("排班對象只能選擇工讀生");
+      if (!owner || (owner.role !== UserRole.INTERN && owner.role !== UserRole.TRAINEE) || owner.isActive === false) {
+        alert("排班對象只能選擇在職的工讀生或實習生");
         return;
       }
       finalTitle = selectedShiftTitle;
@@ -715,9 +722,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
 
   // User Mgmt
-  const handleAddUser = () => { if (!newUserName.trim()) return; const newUser: User = { id: Date.now().toString(), name: newUserName.trim(), role: UserRole.INTERN, avatar: `https://api.dicebear.com/9.x/micah/svg?seed=${newUserName}&backgroundColor=c0aede&radius=50`, pin: '1234' }; const currentUsers = TaskService.getUsers(); const updatedUsers = [...currentUsers, newUser]; TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserName(''); };
+  const handleAddUser = () => { if (!newUserName.trim()) return; const newUser: User = { id: Date.now().toString(), name: newUserName.trim(), role: newUserRole, avatar: `https://api.dicebear.com/9.x/micah/svg?seed=${newUserName}&backgroundColor=c0aede&radius=50`, pin: '1234', isActive: true }; const currentUsers = TaskService.getUsers(); const updatedUsers = [...currentUsers, newUser]; TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserName(''); };
   const handleDeleteUserClick = (user: User) => { setUserToDelete(user); setIsUserDeleteModalOpen(true); };
   const handleConfirmDeleteUser = () => { if (!userToDelete) return; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.filter(u => u.id !== userToDelete.id); TaskService.saveUsers(updatedUsers); onUserUpdate(); setIsUserDeleteModalOpen(false); setUserToDelete(null); };
+  const handleToggleUserActive = async (user: User) => { const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(item => item.id === user.id ? { ...item, isActive: item.isActive === false } : item); await TaskService.saveUsers(updatedUsers); onUserUpdate(); };
   const handleAvatarClick = (userId: string) => { setEditingUserId(userId); if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && editingUserId) { if (file.size > 500 * 1024) { alert("圖片大小請小於 500KB"); return; } const reader = new FileReader(); reader.onloadend = async () => { const base64String = reader.result as string; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === editingUserId ? { ...u, avatar: base64String } : u ); await TaskService.saveUsers(updatedUsers); onUserUpdate(); setEditingUserId(null); }; reader.readAsDataURL(file); } };
   const handleUpdatePin = () => { if (!newUserPin.trim()) return; if (newUserPin.length !== 4 || isNaN(Number(newUserPin))) { alert("請輸入 4 位數字密碼"); return; } const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === currentUser.id ? { ...u, pin: newUserPin.trim() } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserPin(''); alert("密碼已更新"); };
@@ -1071,11 +1079,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 <button onClick={() => setShowMyList(!showMyList)} title={showMyList ? "返回全所進度" : "查看每日進度"} className={`flex items-center justify-center p-2.5 rounded-xl transition-colors border shadow-sm ${showMyList ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
                     {showMyList ? <ReturnIcon className="w-5 h-5"/> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><rect x="3" y="4" width="6" height="6" rx="1"/></svg>}
                 </button>
-            ) : (
+            ) : !isTrainee ? (
                 <button onClick={() => setShowOverview(!showOverview)} title={showOverview ? "返回我的進度" : "查看全所進度"} className={`flex items-center justify-center p-2.5 rounded-xl transition-colors border shadow-sm ${showOverview ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
                     {showOverview ? <ReturnIcon className="w-5 h-5"/> : <TableCellsIcon className="w-5 h-5"/>}
                 </button>
-            )}
+            ) : null}
 
             {/* 4. 應用程式選單 */}
             <div className="relative" ref={appMenuRef}>
@@ -1101,14 +1109,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                             <ClockIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">工時紀錄</span>
                         </button>
-                        <button onClick={() => { setIsInvoiceOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-pink-50 rounded-xl text-gray-600 hover:text-pink-600 transition-colors">
+                        {!isTrainee && <button onClick={() => { setIsInvoiceOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-pink-50 rounded-xl text-gray-600 hover:text-pink-600 transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17V7"/><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></svg>
                             <span className="text-xs font-bold">請款單</span>
-                        </button>
-                        <button onClick={() => { setIsClientMasterOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-indigo-50 rounded-xl text-gray-600 hover:text-indigo-600 transition-colors">
+                        </button>}
+                        {!isTrainee && <button onClick={() => { setIsClientMasterOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-indigo-50 rounded-xl text-gray-600 hover:text-indigo-600 transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/></svg>
                             <span className="text-xs font-bold">客戶</span>
-                        </button>
+                        </button>}
                     </div>
                 )}
             </div>
@@ -1135,7 +1143,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       </header>
 
       {/* 2. Tabs */}
-      {((isPrivileged && !showMyList) || (!isPrivileged && showOverview)) ? (
+      {canViewMatrix ? (
           <div className="flex-none bg-white border-b border-gray-200 z-40">
               <div className="w-full px-6">
                   <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar">
@@ -1151,7 +1159,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
       {/* 3. Main Content */}
       <main className="flex-1 overflow-hidden relative w-full bg-gray-50">
-        {((isPrivileged && !showMyList) || (!isPrivileged && showOverview)) ? (
+        {canViewMatrix ? (
             <div className="absolute inset-0 px-6 py-6">
               <React.Suspense fallback={<ModuleLoading />}>
                 {!dbConnected ? (
@@ -1312,7 +1320,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           <label className="block text-sm font-bold text-gray-700 mb-1">類型</label>
                           <div className="flex p-1 bg-gray-100 rounded-xl">
                               <button onClick={() => setNewEventType('reminder')} disabled={selectedEvent && selectedEvent.type === 'shift' && !isPrivileged} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'reminder' ? 'bg-white shadow text-yellow-600' : 'text-gray-500 hover:bg-gray-200'}`}>提醒</button>
-                              {isPrivileged && <button onClick={() => { setNewEventType('shift'); if(!users.find(u => u.id === newEventOwnerId && u.role === UserRole.INTERN)) setNewEventOwnerId(''); }} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'shift' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-200'}`}>排班</button>}
+                              {isPrivileged && <button onClick={() => { setNewEventType('shift'); if(!activeShiftUsers.find(u => u.id === newEventOwnerId)) setNewEventOwnerId(''); }} className={`flex-1 py-2 text-sm font-bold rounded-lg transition-all ${newEventType === 'shift' ? 'bg-white shadow text-blue-600' : 'text-gray-500 hover:bg-gray-200'}`}>排班</button>}
                           </div>
                       </div>
 
@@ -1320,10 +1328,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           <div className="space-y-2">
                               <label className="block text-sm font-bold text-gray-700">排班對象</label>
                               <select value={newEventOwnerId} onChange={(e) => setNewEventOwnerId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none bg-white text-base" disabled={!isPrivileged}>
-                                  <option value="">請選擇工讀生...</option>
-                                  {users.filter(u => u.role === UserRole.INTERN).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                                  <option value="">請選擇工讀生或實習生...</option>
+                                  {activeShiftUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                               </select>
-                              <p className="text-xs text-gray-400">每位工讀生同一天只能有一個班別。</p>
+                              <p className="text-xs text-gray-400">每位人員同一天只能有一個班別。</p>
                           </div>
                       ) : <div className="text-xs text-gray-400 italic">* 提醒事項僅自己可見</div>}
 
@@ -1409,23 +1417,45 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                                       <button onClick={handleUpdatePin} disabled={!newUserPin.trim()} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">更新</button>
                                   </div>
                               </div>
-                              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 pl-1">工讀生名單</h4>
+                              <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 pl-1">工作人員名單</h4>
                               <div className="space-y-3 mb-6">
-                                  {users.filter(u => u.role === UserRole.INTERN).map(user => (
-                                      <div key={user.id} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg border border-gray-100">
+                                  {users.filter(u => u.role === UserRole.INTERN || u.role === UserRole.TRAINEE).map(user => (
+                                      <div key={user.id} className={`flex items-center justify-between p-3 rounded-lg border ${user.isActive === false ? 'bg-gray-100 border-gray-200 opacity-70' : 'bg-gray-50 border-gray-100'}`}>
                                           <div className="flex items-center gap-3">
                                               <div className="relative w-10 h-10"><img src={user.avatar} className="w-full h-full rounded-full bg-white border object-cover" alt={user.name} /></div>
-                                              <span className="font-bold text-gray-700 text-lg">{user.name}</span>
+                                              <div>
+                                                  <div className="flex items-center gap-2">
+                                                      <span className="font-bold text-gray-700 text-lg">{user.name}</span>
+                                                      <span className={`px-2 py-0.5 rounded text-xs font-bold ${user.role === UserRole.TRAINEE ? 'bg-amber-100 text-amber-700' : 'bg-blue-100 text-blue-700'}`}>{user.role === UserRole.TRAINEE ? '實習生' : '工讀生'}</span>
+                                                  </div>
+                                                  {user.isActive === false && <span className="text-xs font-bold text-gray-400">已停用</span>}
+                                              </div>
                                           </div>
-                                          <button onClick={() => handleDeleteUserClick(user)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded transition-colors"><TrashIcon className="w-5 h-5 pointer-events-none" /></button>
+                                          {user.role === UserRole.TRAINEE ? (
+                                              <button
+                                                  type="button"
+                                                  onClick={() => handleToggleUserActive(user)}
+                                                  aria-pressed={user.isActive !== false}
+                                                  className={`relative w-11 h-6 rounded-full transition-colors ${user.isActive === false ? 'bg-gray-300' : 'bg-green-500'}`}
+                                                  title={user.isActive === false ? '重新啟用帳號' : '停用帳號'}
+                                              >
+                                                  <span className={`absolute top-0.5 w-5 h-5 bg-white rounded-full shadow transition-transform ${user.isActive === false ? 'left-0.5' : 'left-5'}`}></span>
+                                              </button>
+                                          ) : (
+                                              <button onClick={() => handleDeleteUserClick(user)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded transition-colors"><TrashIcon className="w-5 h-5 pointer-events-none" /></button>
+                                          )}
                                       </div>
                                   ))}
-                                  {users.filter(u => u.role === UserRole.INTERN).length === 0 && <p className="text-gray-400 text-center text-sm py-4">目前沒有工讀生資料</p>}
+                                  {users.filter(u => u.role === UserRole.INTERN || u.role === UserRole.TRAINEE).length === 0 && <p className="text-gray-400 text-center text-sm py-4">目前沒有工作人員資料</p>}
                               </div>
                               <div className="border-t border-gray-100 pt-4">
-                                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">新增工讀生</label>
-                                  <div className="flex gap-2">
-                                      <input type="text" placeholder="輸入姓名..." value={newUserName} onChange={e => setNewUserName(e.target.value)} className="flex-1 p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-base" onKeyDown={e => e.key === 'Enter' && handleAddUser()} />
+                                  <label className="block text-xs font-bold text-gray-500 uppercase tracking-wide mb-2">新增工作人員</label>
+                                  <div className="grid grid-cols-[120px_minmax(0,1fr)_auto] gap-2">
+                                      <select value={newUserRole} onChange={event => setNewUserRole(event.target.value as UserRole)} className="p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-sm bg-white">
+                                          <option value={UserRole.INTERN}>工讀生</option>
+                                          <option value={UserRole.TRAINEE}>實習生</option>
+                                      </select>
+                                      <input type="text" placeholder="輸入姓名..." value={newUserName} onChange={e => setNewUserName(e.target.value)} className="min-w-0 p-2 border border-gray-300 rounded-lg outline-none focus:ring-2 focus:ring-blue-500 text-base" onKeyDown={e => e.key === 'Enter' && handleAddUser()} />
                                       <button onClick={handleAddUser} disabled={!newUserName.trim()} className="bg-blue-600 text-white px-4 rounded-lg font-bold hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm">新增</button>
                                   </div>
                               </div>
@@ -1672,7 +1702,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           <label className="block text-sm font-bold text-gray-700 mb-1">{selectedCell.task?.assigneeId ? '變更負責人' : '指派給'}</label>
                           <select value={modalAssigneeId} onChange={e => setModalAssigneeId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base">
                               <option value="">請選擇...</option>
-                              {users.filter(u => u.role !== UserRole.BOSS).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                              {activeAssignableUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                           </select>
                       </div>
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">備註 (選填)</label><input type="text" value={modalNote} onChange={e => setModalNote(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="例如：需特別注意..." /></div>
@@ -1744,7 +1774,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                                           className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
                                       >
                                           <option value="">請選擇...</option>
-                                          {users.filter(user => user.role !== UserRole.BOSS).map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                                          {activeAssignableUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
                                       </select>
                                       <button
                                           type="button"
@@ -1794,7 +1824,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           <div className="bg-white rounded-2xl shadow-2xl p-6 max-w-md w-full">
             <h2 className="text-xl font-bold mb-4 text-gray-800 flex items-center gap-2"><LightningIcon className="w-6 h-6 text-yellow-500"/> 臨時交辦事項</h2>
             <div className="space-y-4">
-              <div><label className="block text-sm font-medium text-gray-700 mb-1">指派對象</label><select className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 outline-none bg-white text-base" value={modalAssigneeId} onChange={(e) => setModalAssigneeId(e.target.value)}><option value="">請選擇人員...</option>{users.filter(u => u.role !== UserRole.BOSS).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
+              <div><label className="block text-sm font-medium text-gray-700 mb-1">指派對象</label><select className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 outline-none bg-white text-base" value={modalAssigneeId} onChange={(e) => setModalAssigneeId(e.target.value)}><option value="">請選擇人員...</option>{activeAssignableUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}</select></div>
               <div><label className="block text-sm font-medium text-gray-700 mb-1">交辦內容</label><textarea className="w-full border border-gray-300 rounded-xl p-2.5 focus:ring-2 focus:ring-purple-500 outline-none h-32 resize-none text-base" placeholder="請輸入具體工作內容..." value={modalNote} onChange={(e) => setModalNote(e.target.value)}></textarea></div>
               <div className="flex gap-3 mt-2">
                 <button onClick={() => setIsMiscModalOpen(false)} className="flex-1 py-2.5 bg-gray-100 text-gray-600 rounded-xl font-medium hover:bg-gray-200 text-base">取消</button>

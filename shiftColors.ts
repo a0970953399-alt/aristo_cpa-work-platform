@@ -48,7 +48,7 @@ export const assignUniqueInternShiftColors = (users: User[]): User[] => {
     const usedHueKeys = new Set<string>();
 
     users.forEach(user => {
-        if (user.role !== UserRole.INTERN) return;
+        if (user.role !== UserRole.INTERN && user.role !== UserRole.TRAINEE) return;
         const storedHue = normalizeHue(user.shiftColorHue);
         if (storedHue === null || usedHueKeys.has(hueKey(storedHue))) return;
         reservedHues.set(String(user.id), storedHue);
@@ -58,7 +58,7 @@ export const assignUniqueInternShiftColors = (users: User[]): User[] => {
     const assignedHues = Array.from(reservedHues.values());
 
     return users.map(user => {
-        if (user.role !== UserRole.INTERN) return user;
+        if (user.role !== UserRole.INTERN && user.role !== UserRole.TRAINEE) return user;
 
         const reservedHue = reservedHues.get(String(user.id));
         if (reservedHue !== undefined) {
