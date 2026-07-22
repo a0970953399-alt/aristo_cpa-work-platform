@@ -4,6 +4,7 @@ import { MatrixView } from './MatrixView';
 import { ListView } from './ListView';
 import { TaskService } from './taskService';
 import { NotificationService } from './notificationService';
+import { GoogleIntegrationService } from './googleIntegrationService';
 
 const ClientMasterView = React.lazy(() => import('./ClientMasterView').then(module => ({ default: module.ClientMasterView })));
 const InvoiceGenerator = React.lazy(() => import('./InvoiceGenerator').then(module => ({ default: module.InvoiceGenerator })));
@@ -28,7 +29,8 @@ const ModuleLoading = ({ overlay = false }: { overlay?: boolean }) => (
 import { 
     User, TabCategory, ClientTask, UserRole, TaskStatusType, Client, Instruction, 
     HistoryEntry, ClientProfile, CalendarEvent, EventType, 
-    CheckInRecord, MailRecord, CashRecord, Message 
+    CheckInRecord, MailRecord, CashRecord, Message, GoogleBindingRequest,
+    CalendarConnectionStatus
 } from './types';
 
 import { 
@@ -161,6 +163,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [mailRecords, setMailRecords] = useState<MailRecord[]>([]);
   const [cashRecords, setCashRecords] = useState<CashRecord[]>([]);
   const [deductBreak, setDeductBreak] = useState(true);
+  const [bindingRequests, setBindingRequests] = useState<GoogleBindingRequest[]>([]);
+  const [calendarStatus, setCalendarStatus] = useState<CalendarConnectionStatus | null>(null);
+  const [isGoogleActionLoading, setIsGoogleActionLoading] = useState(false);
+  const [googleSettingsMessage, setGoogleSettingsMessage] = useState('');
 
   // --- Refs ---
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -232,6 +238,52 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       if (isAppMenuOpen) document.addEventListener("mousedown", handleClickOutside);
       return () => document.removeEventListener("mousedown", handleClickOutside);
   }, [isAppMenuOpen]);
+
+  useEffect(() => {
+    const calendarResult = new URLSearchParams(window.location.search).get('calendar');
+    if (!calendarResult) return;
+    setIsUserModalOpen(true);
+    setGoogleSettingsMessage(
+      calendarResult === 'connected'
+        ? 'Google 日曆已連接，平台行事曆會自動同步。'
+        : calendarResult === 'account_mismatch'
+          ? '日曆授權的 Gmail 與平台綁定帳號不同，請使用同一個 Gmail。'
+        : 'Google 日曆連接失敗，請重新操作。'
+    );
+    const url = new URL(window.location.href);
+    url.searchParams.delete('calendar');
+    window.history.replaceState({}, '', `${url.pathname}${url.search}${url.hash}`);
+  }, []);
+
+  useEffect(() => {
+    if (!isUserModalOpen) return;
+    const googleUser = GoogleIntegrationService.getCurrentGoogleUser();
+    const isSignedInAsCurrentProfile = Boolean(
+      googleUser && activeUser.googleUid && googleUser.uid === activeUser.googleUid
+    );
+    if (!isSignedInAsCurrentProfile) {
+      setCalendarStatus(null);
+      setBindingRequests([]);
+      return;
+    }
+
+    let cancelled = false;
+    const loadGoogleSettings = async () => {
+      try {
+        const status = await GoogleIntegrationService.getCalendarStatus();
+        if (!cancelled) setCalendarStatus(status);
+        if (isPrivileged) {
+          const requests = await GoogleIntegrationService.listPendingBindings();
+          if (!cancelled) setBindingRequests(requests);
+        }
+      } catch (error) {
+        console.error('Google settings load failed:', error);
+        if (!cancelled) setGoogleSettingsMessage('Google 設定暫時無法讀取，請稍後再試。');
+      }
+    };
+    void loadGoogleSettings();
+    return () => { cancelled = true; };
+  }, [isUserModalOpen, activeUser.googleUid, isPrivileged]);
 
   useEffect(() => {
     const clockTimer = setInterval(() => setCurrentTime(new Date()), 1000);
@@ -729,6 +781,152 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleAvatarClick = (userId: string) => { setEditingUserId(userId); if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && editingUserId) { if (file.size > 500 * 1024) { alert("圖片大小請小於 500KB"); return; } const reader = new FileReader(); reader.onloadend = async () => { const base64String = reader.result as string; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === editingUserId ? { ...u, avatar: base64String } : u ); await TaskService.saveUsers(updatedUsers); onUserUpdate(); setEditingUserId(null); }; reader.readAsDataURL(file); } };
   const handleUpdatePin = () => { if (!newUserPin.trim()) return; if (newUserPin.length !== 4 || isNaN(Number(newUserPin))) { alert("請輸入 4 位數字密碼"); return; } const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === currentUser.id ? { ...u, pin: newUserPin.trim() } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserPin(''); alert("密碼已更新"); };
+
+  const getGoogleErrorMessage = (error: unknown, fallback: string) => {
+    const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
+    if (code.includes('popup-closed-by-user')) return 'Google 登入視窗已關閉，請重新操作。';
+    if (code.includes('already-exists')) return '這個 Gmail 已綁定其他人員。';
+    if (code.includes('failed-precondition')) return '此平台人員已綁定其他 Gmail。';
+    if (code.includes('permission-denied')) return '目前登入的 Google 帳號沒有執行此操作的權限。';
+    return fallback;
+  };
+
+  const handleBindCurrentGoogleAccount = async () => {
+    setIsGoogleActionLoading(true);
+    setGoogleSettingsMessage('');
+    try {
+      const result = await GoogleIntegrationService.requestAccountBinding(activeUser.id);
+      setGoogleSettingsMessage(
+        result.status === 'linked'
+          ? 'Google 帳號已綁定完成。'
+          : '綁定申請已送出，主管核准後即可使用 Google 登入。'
+      );
+    } catch (error) {
+      setGoogleSettingsMessage(getGoogleErrorMessage(error, 'Google 帳號綁定失敗，請稍後再試。'));
+    } finally {
+      setIsGoogleActionLoading(false);
+    }
+  };
+
+  const handleReviewBinding = async (requestId: string, approve: boolean) => {
+    setIsGoogleActionLoading(true);
+    setGoogleSettingsMessage('');
+    try {
+      await GoogleIntegrationService.reviewBinding(requestId, approve);
+      setBindingRequests(previous => previous.filter(request => request.id !== requestId));
+      setGoogleSettingsMessage(approve ? 'Google 帳號綁定已核准。' : 'Google 帳號綁定申請已拒絕。');
+    } catch (error) {
+      setGoogleSettingsMessage(getGoogleErrorMessage(error, '處理綁定申請失敗，請稍後再試。'));
+    } finally {
+      setIsGoogleActionLoading(false);
+    }
+  };
+
+  const handleConnectCalendar = async () => {
+    const googleUser = GoogleIntegrationService.getCurrentGoogleUser();
+    if (!activeUser.googleUid || googleUser?.uid !== activeUser.googleUid) {
+      setGoogleSettingsMessage('請先登出，並使用已綁定的 Google 帳號重新登入。');
+      return;
+    }
+    setIsGoogleActionLoading(true);
+    setGoogleSettingsMessage('');
+    try {
+      await GoogleIntegrationService.startCalendarConnection();
+    } catch (error) {
+      setGoogleSettingsMessage(getGoogleErrorMessage(error, '無法開啟 Google 日曆授權，請稍後再試。'));
+      setIsGoogleActionLoading(false);
+    }
+  };
+
+  const handleDisconnectCalendar = async () => {
+    if (!confirm('確定要停止同步到 Google 日曆嗎？已同步的行程會保留在 Google 日曆中。')) return;
+    setIsGoogleActionLoading(true);
+    setGoogleSettingsMessage('');
+    try {
+      await GoogleIntegrationService.disconnectCalendar();
+      setCalendarStatus({ connected: false });
+      setGoogleSettingsMessage('Google 日曆同步已停止。');
+    } catch (error) {
+      setGoogleSettingsMessage(getGoogleErrorMessage(error, '停止 Google 日曆同步失敗，請稍後再試。'));
+    } finally {
+      setIsGoogleActionLoading(false);
+    }
+  };
+
+  const renderGoogleIntegrationSettings = () => {
+    const googleUser = GoogleIntegrationService.getCurrentGoogleUser();
+    const isSignedInAsCurrentProfile = Boolean(
+      googleUser && activeUser.googleUid && googleUser.uid === activeUser.googleUid
+    );
+
+    return (
+      <div className="mb-6 space-y-4">
+        {googleSettingsMessage && (
+          <div className="rounded-lg border border-blue-200 bg-blue-50 p-3 text-sm font-bold text-blue-800">
+            {googleSettingsMessage}
+          </div>
+        )}
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h4 className="font-bold text-gray-800">Google 帳號</h4>
+              <p className="mt-1 break-all text-sm text-gray-500">
+                {activeUser.googleEmail || '尚未綁定 Gmail'}
+              </p>
+            </div>
+            <span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${activeUser.googleUid ? 'bg-green-500' : 'bg-gray-300'}`} title={activeUser.googleUid ? '已綁定' : '未綁定'}></span>
+          </div>
+          {!isSignedInAsCurrentProfile && (
+            <button
+              type="button"
+              onClick={handleBindCurrentGoogleAccount}
+              disabled={isGoogleActionLoading}
+              className="mt-4 w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
+            >
+              {activeUser.googleUid ? '使用已綁定的 Google 帳號登入' : '綁定自己的 Google 帳號'}
+            </button>
+          )}
+        </section>
+
+        <section className="rounded-xl border border-gray-200 bg-white p-4">
+          <div className="flex items-start justify-between gap-4">
+            <div className="min-w-0">
+              <h4 className="font-bold text-gray-800">Google 日曆</h4>
+              <p className="mt-1 text-sm text-gray-500">
+                {calendarStatus?.connected
+                  ? `${calendarStatus.calendarName || '碩業工作平台'} · ${calendarStatus.googleEmail || activeUser.googleEmail || ''}`
+                  : '平台排班與提醒單向同步到個人 Google 日曆'}
+              </p>
+            </div>
+            <span className={`mt-1 h-3 w-3 shrink-0 rounded-full ${calendarStatus?.connected ? 'bg-green-500' : 'bg-gray-300'}`} title={calendarStatus?.connected ? '同步中' : '未連接'}></span>
+          </div>
+          {calendarStatus?.connected ? (
+            <button type="button" onClick={handleDisconnectCalendar} disabled={isGoogleActionLoading} className="mt-4 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50">停止同步</button>
+          ) : (
+            <button type="button" onClick={handleConnectCalendar} disabled={isGoogleActionLoading || !activeUser.googleUid} className="mt-4 w-full rounded-lg bg-blue-600 px-4 py-2.5 text-sm font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">連接 Google 日曆</button>
+          )}
+        </section>
+
+        {isPrivileged && bindingRequests.length > 0 && (
+          <section className="rounded-xl border border-amber-200 bg-amber-50 p-4">
+            <h4 className="font-bold text-amber-900">待審核的帳號綁定</h4>
+            <div className="mt-3 space-y-3">
+              {bindingRequests.map(request => (
+                <div key={request.id} className="rounded-lg border border-amber-200 bg-white p-3">
+                  <div className="font-bold text-gray-800">{request.profileName}</div>
+                  <div className="mt-1 break-all text-sm text-gray-500">{request.googleEmail}</div>
+                  <div className="mt-3 flex gap-2">
+                    <button type="button" onClick={() => handleReviewBinding(request.id, true)} disabled={isGoogleActionLoading} className="flex-1 rounded-lg bg-green-600 px-3 py-2 text-sm font-bold text-white hover:bg-green-700 disabled:opacity-50">核准</button>
+                    <button type="button" onClick={() => handleReviewBinding(request.id, false)} disabled={isGoogleActionLoading} className="flex-1 rounded-lg bg-gray-100 px-3 py-2 text-sm font-bold text-gray-600 hover:bg-gray-200 disabled:opacity-50">拒絕</button>
+                  </div>
+                </div>
+              ))}
+            </div>
+          </section>
+        )}
+      </div>
+    );
+  };
 
   // Boss 直接完成：點擊即標記 done + 今日日期
   const handleBossDirectComplete = async (client: Client, column: string, task?: ClientTask) => {
@@ -1409,7 +1607,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                                   <h4 className="text-2xl font-bold text-gray-800">{currentUser.name}</h4>
                                   <p className="text-sm text-gray-500 mt-2">點擊上方圖片即可更換大頭貼</p>
                               </div>
-                              
+
+                              {renderGoogleIntegrationSettings()}
+
                               <div className="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-100">
                                   <h4 className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-2 flex items-center gap-1"><LockClosedIcon className="w-4 h-4" /> 修改登入密碼</h4>
                                   <div className="flex gap-2">
@@ -1470,6 +1670,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                                   <h4 className="text-2xl font-bold text-gray-800">{currentUser.name}</h4>
                                   <p className="text-sm text-gray-500 mt-2">點擊上方圖片即可更換大頭貼</p>
                               </div>
+                              {renderGoogleIntegrationSettings()}
                               <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
                                   <h4 className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-2 flex items-center gap-1"><LockClosedIcon className="w-4 h-4" /> 修改登入密碼</h4>
                                   <div className="flex gap-2">

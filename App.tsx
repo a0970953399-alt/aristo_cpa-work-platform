@@ -4,6 +4,7 @@ import React, { Suspense, lazy, useState, useEffect } from 'react';
 import LoginScreen from './LoginScreen';
 import { User } from './types';
 import { TaskService } from './taskService';
+import { GoogleIntegrationService } from './googleIntegrationService';
 // 1. 引入通知視窗
 
 const Dashboard = lazy(() => import('./Dashboard'));
@@ -21,6 +22,7 @@ const App: React.FC = () => {
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [googleUserUid, setGoogleUserUid] = useState<string | null>(null);
 
   // Initialize Users
   useEffect(() => {
@@ -37,7 +39,10 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = (user: User) => setCurrentUser(user);
-  const handleLogout = () => setCurrentUser(null);
+  const handleLogout = () => {
+    void GoogleIntegrationService.signOut();
+    setCurrentUser(null);
+  };
   const handleUserUpdate = () => setUsers(TaskService.getUsers());
 
   useEffect(() => {
@@ -45,6 +50,22 @@ const App: React.FC = () => {
     const latestUser = users.find(user => String(user.id) === String(currentUser.id));
     if (latestUser?.isActive === false) setCurrentUser(null);
   }, [users, currentUser]);
+
+  useEffect(() => GoogleIntegrationService.observeAuth(user => {
+    setGoogleUserUid(user?.uid || null);
+  }), []);
+
+  useEffect(() => {
+    if (!googleUserUid) return;
+    const linkedUser = users.find(user => user.googleUid === googleUserUid);
+    if (!linkedUser) return;
+    if (linkedUser.isActive === false) {
+      void GoogleIntegrationService.signOut();
+      setCurrentUser(null);
+      return;
+    }
+    setCurrentUser(linkedUser);
+  }, [googleUserUid, users]);
 
   if (isLoading) return <div>Loading...</div>;
 

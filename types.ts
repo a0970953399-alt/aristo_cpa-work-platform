@@ -15,6 +15,27 @@ export interface User {
   pin?: string;
   shiftColorHue?: number;
   isActive?: boolean;
+  googleUid?: string;
+  googleEmail?: string;
+  googleDisplayName?: string;
+}
+
+export interface GoogleBindingRequest {
+  id: string;
+  profileId: string;
+  profileName: string;
+  googleUid: string;
+  googleEmail: string;
+  googleDisplayName?: string;
+  status: 'pending' | 'approved' | 'rejected';
+  requestedAt: string;
+}
+
+export interface CalendarConnectionStatus {
+  connected: boolean;
+  calendarName?: string;
+  googleEmail?: string;
+  connectedAt?: string;
 }
 
 export type TaskStatusType = 'todo' | 'in_progress' | 'done';
@@ -59,6 +80,10 @@ export interface CalendarEvent {
     ownerName: string;
     creatorId: string;
     createdAt: string;
+    googleEventId?: string;
+    googleCalendarId?: string;
+    googleSyncStatus?: 'synced' | 'pending' | 'not_connected' | 'error';
+    googleSyncError?: string;
 }
 
 // ✨ 單筆工作紀錄的結構 (對應 8 個期間)

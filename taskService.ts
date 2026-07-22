@@ -129,7 +129,7 @@ export const TaskService = {
       
       // 3. ✨ 同時把新頭貼上傳到 Firebase 的 "users" 抽屜，讓全世界看到！
       for (const user of usersWithColors) {
-          await setDoc(doc(db, "users", String(user.id)), user);
+          await setDoc(doc(db, "users", String(user.id)), user, { merge: true });
       }
   },
 
