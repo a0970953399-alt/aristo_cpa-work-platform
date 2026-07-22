@@ -320,11 +320,19 @@ export const TaskService = {
           }
 
           const existing = snapshot.exists() ? snapshot.data() as ClientTask : undefined;
+          const isReassignment = Boolean(
+              existing?.assigneeId
+              && String(existing.assigneeId) !== String(task.assigneeId)
+          );
           const historyEntry: HistoryEntry = {
               timestamp: new Date().toISOString(),
               userName: task.lastUpdatedBy,
-              action: task.isNA ? "標記為 N/A" : "指派工作",
-              ...(!task.isNA ? { details: `指派給: ${task.assigneeName || '無'}` } : {})
+              action: task.isNA ? "標記為 N/A" : isReassignment ? "變更負責人" : "指派工作",
+              ...(!task.isNA ? {
+                  details: isReassignment
+                      ? `${existing?.assigneeName || '無'} -> ${task.assigneeName || '無'}`
+                      : `指派給: ${task.assigneeName || '無'}`
+              } : {})
           };
 
           const { id, ...data } = task;
@@ -374,6 +382,34 @@ export const TaskService = {
       });
   },
 
+  async completeMatrixTaskForSupervisor(task: ClientTask, supervisor: User): Promise<void> {
+      const taskRef = doc(db, "tasks", String(task.id));
+
+      await runTransaction(db, async transaction => {
+          const snapshot = await transaction.get(taskRef);
+          const existing = snapshot.exists() ? snapshot.data() as ClientTask : undefined;
+          const now = new Date().toISOString();
+          const historyEntry: HistoryEntry = {
+              timestamp: now,
+              userName: supervisor.name,
+              action: "主管標記完成",
+              details: `負責人: ${task.assigneeName || '無'}；完成日期: ${task.completionDate || '未設定'}`
+          };
+          const { id, ...data } = task;
+
+          transaction.set(taskRef, {
+              ...data,
+              status: 'done',
+              isNA: false,
+              completedAt: now,
+              entrySource: 'assigned',
+              lastUpdatedBy: supervisor.name,
+              lastUpdatedAt: now,
+              history: [historyEntry, ...(existing?.history || task.history || [])].slice(0, 20)
+          });
+      });
+  },
+
   async deleteTask(taskId: string): Promise<void> {
       // ✨ 雲端刪除指令：直接指定 ID 刪除，不影響其他任務！
       await deleteDoc(doc(db, "tasks", String(taskId)));
@@ -402,6 +438,53 @@ export const TaskService = {
               history: [historyEntry, ...(taskData.history || [])].slice(0, 20)
           }, { merge: true });
       }
+  },
+
+  async updateTaskCompletionDetails(
+      taskId: string,
+      completionDate: string,
+      completedAt: string,
+      assigneeId: string,
+      assigneeName: string,
+      user: string
+  ): Promise<void> {
+      const ref = doc(db, "tasks", String(taskId));
+      const docSnap = await getDoc(ref);
+
+      if (!docSnap.exists()) {
+          throw new Error('TASK_NOT_FOUND');
+      }
+
+      const taskData = docSnap.data() as ClientTask;
+      if (taskData.status !== 'done' || taskData.isNA) {
+          throw new Error('TASK_NOT_COMPLETED');
+      }
+
+      const changes: string[] = [];
+      if (taskData.completionDate !== completionDate) {
+          changes.push(`完成日期: ${taskData.completionDate || '未設定'} -> ${completionDate}`);
+      }
+      if (String(taskData.assigneeId || '') !== String(assigneeId)) {
+          changes.push(`負責人: ${taskData.assigneeName || '無'} -> ${assigneeName || '無'}`);
+      }
+      if (changes.length === 0) return;
+
+      const historyEntry: HistoryEntry = {
+          timestamp: new Date().toISOString(),
+          userName: user,
+          action: changes.length > 1 ? "修改完成資訊" : changes[0].startsWith('完成日期') ? "修改完成日期" : "變更負責人",
+          details: changes.join('；')
+      };
+
+      await setDoc(ref, {
+          completionDate,
+          completedAt,
+          assigneeId,
+          assigneeName,
+          lastUpdatedBy: user,
+          lastUpdatedAt: new Date().toISOString(),
+          history: [historyEntry, ...(taskData.history || [])].slice(0, 20)
+      }, { merge: true });
   },
 
   async updateTaskNote(taskId: string, note: string, user: string): Promise<void> {

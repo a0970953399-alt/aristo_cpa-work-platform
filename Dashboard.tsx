@@ -146,6 +146,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [modalAssigneeId, setModalAssigneeId] = useState<string>('');
   const [modalNote, setModalNote] = useState('');
   const [modalDate, setModalDate] = useState('');
+  const [modalDateInput, setModalDateInput] = useState('');
   const [taskToDelete, setTaskToDelete] = useState<ClientTask | null>(null);
   const [editingTask, setEditingTask] = useState<ClientTask | null>(null);
   const [newUserName, setNewUserName] = useState('');
@@ -182,6 +183,22 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       const month = String(d.getMonth() + 1).padStart(2, '0');
       const day = String(d.getDate()).padStart(2, '0');
       return `${year}-${month}-${day}`;
+  };
+
+  const getCompletionDateInputValue = (task: ClientTask): string => {
+      if (task.completedAt) {
+          const completedDate = new Date(task.completedAt);
+          if (!Number.isNaN(completedDate.getTime())) {
+              const year = completedDate.getFullYear();
+              const month = String(completedDate.getMonth() + 1).padStart(2, '0');
+              const day = String(completedDate.getDate()).padStart(2, '0');
+              return `${year}-${month}-${day}`;
+          }
+      }
+
+      const [month, day] = (task.completionDate || '').split('/').map(Number);
+      if (!month || !day) return '';
+      return `${Number(currentYear) + 1911}-${String(month).padStart(2, '0')}-${String(day).padStart(2, '0')}`;
   };
   
   const todayStr = getTodayString();
@@ -745,6 +762,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
     if (task && (task.status === 'done' || task.isNA)) {
       setModalDate(task.completionDate || '');
+      setModalDateInput(task.isNA ? '' : getCompletionDateInputValue(task));
       setIsDateModalOpen(true);
       return;
     }
@@ -855,6 +873,50 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       alert(e instanceof Error && e.message === 'TASK_ALREADY_EXISTS' ? "此工作剛剛已被其他人登記，請重新確認。" : "失敗");
     } finally { setIsLoading(false); }
   };
+  const handleSupervisorDirectComplete = async () => {
+    if (!isSupervisor || !selectedCell || !modalAssigneeId) {
+      alert("請先選擇負責人");
+      return;
+    }
+
+    const assignee = users.find(user => String(user.id) === String(modalAssigneeId));
+    if (!assignee || assignee.role === UserRole.BOSS) {
+      alert("請選擇有效的負責人");
+      return;
+    }
+
+    const now = new Date();
+    const task: ClientTask = {
+      id: selectedCell.task?.id || TaskService.getMatrixTaskId(selectedCell.client.id, currentYear, activeTab, selectedCell.column),
+      clientId: String(selectedCell.client.id),
+      clientName: selectedCell.client.name,
+      category: activeTab,
+      workItem: selectedCell.column,
+      year: currentYear,
+      status: 'done',
+      isNA: false,
+      assigneeId: assignee.id,
+      assigneeName: assignee.name,
+      completionDate: `${now.getMonth() + 1}/${now.getDate()}`,
+      completedAt: now.toISOString(),
+      entrySource: 'assigned',
+      note: modalNote,
+      lastUpdatedBy: currentUser.name,
+      lastUpdatedAt: now.toISOString(),
+      history: selectedCell.task?.history || []
+    };
+
+    setIsLoading(true);
+    try {
+      await TaskService.completeMatrixTaskForSupervisor(task, currentUser);
+      setIsAssignModalOpen(false);
+      setSelectedCell(null);
+    } catch (error) {
+      alert("完成工作失敗，請稍後再試");
+    } finally {
+      setIsLoading(false);
+    }
+  };
   const handleRevokeAssignment = async () => {
     if (!selectedCell?.task) return;
     setIsLoading(true);
@@ -879,6 +941,51 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       setIsDateModalOpen(false);
       setSelectedCell(null);
     } catch(e) { alert("失敗"); } finally { setIsLoading(false); }
+  };
+  const handleCompletionDateUpdate = async () => {
+    if (!isSupervisor || !selectedCell?.task || selectedCell.task.isNA || !modalDateInput || !modalAssigneeId) return;
+
+    const [year, month, day] = modalDateInput.split('-').map(Number);
+    const completedDate = new Date(year, month - 1, day, 12, 0, 0);
+    if (Number.isNaN(completedDate.getTime())) {
+      alert("請選擇有效的完成日期");
+      return;
+    }
+
+    const completionDate = `${month}/${day}`;
+    const assignee = users.find(user => String(user.id) === String(modalAssigneeId));
+    if (!assignee) {
+      alert("請選擇有效的負責人");
+      return;
+    }
+    setIsLoading(true);
+    try {
+      await TaskService.updateTaskCompletionDetails(
+        selectedCell.task.id,
+        completionDate,
+        completedDate.toISOString(),
+        assignee.id,
+        assignee.name,
+        currentUser.name
+      );
+      setModalDate(completionDate);
+      setSelectedCell({
+        ...selectedCell,
+        task: {
+          ...selectedCell.task,
+          completionDate,
+          completedAt: completedDate.toISOString(),
+          assigneeId: assignee.id,
+          assigneeName: assignee.name,
+          lastUpdatedBy: currentUser.name,
+          lastUpdatedAt: new Date().toISOString()
+        }
+      });
+    } catch (error) {
+      alert("完成日期修改失敗，請稍後再試");
+    } finally {
+      setIsLoading(false);
+    }
   };
   const handleConfirmDelete = async () => { if(!taskToDelete) return; setIsLoading(true); try { await TaskService.deleteTask(taskToDelete.id); setIsDeleteModalOpen(false); setTaskToDelete(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } };
   
@@ -1562,7 +1669,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           </div>
                       )}
                       <div>
-                          <label className="block text-sm font-bold text-gray-700 mb-1">指派給</label>
+                          <label className="block text-sm font-bold text-gray-700 mb-1">{selectedCell.task?.assigneeId ? '變更負責人' : '指派給'}</label>
                           <select value={modalAssigneeId} onChange={e => setModalAssigneeId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base">
                               <option value="">請選擇...</option>
                               {users.filter(u => u.role !== UserRole.BOSS).map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
@@ -1591,9 +1698,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                       {selectedCell.task?.assigneeId && (
                           <button onClick={handleRevokeAssignment} className="w-full bg-white border border-red-300 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-sm">撤銷派案</button>
                       )}
-                      <div className="flex gap-3">
-                          <button onClick={() => handleAssignSubmit(true)} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 rounded-xl font-bold transition-colors text-sm">標記為 N/A</button>
-                          <button onClick={() => handleAssignSubmit(false)} className="flex-1 bg-blue-600 hover:bg-blue-700 text-white py-2.5 rounded-xl font-bold transition-colors shadow-lg shadow-blue-200 text-sm">確認派案</button>
+                      <div className="grid grid-cols-3 gap-2">
+                          <button onClick={() => handleAssignSubmit(true)} disabled={isLoading} className="bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 px-2 rounded-xl font-bold transition-colors text-sm disabled:opacity-50">標記 N/A</button>
+                          <button onClick={handleSupervisorDirectComplete} disabled={isLoading || !modalAssigneeId} className="bg-green-600 hover:bg-green-700 text-white py-2.5 px-2 rounded-xl font-bold transition-colors shadow-lg shadow-green-100 text-sm disabled:opacity-50 disabled:cursor-not-allowed">直接完成</button>
+                          <button onClick={() => handleAssignSubmit(false)} disabled={isLoading || !modalAssigneeId} className="bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-2 rounded-xl font-bold transition-colors shadow-lg shadow-blue-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed">{selectedCell.task?.assigneeId ? '確認變更' : '確認派案'}</button>
                       </div>
                   </div>
               </div>
@@ -1617,8 +1725,44 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
                   <div className="p-6 space-y-4 overflow-y-auto flex-1">
                       <div className="bg-gray-50 p-4 rounded-xl space-y-2">
-                          {!selectedCell.task?.isNA && <div className="flex justify-between text-base"><span className="text-gray-500">完成日期</span><span className="font-bold text-gray-800">{modalDate}</span></div>}
-                          {!selectedCell.task?.isNA && selectedCell.task?.assigneeName && <div className="flex justify-between text-base"><span className="text-gray-500">負責人</span><span className="font-bold text-gray-800">{selectedCell.task.assigneeName}</span></div>}
+                          {!selectedCell.task?.isNA && (
+                              isSupervisor ? (
+                                  <div>
+                                      <label htmlFor="completion-date" className="block text-sm font-bold text-gray-600 mb-2">完成日期</label>
+                                      <input
+                                          id="completion-date"
+                                          type="date"
+                                          value={modalDateInput}
+                                          onChange={event => setModalDateInput(event.target.value)}
+                                          className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      />
+                                      <label htmlFor="completion-assignee" className="block text-sm font-bold text-gray-600 mt-4 mb-2">負責人</label>
+                                      <select
+                                          id="completion-assignee"
+                                          value={modalAssigneeId}
+                                          onChange={event => setModalAssigneeId(event.target.value)}
+                                          className="w-full border border-gray-300 rounded-lg px-3 py-2 bg-white text-gray-800 focus:outline-none focus:ring-2 focus:ring-blue-500"
+                                      >
+                                          <option value="">請選擇...</option>
+                                          {users.filter(user => user.role !== UserRole.BOSS).map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                                      </select>
+                                      <button
+                                          type="button"
+                                          onClick={handleCompletionDateUpdate}
+                                          disabled={isLoading || !modalDateInput || !modalAssigneeId || (
+                                              modalDateInput === getCompletionDateInputValue(selectedCell.task)
+                                              && String(modalAssigneeId) === String(selectedCell.task.assigneeId || '')
+                                          )}
+                                          className="w-full mt-4 px-4 py-2.5 bg-blue-600 text-white rounded-lg font-bold hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed transition-colors"
+                                      >
+                                          儲存變更
+                                      </button>
+                                  </div>
+                              ) : (
+                                  <div className="flex justify-between text-base"><span className="text-gray-500">完成日期</span><span className="font-bold text-gray-800">{modalDate}</span></div>
+                              )
+                          )}
+                          {!selectedCell.task?.isNA && !isSupervisor && selectedCell.task?.assigneeName && <div className="flex justify-between text-base"><span className="text-gray-500">負責人</span><span className="font-bold text-gray-800">{users.find(user => String(user.id) === String(selectedCell.task?.assigneeId))?.name || selectedCell.task.assigneeName}</span></div>}
                           {selectedCell.task?.note && <div className="pt-2 border-t border-gray-200 mt-2"><span className="text-xs text-gray-400 block mb-1">備註</span><p className="text-base text-gray-700">{selectedCell.task.note}</p></div>}
                       </div>
                       {(isSupervisor || (isBoss && isBossAssignableColumn(activeTab, selectedCell.column))) && <button onClick={handleRevertStatus} className="w-full bg-white border border-red-200 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-base">{selectedCell.task?.isNA ? '取消 N/A (重置)' : '撤銷完成狀態'}</button>}
