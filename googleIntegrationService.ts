@@ -17,7 +17,6 @@ type BindingResult = {
 };
 
 const googleProvider = new GoogleAuthProvider();
-googleProvider.setCustomParameters({ prompt: 'select_account' });
 
 const ensurePersistence = () => setPersistence(auth, browserLocalPersistence);
 
@@ -32,7 +31,7 @@ export const GoogleIntegrationService = {
 
   async requestAccountBinding(profileId: string): Promise<BindingResult> {
     await ensurePersistence();
-    await signInWithPopup(auth, googleProvider);
+    if (!auth.currentUser) await signInWithPopup(auth, googleProvider);
     const requestBinding = httpsCallable<{ profileId: string }, BindingResult>(functions, 'requestAccountBinding');
     const result = await requestBinding({ profileId });
     return result.data;

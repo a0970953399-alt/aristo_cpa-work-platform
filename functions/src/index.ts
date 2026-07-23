@@ -39,6 +39,7 @@ type PlatformEvent = {
   ownerName: string;
   googleEventId?: string;
   googleCalendarId?: string;
+  googleSyncTargets?: Record<string, GoogleSyncTarget>;
 };
 
 type CalendarConnection = {
@@ -49,6 +50,18 @@ type CalendarConnection = {
   platformUserId: string;
   status: 'connected' | 'disconnected';
   connectedAt: string;
+};
+
+type GoogleSyncTarget = {
+  calendarId: string;
+  eventId: string;
+  syncedAt?: string;
+};
+
+type CalendarSyncTarget = {
+  googleUid: string;
+  connection: CalendarConnection;
+  role: PlatformUser['role'];
 };
 
 type BindingRequest = {
@@ -276,7 +289,7 @@ const toGoogleEvent = (eventId: string, event: PlatformEvent): calendar_v3.Schem
   if (event.type === 'shift') {
     const [startTime, endTime] = getShiftTimes(event.title);
     return {
-      summary: `碩業排班 - ${event.title}`,
+      summary: `${event.ownerName} - ${event.title}`,
       description,
       start: { dateTime: `${event.date}T${startTime}+08:00`, timeZone: 'Asia/Taipei' },
       end: { dateTime: `${event.date}T${endTime}+08:00`, timeZone: 'Asia/Taipei' },
@@ -304,19 +317,62 @@ const getConnectionForPlatformUser = async (platformUserId: string) => {
   return connection.status === 'connected' ? connection : null;
 };
 
-const upsertGoogleEvent = async (eventId: string, event: PlatformEvent, connection: CalendarConnection) => {
+const getCalendarSyncTargets = async (event: PlatformEvent): Promise<CalendarSyncTarget[]> => {
+  const targets = new Map<string, CalendarSyncTarget>();
+  const addTargetForUser = async (userId: string) => {
+    const userSnapshot = await db.collection('users').doc(userId).get();
+    if (!userSnapshot.exists) return;
+    const user = userSnapshot.data() as PlatformUser;
+    if (!user.googleUid || user.isActive === false) return;
+    const connectionSnapshot = await db.collection('calendarConnections').doc(user.googleUid).get();
+    if (!connectionSnapshot.exists) return;
+    const connection = connectionSnapshot.data() as CalendarConnection;
+    if (connection.status !== 'connected') return;
+    targets.set(user.googleUid, { googleUid: user.googleUid, connection, role: user.role });
+  };
+
+  await addTargetForUser(event.ownerId);
+
+  if (event.type === 'shift') {
+    const privilegedUsers = await db.collection('users').where('role', 'in', ['boss', 'supervisor']).get();
+    for (const document of privilegedUsers.docs) {
+      const user = document.data() as PlatformUser;
+      if (user.isActive !== false) await addTargetForUser(document.id);
+    }
+  }
+
+  return [...targets.values()];
+};
+
+const getExistingGoogleEventId = (
+  event: PlatformEvent,
+  connection: CalendarConnection,
+  target?: GoogleSyncTarget,
+) => {
+  if (target?.calendarId === connection.calendarId) return target.eventId;
+  if (event.googleCalendarId === connection.calendarId) return event.googleEventId;
+  return undefined;
+};
+
+const upsertGoogleEvent = async (
+  eventId: string,
+  event: PlatformEvent,
+  connection: CalendarConnection,
+  target?: GoogleSyncTarget,
+) => {
   const oauthClient = getOAuthClient(connection.refreshToken);
   const calendarApi = google.calendar({ version: 'v3', auth: oauthClient });
   const requestBody = toGoogleEvent(eventId, event);
+  const existingGoogleEventId = getExistingGoogleEventId(event, connection, target);
 
-  if (event.googleEventId && event.googleCalendarId === connection.calendarId) {
+  if (existingGoogleEventId) {
     try {
       await calendarApi.events.patch({
         calendarId: connection.calendarId,
-        eventId: event.googleEventId,
+        eventId: existingGoogleEventId,
         requestBody,
       });
-      return event.googleEventId;
+      return existingGoogleEventId;
     } catch (error) {
       const status = (error as { code?: number }).code;
       if (status !== 404 && status !== 410) throw error;
@@ -328,29 +384,75 @@ const upsertGoogleEvent = async (eventId: string, event: PlatformEvent, connecti
   return created.data.id;
 };
 
-const deleteGoogleEvent = async (event: PlatformEvent) => {
-  if (!event.googleEventId || !event.googleCalendarId) return;
-  const connection = await getConnectionForPlatformUser(event.ownerId);
-  if (!connection) return;
+const deleteGoogleEventTarget = async (connection: CalendarConnection, target: GoogleSyncTarget) => {
   const oauthClient = getOAuthClient(connection.refreshToken);
   const calendarApi = google.calendar({ version: 'v3', auth: oauthClient });
   try {
-    await calendarApi.events.delete({ calendarId: event.googleCalendarId, eventId: event.googleEventId });
+    await calendarApi.events.delete({ calendarId: target.calendarId, eventId: target.eventId });
   } catch (error) {
     const status = (error as { code?: number }).code;
     if (status !== 404 && status !== 410) throw error;
   }
 };
 
-const syncExistingEvents = async (connection: CalendarConnection) => {
-  const snapshot = await db.collection('events').where('ownerId', '==', connection.platformUserId).get();
-  for (const document of snapshot.docs) {
+const deleteGoogleEvent = async (event: PlatformEvent) => {
+  const targets = event.googleSyncTargets || {};
+  for (const [googleUid, target] of Object.entries(targets)) {
+    const connectionSnapshot = await db.collection('calendarConnections').doc(googleUid).get();
+    if (!connectionSnapshot.exists) continue;
+    const connection = connectionSnapshot.data() as CalendarConnection;
+    if (connection.status !== 'connected') continue;
+    await deleteGoogleEventTarget(connection, target);
+  }
+
+  if (event.googleEventId && event.googleCalendarId) {
+    const connection = await getConnectionForPlatformUser(event.ownerId);
+    if (!connection) return;
+    await deleteGoogleEventTarget(connection, {
+      calendarId: event.googleCalendarId,
+      eventId: event.googleEventId,
+    });
+  }
+};
+
+const syncExistingEvents = async (connection: CalendarConnection, googleUid: string) => {
+  const profileSnapshot = await db.collection('users').doc(connection.platformUserId).get();
+  const profile = profileSnapshot.exists ? profileSnapshot.data() as PlatformUser : null;
+  const ownedEventsSnapshot = await db.collection('events').where('ownerId', '==', connection.platformUserId).get();
+  const snapshots = [ownedEventsSnapshot];
+  if (profile?.role === 'boss' || profile?.role === 'supervisor') {
+    snapshots.push(await db.collection('events').where('type', '==', 'shift').get());
+  }
+
+  const documents = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
+  for (const snapshot of snapshots) {
+    for (const document of snapshot.docs) {
+      documents.set(document.id, document);
+    }
+  }
+
+  for (const document of documents.values()) {
     const event = document.data() as PlatformEvent;
+    if (profile?.role !== 'boss' && profile?.role !== 'supervisor' && event.ownerId !== connection.platformUserId) continue;
     try {
-      const googleEventId = await upsertGoogleEvent(document.id, event, connection);
+      const googleEventId = await upsertGoogleEvent(
+        document.id,
+        event,
+        connection,
+        event.googleSyncTargets?.[googleUid],
+      );
       await document.ref.set({
-        googleEventId,
-        googleCalendarId: connection.calendarId,
+        googleSyncTargets: {
+          [googleUid]: {
+            calendarId: connection.calendarId,
+            eventId: googleEventId,
+            syncedAt: new Date().toISOString(),
+          },
+        },
+        ...(event.ownerId === connection.platformUserId ? {
+          googleEventId,
+          googleCalendarId: connection.calendarId,
+        } : {}),
         googleSyncStatus: 'synced',
         googleSyncError: FieldValue.delete(),
       }, { merge: true });
@@ -439,7 +541,7 @@ export const googleCalendarOAuthCallback = onRequest(
         updatedAt: new Date().toISOString(),
       });
       await stateRef.delete();
-      await syncExistingEvents(connection);
+      await syncExistingEvents(connection, stateData.uid);
       return redirectWithStatus('connected');
     } catch (error) {
       console.error('Google Calendar OAuth callback failed', error);
@@ -494,21 +596,55 @@ export const syncPlatformEventToGoogle = onDocumentWritten(
 
     try {
       if (before && before.ownerId !== after.ownerId) await deleteGoogleEvent(before);
-      const connection = await getConnectionForPlatformUser(after.ownerId);
-      if (!connection) {
+      const eventForSync = before?.ownerId !== after.ownerId
+        ? {
+          ...after,
+          googleEventId: undefined,
+          googleCalendarId: undefined,
+          googleSyncTargets: {},
+        }
+        : after;
+      const targets = await getCalendarSyncTargets(eventForSync);
+      if (targets.length === 0) {
         await event.data?.after.ref.set({ googleSyncStatus: 'not_connected' }, { merge: true });
         return;
       }
-      const eventForSync = before?.ownerId !== after.ownerId
-        ? { ...after, googleEventId: undefined, googleCalendarId: undefined }
-        : after;
-      const googleEventId = await upsertGoogleEvent(eventId, eventForSync, connection);
-      await event.data?.after.ref.set({
-        googleEventId,
-        googleCalendarId: connection.calendarId,
+
+      const updatePayload: Record<string, unknown> = {
         googleSyncStatus: 'synced',
         googleSyncError: FieldValue.delete(),
-      }, { merge: true });
+      };
+      const desiredGoogleUids = new Set(targets.map(target => target.googleUid));
+      const existingTargets = eventForSync.googleSyncTargets || {};
+      for (const [googleUid, target] of Object.entries(existingTargets)) {
+        if (desiredGoogleUids.has(googleUid)) continue;
+        const connectionSnapshot = await db.collection('calendarConnections').doc(googleUid).get();
+        if (connectionSnapshot.exists) {
+          const connection = connectionSnapshot.data() as CalendarConnection;
+          if (connection.status === 'connected') await deleteGoogleEventTarget(connection, target);
+        }
+        updatePayload[`googleSyncTargets.${googleUid}`] = FieldValue.delete();
+      }
+
+      for (const target of targets) {
+        const googleEventId = await upsertGoogleEvent(
+          eventId,
+          eventForSync,
+          target.connection,
+          existingTargets[target.googleUid],
+        );
+        updatePayload[`googleSyncTargets.${target.googleUid}`] = {
+          calendarId: target.connection.calendarId,
+          eventId: googleEventId,
+          syncedAt: new Date().toISOString(),
+        };
+        if (target.connection.platformUserId === after.ownerId) {
+          updatePayload.googleEventId = googleEventId;
+          updatePayload.googleCalendarId = target.connection.calendarId;
+        }
+      }
+
+      await event.data?.after.ref.update(updatePayload);
     } catch (error) {
       console.error(`Failed to sync platform event ${eventId}`, error);
       await event.data?.after.ref.set({
