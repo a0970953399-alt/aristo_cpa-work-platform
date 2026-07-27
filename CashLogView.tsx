@@ -124,6 +124,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
     const isImportHeaderRow = (row: any[]) => row[0]?.toString().trim() === '日期';
 
+    const normalizeClientNameForMatch = (value: unknown) => value?.toString().trim() || '';
+
     // --- Keyboard Shortcuts ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -156,6 +158,9 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
                 const rows = data.filter(row => row.some(cell => cell !== undefined && cell !== null && cell !== ''));
                 const importRows = rows.length > 0 && isImportHeaderRow(rows[0]) ? rows.slice(1) : rows;
+                const clientByName = new Map(
+                    clients.map(client => [normalizeClientNameForMatch(client.name), client]),
+                );
 
                 const newRecords: CashRecord[] = [];
                 importRows.forEach(row => {
@@ -183,13 +188,18 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                         // 📁 格式二：事務所零用金 (A:日期, B:金額(正數收入/負數支出), C:費用類別, D:客戶名稱, E:說明, F:備註, G:傳票號碼)
                         const signedAmount = Number(row[1]) || 0;
                         const isIncome = signedAmount >= 0;
+                        const importedClientName = normalizeClientNameForMatch(row[3]);
+                        const matchedClient = viewMode === 'shuoye' && !isIncome
+                            ? clientByName.get(importedClientName)
+                            : undefined;
                         newRecords.push({
                             id: Date.now() + Math.random().toString(),
                             date: dateStr,
                             type: isIncome ? 'income' : 'expense',
                             amount: Math.abs(signedAmount),
                             category: row[2]?.toString() || '',
-                            clientName: row[3]?.toString() || '',
+                            clientId: matchedClient?.id as any,
+                            clientName: matchedClient?.name || importedClientName,
                             description: row[4]?.toString() || '',
                             note: row[5]?.toString() || '',
                             voucherId: row[6]?.toString() || '',
