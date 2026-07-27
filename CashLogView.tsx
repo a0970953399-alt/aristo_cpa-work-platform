@@ -103,6 +103,27 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
 
     const fileInputRef = useRef<HTMLInputElement>(null);
 
+    const padDatePart = (value: number) => value.toString().padStart(2, '0');
+
+    const normalizeImportedDate = (value: unknown): string => {
+        if (typeof value === 'number') {
+            const excelDate = new Date((value - (25567 + 2)) * 86400 * 1000);
+            return excelDate.toISOString().split('T')[0];
+        }
+
+        const rawDate = value?.toString().trim() || '';
+        const dateMatch = rawDate.match(/^(\d{2,4})[/-](\d{1,2})[/-](\d{1,2})$/);
+        if (!dateMatch) return rawDate;
+
+        const rawYear = Number(dateMatch[1]);
+        const year = rawYear < 1911 ? rawYear + 1911 : rawYear;
+        const month = padDatePart(Number(dateMatch[2]));
+        const day = padDatePart(Number(dateMatch[3]));
+        return `${year}-${month}-${day}`;
+    };
+
+    const isImportHeaderRow = (row: any[]) => row[0]?.toString().trim() === '日期';
+
     // --- Keyboard Shortcuts ---
     useEffect(() => {
         const handleKeyDown = (e: KeyboardEvent) => {
@@ -133,16 +154,13 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 const ws = wb.Sheets[wb.SheetNames[0]];
                 const data = XLSX.utils.sheet_to_json(ws, { header: 1 }) as any[][];
 
-                if (data.length > 0) data.shift(); // 移除標題列
+                const rows = data.filter(row => row.some(cell => cell !== undefined && cell !== null && cell !== ''));
+                const importRows = rows.length > 0 && isImportHeaderRow(rows[0]) ? rows.slice(1) : rows;
 
                 const newRecords: CashRecord[] = [];
-                data.forEach(row => {
+                importRows.forEach(row => {
                     if (!row[0]) return;
-                    let dateStr = row[0];
-                    if (typeof row[0] === 'number') { // 處理 Excel 內建日期格式
-                         const excelDate = new Date((row[0] - (25567 + 2)) * 86400 * 1000);
-                         dateStr = excelDate.toISOString().split('T')[0];
-                    }
+                    const dateStr = normalizeImportedDate(row[0]);
 
                     if (viewMode === 'client_detail') {
                         // 📁 格式一：客戶代墊款 (A:日期, B:金額, C:代墊費用, D:說明, E:請款單編號)
