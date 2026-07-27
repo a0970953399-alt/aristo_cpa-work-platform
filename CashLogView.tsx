@@ -162,19 +162,19 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             voucherId: ''
                         });
                     } else {
-                        // 📁 格式二：事務所零用金 (A:日期, B:類型(收入/支出), C:金額, D:費用類別, E:客戶名稱, F:說明, G:備註, H:傳票號碼)
-                        const typeStr = row[1]?.toString().trim() || '支出';
-                        const isIncome = typeStr === '收入';
+                        // 📁 格式二：事務所零用金 (A:日期, B:金額(正數收入/負數支出), C:費用類別, D:客戶名稱, E:說明, F:備註, G:傳票號碼)
+                        const signedAmount = Number(row[1]) || 0;
+                        const isIncome = signedAmount >= 0;
                         newRecords.push({
                             id: Date.now() + Math.random().toString(),
                             date: dateStr,
                             type: isIncome ? 'income' : 'expense',
-                            amount: Number(row[2]) || 0,
-                            category: row[3]?.toString() || '',
-                            clientName: row[4]?.toString() || '',
-                            description: row[5]?.toString() || '',
-                            note: row[6]?.toString() || '',
-                            voucherId: row[7]?.toString() || '',
+                            amount: Math.abs(signedAmount),
+                            category: row[2]?.toString() || '',
+                            clientName: row[3]?.toString() || '',
+                            description: row[4]?.toString() || '',
+                            note: row[5]?.toString() || '',
+                            voucherId: row[6]?.toString() || '',
                             account: viewMode as CashAccountType,
                             isReimbursed: false
                         });
