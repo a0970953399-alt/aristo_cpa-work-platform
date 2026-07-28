@@ -11,6 +11,7 @@ initializeApp();
 
 const db = getFirestore();
 const REGION = 'asia-east1';
+const GOOGLE_EVENT_FORMAT_VERSION = 2;
 const GOOGLE_OAUTH_CLIENT_ID = defineSecret('GOOGLE_OAUTH_CLIENT_ID');
 const GOOGLE_OAUTH_CLIENT_SECRET = defineSecret('GOOGLE_OAUTH_CLIENT_SECRET');
 const BOOTSTRAP_ADMIN_EMAIL = defineSecret('BOOTSTRAP_ADMIN_EMAIL');
@@ -51,6 +52,7 @@ type CalendarConnection = {
   platformUserId: string;
   status: 'connected' | 'disconnected';
   connectedAt: string;
+  googleEventFormatVersion?: number;
 };
 
 type GoogleSyncTarget = {
@@ -281,20 +283,24 @@ const getShiftTimes = (title: string) => {
   return ['09:30:00', '17:30:00'];
 };
 
-const toGoogleEvent = (eventId: string, event: PlatformEvent): calendar_v3.Schema$Event => {
+const toGoogleEvent = (
+  eventId: string,
+  event: PlatformEvent,
+  recipientRole?: PlatformUser['role'],
+): calendar_v3.Schema$Event => {
+  const isWorkerRecipient = recipientRole === 'intern' || recipientRole === 'trainee';
   const isAssignedReminder = event.type === 'reminder'
     && Boolean(event.creatorId)
     && event.creatorId !== event.ownerId;
   const description = [
-    isAssignedReminder ? `提醒對象：${event.ownerName}` : undefined,
     event.description?.trim(),
-    '此事件由碩業工作平台同步，請回到平台修改。',
+    '僅作為提醒，請以碩業工作平台為準',
   ].filter(Boolean).join('\n\n');
 
   if (event.type === 'shift') {
     const [startTime, endTime] = getShiftTimes(event.title);
     return {
-      summary: `${event.ownerName} - ${event.title}`,
+      summary: isWorkerRecipient ? '碩業排班' : `${event.ownerName}-排班`,
       description,
       start: { dateTime: `${event.date}T${startTime}+08:00`, timeZone: 'Asia/Taipei' },
       end: { dateTime: `${event.date}T${endTime}+08:00`, timeZone: 'Asia/Taipei' },
@@ -303,7 +309,11 @@ const toGoogleEvent = (eventId: string, event: PlatformEvent): calendar_v3.Schem
   }
 
   return {
-    summary: isAssignedReminder ? `${event.ownerName}｜${event.title}` : event.title,
+    summary: isWorkerRecipient
+      ? `碩業-${event.title}`
+      : isAssignedReminder
+        ? `${event.ownerName}｜${event.title}`
+        : event.title,
     description,
     start: { date: event.date },
     end: { date: addOneDay(event.date) },
@@ -366,10 +376,11 @@ const upsertGoogleEvent = async (
   event: PlatformEvent,
   connection: CalendarConnection,
   target?: GoogleSyncTarget,
+  recipientRole?: PlatformUser['role'],
 ) => {
   const oauthClient = getOAuthClient(connection.refreshToken);
   const calendarApi = google.calendar({ version: 'v3', auth: oauthClient });
-  const requestBody = toGoogleEvent(eventId, event);
+  const requestBody = toGoogleEvent(eventId, event, recipientRole);
   const existingGoogleEventId = getExistingGoogleEventId(event, connection, target);
 
   if (existingGoogleEventId) {
@@ -453,6 +464,7 @@ const syncExistingEvents = async (connection: CalendarConnection, googleUid: str
         event,
         connection,
         event.googleSyncTargets?.[googleUid],
+        profile?.role,
       );
       await document.ref.set({
         googleSyncTargets: {
@@ -555,6 +567,10 @@ export const googleCalendarOAuthCallback = onRequest(
       });
       await stateRef.delete();
       await syncExistingEvents(connection, stateData.uid);
+      await db.collection('calendarConnections').doc(stateData.uid).set({
+        googleEventFormatVersion: GOOGLE_EVENT_FORMAT_VERSION,
+        formatUpdatedAt: new Date().toISOString(),
+      }, { merge: true });
       return redirectWithStatus('connected');
     } catch (error) {
       console.error('Google Calendar OAuth callback failed', error);
@@ -563,19 +579,29 @@ export const googleCalendarOAuthCallback = onRequest(
   },
 );
 
-export const getCalendarConnectionStatus = onCall(async request => {
-  const auth = requireAuth(request.auth);
-  await requireLinkedProfile(auth.uid);
-  const snapshot = await db.collection('calendarConnections').doc(auth.uid).get();
-  if (!snapshot.exists || snapshot.data()?.status !== 'connected') return { connected: false };
-  const connection = snapshot.data() as CalendarConnection;
-  return {
-    connected: true,
-    calendarName: connection.calendarName,
-    googleEmail: connection.googleEmail,
-    connectedAt: connection.connectedAt,
-  };
-});
+export const getCalendarConnectionStatus = onCall(
+  { secrets: [GOOGLE_OAUTH_CLIENT_ID, GOOGLE_OAUTH_CLIENT_SECRET] },
+  async request => {
+    const auth = requireAuth(request.auth);
+    await requireLinkedProfile(auth.uid);
+    const snapshot = await db.collection('calendarConnections').doc(auth.uid).get();
+    if (!snapshot.exists || snapshot.data()?.status !== 'connected') return { connected: false };
+    const connection = snapshot.data() as CalendarConnection;
+    if ((connection.googleEventFormatVersion || 0) < GOOGLE_EVENT_FORMAT_VERSION) {
+      await syncExistingEvents(connection, auth.uid);
+      await snapshot.ref.set({
+        googleEventFormatVersion: GOOGLE_EVENT_FORMAT_VERSION,
+        formatUpdatedAt: new Date().toISOString(),
+      }, { merge: true });
+    }
+    return {
+      connected: true,
+      calendarName: connection.calendarName,
+      googleEmail: connection.googleEmail,
+      connectedAt: connection.connectedAt,
+    };
+  },
+);
 
 export const disconnectGoogleCalendar = onCall(async request => {
   const auth = requireAuth(request.auth);
@@ -645,6 +671,7 @@ export const syncPlatformEventToGoogle = onDocumentWritten(
           eventForSync,
           target.connection,
           existingTargets[target.googleUid],
+          target.role,
         );
         updatePayload[`googleSyncTargets.${target.googleUid}`] = {
           calendarId: target.connection.calendarId,
