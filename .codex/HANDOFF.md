@@ -2,7 +2,7 @@
 
 更新日期：2026-07-28
 基準分支：`main`
-基準提交：`7e5a090 Link Shuoye cash imports to client advances`
+基準提交：`e6e7dd3 Add Codex handoff workflow and lock dependencies`
 
 ## 目前狀態
 
@@ -30,6 +30,16 @@
 - 使用 `googleSyncTargets` 分別保存每個 Google 帳號的日曆事件 ID，支援同一排班同步到多人日曆。
 - Google 日曆仍是單向同步；Google 端修改不會回寫平台。
 
+### 指定人員提醒
+
+- 老闆與主管可在行事曆替在職工讀生或實習生建立指定提醒，也可修改日期、內容、對象或刪除。
+- 被提醒者可在自己的行事曆與今日提醒視窗查看，但不能修改或刪除主管指派的提醒。
+- 所有老闆與主管可在平台行事曆看到指定提醒；提醒列使用淡黃色與左側琥珀色線條，主管畫面另顯示對象姓名。
+- 工讀生或實習生自己建立的私人提醒仍只有本人可見，不會公開給管理者。
+- 今日提醒視窗已排除當日排班，只顯示提醒事項。
+- 指定提醒的 Google 日曆標題為「人員姓名｜提醒標題」，同步給被提醒者及所有已連接的在職老闆與主管。
+- 2026-07-28 最新 Functions 已成功部署；前端由 GitHub `main` 的 Vercel 流程發布。
+
 ### 零用金匯入
 
 - `b3d93fc`：事務所零用金匯入改以金額正負判斷收入與支出，寫入時保存絕對值。
@@ -49,6 +59,7 @@
 
 - 以實際主管及員工帳號再次確認 Google 登入持續狀態、主管審核與共用電腦登出流程。
 - 確認 `6b033ad` 的 Functions 版本是否已部署到 Firebase；GitHub 有程式碼不代表後端一定已部署。
+- 以主管及工讀生兩個實際帳號確認指定提醒的平台可見性、唯讀權限與多方 Google 日曆同步。
 - 用實際零用金 Excel 檔驗證三項匯入調整：金額正負、日期正規化、客戶代墊款連結。
 - 所有人完成 Google 綁定並穩定使用後，再討論移除 PIN 與全面收緊 Firestore Auth 規則。
 
@@ -57,13 +68,15 @@
 - 前端驗證：在專案根目錄執行 `npm.cmd run build`。
 - Functions 驗證：在 `functions` 目錄執行 `npm.cmd run build`。
 - 程式修改後執行 `git diff --check`。
-- 2026-07-28 已確認前端與 Functions 建置成功，`git diff --check` 通過。
+- 2026-07-28 已確認指定提醒修改的前端與 Functions 建置成功，`git diff --check` 通過。
+- 已在本機主管頁面檢查新增提醒視窗與人員選單；未送出測試事件，因此沒有修改正式 Firebase 資料。
 - Functions 部署前確認 `functions/.env` 的公開 App URL，Secret Manager 的值不可寫入 Git。
 - 推送前只加入本次相關檔案與本交接文件。
 
 ## 相關檔案
 
 - Google 整合：`LoginScreen.tsx`、`App.tsx`、`Dashboard.tsx`、`googleIntegrationService.ts`
+- 行事曆顯示：`CalendarView.tsx`
 - Calendar 後端：`functions/src/index.ts`
 - Firebase：`firebase.ts`、`firebase.json`、`firestore.rules`
 - 零用金匯入：`CashLogView.tsx`

@@ -37,6 +37,7 @@ type PlatformEvent = {
   description?: string;
   ownerId: string;
   ownerName: string;
+  creatorId?: string;
   googleEventId?: string;
   googleCalendarId?: string;
   googleSyncTargets?: Record<string, GoogleSyncTarget>;
@@ -281,7 +282,11 @@ const getShiftTimes = (title: string) => {
 };
 
 const toGoogleEvent = (eventId: string, event: PlatformEvent): calendar_v3.Schema$Event => {
+  const isAssignedReminder = event.type === 'reminder'
+    && Boolean(event.creatorId)
+    && event.creatorId !== event.ownerId;
   const description = [
+    isAssignedReminder ? `提醒對象：${event.ownerName}` : undefined,
     event.description?.trim(),
     '此事件由碩業工作平台同步，請回到平台修改。',
   ].filter(Boolean).join('\n\n');
@@ -298,7 +303,7 @@ const toGoogleEvent = (eventId: string, event: PlatformEvent): calendar_v3.Schem
   }
 
   return {
-    summary: event.title,
+    summary: isAssignedReminder ? `${event.ownerName}｜${event.title}` : event.title,
     description,
     start: { date: event.date },
     end: { date: addOneDay(event.date) },
@@ -333,7 +338,9 @@ const getCalendarSyncTargets = async (event: PlatformEvent): Promise<CalendarSyn
 
   await addTargetForUser(event.ownerId);
 
-  if (event.type === 'shift') {
+  const isSharedEvent = event.type === 'shift'
+    || (event.type === 'reminder' && Boolean(event.creatorId) && event.creatorId !== event.ownerId);
+  if (isSharedEvent) {
     const privilegedUsers = await db.collection('users').where('role', 'in', ['boss', 'supervisor']).get();
     for (const document of privilegedUsers.docs) {
       const user = document.data() as PlatformUser;
@@ -422,6 +429,7 @@ const syncExistingEvents = async (connection: CalendarConnection, googleUid: str
   const snapshots = [ownedEventsSnapshot];
   if (profile?.role === 'boss' || profile?.role === 'supervisor') {
     snapshots.push(await db.collection('events').where('type', '==', 'shift').get());
+    snapshots.push(await db.collection('events').where('type', '==', 'reminder').get());
   }
 
   const documents = new Map<string, FirebaseFirestore.QueryDocumentSnapshot>();
@@ -433,7 +441,12 @@ const syncExistingEvents = async (connection: CalendarConnection, googleUid: str
 
   for (const document of documents.values()) {
     const event = document.data() as PlatformEvent;
-    if (profile?.role !== 'boss' && profile?.role !== 'supervisor' && event.ownerId !== connection.platformUserId) continue;
+    const isPrivileged = profile?.role === 'boss' || profile?.role === 'supervisor';
+    const isAssignedReminder = event.type === 'reminder'
+      && Boolean(event.creatorId)
+      && event.creatorId !== event.ownerId;
+    if (event.ownerId !== connection.platformUserId
+      && !(isPrivileged && (event.type === 'shift' || isAssignedReminder))) continue;
     try {
       const googleEventId = await upsertGoogleEvent(
         document.id,

@@ -187,6 +187,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     (user.role === UserRole.INTERN || user.role === UserRole.TRAINEE) && user.isActive !== false
   );
   const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
+  const isAssignedReminder = (event: CalendarEvent | null) =>
+    event?.type === 'reminder' && Boolean(event.creatorId) && event.creatorId !== event.ownerId;
+  const canManageSelectedEvent = !selectedEvent
+    || isPrivileged
+    || (selectedEvent.type === 'reminder'
+      && selectedEvent.ownerId === currentUser.id
+      && !isAssignedReminder(selectedEvent));
   const handleRealtimeUpdate = () => {};
 
   // -----------------------------------------------------------
@@ -388,9 +395,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       const reminders = events.filter(e => {
           const eventDate = e.date.replace(/\//g, '-');
           if (eventDate !== today) return false;
-          if (e.type === 'shift' && e.ownerId === currentUser.id) return true;
-          if (e.type === 'reminder' && e.ownerId === currentUser.id) return true;
-          return false;
+          return e.type === 'reminder' && e.ownerId === currentUser.id;
       });
       if (reminders.length > 0) { setDailyReminders(reminders); setIsDailyReminderOpen(true); }
   };
@@ -654,6 +659,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
 
   const handleEventSubmit = async () => {
+    if (selectedEvent && !canManageSelectedEvent) {
+      alert("主管指派的提醒只能查看");
+      return;
+    }
+
     let finalTitle = newEventTitle;
     if (newEventType === 'shift') {
       const owner = users.find(u => u.id === newEventOwnerId);
@@ -677,8 +687,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         alert("請輸入標題");
         return;
       }
-      if (newEventOwnerId !== currentUser.id) {
-        alert("提醒事項只能設定給自己");
+      const owner = users.find(u => u.id === newEventOwnerId);
+      const canAssignReminder = isPrivileged
+        && owner
+        && (owner.role === UserRole.INTERN || owner.role === UserRole.TRAINEE)
+        && owner.isActive !== false;
+      if (newEventOwnerId !== currentUser.id && !canAssignReminder) {
+        alert("提醒對象只能選擇自己，或在職的工讀生與實習生");
         return;
       }
     }
@@ -1472,14 +1487,16 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   
                   <div className="space-y-3 max-h-64 overflow-y-auto mb-6 custom-scrollbar px-2">
                       {dailyReminders.map(ev => (
-                          <div key={ev.id} className={`p-3 rounded-xl border text-left ${ev.type === 'shift' ? 'bg-blue-50 border-blue-200' : 'bg-yellow-50 border-yellow-200'}`}>
+                          <div key={ev.id} className="border-l-4 border-amber-400 bg-amber-50 p-3 text-left">
                               <div className="flex items-center gap-2 mb-1">
-                                  <span className={`text-xs font-bold px-2 py-0.5 rounded ${ev.type === 'shift' ? 'bg-blue-200 text-blue-800' : 'bg-yellow-200 text-yellow-800'}`}>
-                                      {ev.type === 'shift' ? '排班' : '提醒'}
-                                  </span>
                                   <span className="font-bold text-gray-700 text-base">{ev.title}</span>
                               </div>
                               {ev.description && <p className="text-sm text-gray-500">{ev.description}</p>}
+                              {isAssignedReminder(ev) && (
+                                <p className="mt-2 text-xs font-medium text-amber-700">
+                                  由 {users.find(user => user.id === ev.creatorId)?.name || '主管'} 建立
+                                </p>
+                              )}
                           </div>
                       ))}
                   </div>
@@ -1531,7 +1548,22 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                               </select>
                               <p className="text-xs text-gray-400">每位人員同一天只能有一個班別。</p>
                           </div>
-                      ) : <div className="text-xs text-gray-400 italic">* 提醒事項僅自己可見</div>}
+                      ) : isPrivileged ? (
+                          <div className="space-y-2">
+                              <label className="block text-sm font-bold text-gray-700">提醒對象</label>
+                              <select value={newEventOwnerId} onChange={(e) => setNewEventOwnerId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-amber-500 outline-none bg-white text-base">
+                                  <option value={currentUser.id}>自己（{currentUser.name}）</option>
+                                  {activeShiftUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
+                              </select>
+                              <p className="text-xs text-gray-400">指定提醒會顯示給所有主管、老闆與被提醒者。</p>
+                          </div>
+                      ) : (
+                          <div className="text-xs text-gray-400 italic">
+                              {selectedEvent && isAssignedReminder(selectedEvent)
+                                ? `提醒對象：${selectedEvent.ownerName}。此提醒由主管建立，僅可查看。`
+                                : '* 自己建立的提醒僅自己可見'}
+                          </div>
+                      )}
 
                       {newEventType === 'shift' ? (
                           <div>
@@ -1555,15 +1587,15 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                               </div>
                           </div>
                       ) : (
-                          <div><label className="block text-sm font-bold text-gray-700 mb-1">標題</label><input type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="例如：跟客戶開會..." /></div>
+                          <div><label className="block text-sm font-bold text-gray-700 mb-1">標題</label><input type="text" value={newEventTitle} onChange={(e) => setNewEventTitle(e.target.value)} readOnly={!canManageSelectedEvent} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base read-only:bg-gray-50 read-only:text-gray-600" placeholder="例如：跟客戶開會..." /></div>
                       )}
 
-                      <div><label className="block text-sm font-bold text-gray-700 mb-1">備註 (選填)</label><textarea value={newEventDesc} onChange={(e) => setNewEventDesc(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none h-24 resize-none text-base" placeholder="輸入詳細內容..." readOnly={selectedEvent && selectedEvent.type === 'shift' && !isPrivileged} /></div>
+                      <div><label className="block text-sm font-bold text-gray-700 mb-1">備註 (選填)</label><textarea value={newEventDesc} onChange={(e) => setNewEventDesc(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none h-24 resize-none text-base read-only:bg-gray-50 read-only:text-gray-600" placeholder="輸入詳細內容..." readOnly={!canManageSelectedEvent || (selectedEvent?.type === 'shift' && !isPrivileged)} /></div>
                   </div>
 
                   <div className="p-6 border-t bg-white flex gap-3">
-                      {selectedEvent && ((isPrivileged || (selectedEvent.type === 'reminder' && selectedEvent.ownerId === currentUser.id)) && <button onClick={handleEventDelete} disabled={isLoading} className="px-5 py-2.5 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors text-base">刪除</button>)}
-                      {(!selectedEvent || isPrivileged || (selectedEvent.type === 'reminder' && selectedEvent.ownerId === currentUser.id)) && <button onClick={handleEventSubmit} disabled={isLoading || (newEventType === 'shift' && (!newEventOwnerId || !selectedShiftTitle))} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed text-base">{selectedEvent ? '更新' : '新增'}</button>}
+                      {selectedEvent && canManageSelectedEvent && <button onClick={handleEventDelete} disabled={isLoading} className="px-5 py-2.5 bg-red-50 text-red-600 rounded-xl font-bold hover:bg-red-100 transition-colors text-base">刪除</button>}
+                      {canManageSelectedEvent && <button onClick={handleEventSubmit} disabled={isLoading || (newEventType === 'shift' && (!newEventOwnerId || !selectedShiftTitle))} className="flex-1 bg-blue-600 text-white py-2.5 rounded-xl font-bold hover:bg-blue-700 transition-colors shadow-lg shadow-blue-200 disabled:opacity-50 disabled:cursor-not-allowed text-base">{selectedEvent ? '更新' : '新增'}</button>}
                   </div>
               </div>
           </div>

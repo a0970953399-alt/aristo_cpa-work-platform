@@ -29,6 +29,8 @@ const SHIFT_BADGE_STYLES: Record<string, string> = {
 
 const getShiftLabel = (event: CalendarEvent) => SHIFT_LABELS[event.title] || event.title;
 const getShiftBadgeStyle = (event: CalendarEvent) => SHIFT_BADGE_STYLES[event.title] || 'bg-blue-100 text-blue-700 border-blue-200';
+const isAssignedReminder = (event: CalendarEvent) =>
+    event.type === 'reminder' && Boolean(event.creatorId) && event.creatorId !== event.ownerId;
 const getPersonStyle = (ownerId: string, users: User[]) => {
     const owner = users.find(user => String(user.id) === String(ownerId));
     return getShiftColorStyles(owner?.shiftColorHue ?? getLegacyShiftHue(ownerId));
@@ -88,7 +90,10 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                   const dayEvents = dayObj.isCurrentMonth ? events.filter(e => { 
                       if (e.date !== dateStr) return false; 
                       if (e.type === 'shift') { if (isSupervisor) return true; return e.ownerId === currentUser.id; } 
-                      else if (e.type === 'reminder') { return e.ownerId === currentUser.id; } 
+                      if (e.type === 'reminder') {
+                          if (e.ownerId === currentUser.id) return true;
+                          return isSupervisor && isAssignedReminder(e);
+                      }
                       return false; 
                   }) : []; 
                   
@@ -124,7 +129,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                       <div
                                           key={ev.id}
                                           onClick={(e) => onEventClick(e, ev)}
-                                          className={`relative overflow-hidden text-xs rounded border shadow-sm font-medium hover:brightness-95 transition-all ${isShift ? '' : 'bg-yellow-100 border-yellow-200 text-yellow-800'}`}
+                                          className={`relative overflow-hidden text-xs rounded border shadow-sm font-medium hover:brightness-95 transition-all ${isShift ? '' : 'bg-amber-50 border-amber-200 text-amber-900'}`}
                                           style={isShift && personStyle ? personStyle.card : undefined}
                                       >
                                           {isShift ? (
@@ -133,7 +138,12 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                                   <span className="ml-1 rounded px-2 py-1 text-xs font-black leading-none shrink-0 shadow-sm ring-1 ring-black/10" style={personStyle?.chip}>{ev.ownerName}</span>
                                                   <span className={`rounded border px-1.5 py-0.5 text-[11px] font-black leading-none shrink-0 ${getShiftBadgeStyle(ev)}`}>{getShiftLabel(ev)}</span>
                                               </span>
-                                          ) : <span className="block px-2 py-1.5 truncate">{ev.title}</span>}
+                                          ) : (
+                                              <span className="flex min-w-0 items-center gap-1.5 border-l-4 border-amber-400 px-2 py-1.5">
+                                                  {isSupervisor && <span className="shrink-0 rounded bg-amber-200 px-1.5 py-0.5 font-black text-amber-900">{ev.ownerName}</span>}
+                                                  <span className="truncate font-bold">{ev.title}</span>
+                                              </span>
+                                          )}
                                       </div>
                                   );
                               })} 
@@ -155,6 +165,7 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                               style={ev.type === 'shift' && personStyle ? personStyle.card : undefined}
                                           >
                                               {ev.type === 'shift' && <span className="absolute left-0 top-0 h-full w-1" style={personStyle?.accent}></span>}
+                                              {ev.type === 'reminder' && <span className="absolute left-0 top-0 h-full w-1 bg-amber-400"></span>}
                                               <div className="text-xs font-bold mb-0.5 flex items-center gap-1">
                                                   {ev.type === 'shift' ? (
                                                       <>
@@ -163,8 +174,8 @@ export const CalendarView: React.FC<CalendarViewProps> = ({
                                                       </>
                                                   ) : (
                                                       <>
-                                                          <span className="w-2 h-2 rounded-full bg-yellow-500"></span>
-                                                          <span className="text-yellow-700">{ev.title}</span>
+                                                          {isSupervisor && <span className="ml-1 rounded bg-amber-200 px-1.5 py-0.5 font-black text-amber-900">{ev.ownerName}</span>}
+                                                          <span className="text-amber-800">{ev.title}</span>
                                                       </>
                                                   )}
                                               </div>
