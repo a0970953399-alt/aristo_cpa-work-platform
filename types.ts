@@ -212,7 +212,7 @@ export interface MailRecord {
 }
 
 // ✨ 新增：零用金/代墊款相關定義
-export type CashAccountType = 'shuoye' | 'yongye' | 'puhe';
+export type CashAccountType = 'shuoye' | 'yongye' | 'puhe' | 'client_advance';
 
 export interface CashRecord {
     id: string;
@@ -224,7 +224,7 @@ export interface CashRecord {
     note?: string;              // 備註 (客戶代墊時自動生成 1,2,3... / 內部則為手動)
     
     // 連動相關欄位
-    account: CashAccountType;   // 帳本歸屬 (碩業/永業/璞和)
+    account: CashAccountType;   // 帳本歸屬；client_advance 僅列入客戶請款，不影響事務所金流
     clientId?: string;          // 若有值，代表是「客戶代墊款」 (連動關鍵)
     clientName?: string;        // 客戶名稱
     

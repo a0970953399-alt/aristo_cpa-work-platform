@@ -75,7 +75,7 @@ export const InvoiceGenerator: React.FC<InvoiceGeneratorProps> = ({ onClose, cas
         try {
             const allRecords = await TaskService.fetchCashRecords();
             const unreimbursed = allRecords
-                .filter(r => r.clientId === clientId && !r.isReimbursed)
+                .filter(r => String(r.clientId) === String(clientId) && !r.isReimbursed)
                 .sort((a, b) => new Date(a.date).getTime() - new Date(b.date).getTime());
             setAdvances(unreimbursed);
             setAdvanceTotal(unreimbursed.reduce((sum, r) => sum + Number(r.amount), 0));

@@ -177,7 +177,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             category: row[2]?.toString() || '',
                             description: row[3]?.toString() || '',
                             requestId: row[4]?.toString() || '',
-                            account: 'shuoye', // 代墊預設掛在碩業帳上
+                            account: 'client_advance',
                             clientId: selectedClient!.id,
                             clientName: selectedClient!.name,
                             isReimbursed: false,
@@ -242,7 +242,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
         } else if (viewMode === 'puhe') {
             filtered = records.filter(r => r.account === 'puhe');
         } else if (viewMode === 'client_detail' && selectedClient) {
-            filtered = records.filter(r => r.clientId === selectedClient.id);
+            filtered = records.filter(r => String(r.clientId) === String(selectedClient.id));
         }
 
       // ✨ 新增：年月篩選邏輯 (Excel漏斗)
@@ -919,7 +919,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                             const isAdvanceFromShuoye = viewMode === 'shuoye' && !!modalClientId;
                             let finalAccount: CashAccountType;
                             if (viewMode === 'client_detail' || viewMode === 'all_advances') {
-                                finalAccount = (editingRecord?.account || 'shuoye') as CashAccountType;
+                                finalAccount = (editingRecord?.account || 'client_advance') as CashAccountType;
                             } else {
                                 finalAccount = viewMode as CashAccountType;
                             }
