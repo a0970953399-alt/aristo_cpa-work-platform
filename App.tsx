@@ -8,9 +8,6 @@ import { GoogleIntegrationService } from './googleIntegrationService';
 // 1. 引入通知視窗
 
 const Dashboard = lazy(() => import('./Dashboard'));
-const TimesheetTestMode = lazy(() => import('./TimesheetTestMode').then(module => ({
-  default: module.TimesheetTestMode,
-})));
 const AdminNotification = lazy(() => import('./AdminNotification').then(module => ({
   default: module.AdminNotification,
 })));
@@ -22,15 +19,6 @@ const AppLoading = () => (
 );
 
 const App: React.FC = () => {
-  const isTimesheetTestMode = new URLSearchParams(window.location.search).get('timesheetTest') === '1';
-  if (isTimesheetTestMode) {
-    return (
-      <Suspense fallback={<AppLoading />}>
-        <TimesheetTestMode />
-      </Suspense>
-    );
-  }
-
   const [currentUser, setCurrentUser] = useState<User | null>(null);
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
