@@ -40,8 +40,13 @@ const getHeatmapBg = (hours: number): string => {
     return 'bg-orange-500/50';
 };
 
+const PAID_CUTOFF_DATE = '2026-06-30';
+const PAID_ROW_CLASS = 'bg-emerald-50 hover:bg-emerald-100';
+const PAID_CELL_CLASS = 'bg-emerald-200 ring-1 ring-emerald-500';
+
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
     const canManageTimesheets = hasPlatformPermission(currentUser, 'manageTimesheets');
+    const canSettlePayroll = currentUser.role === UserRole.BOSS;
 
     const [targetUserId, setTargetUserId] = useState<string>(canManageTimesheets ? 'ALL' : currentUser.id);
     const [monthFilter, setMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7));
@@ -81,6 +86,15 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
     }, [liveRecords, targetUserId, monthFilter, bossIds, isMultiMode, canManageTimesheets, currentUser.id]);
 
     const totalHours = useMemo(() => filteredRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0), [filteredRecords]);
+    const paidHours = useMemo(() => filteredRecords.reduce((sum, r) => (
+        r.paidAt || r.date <= PAID_CUTOFF_DATE ? sum + (r.totalHours || 0) : sum
+    ), 0), [filteredRecords]);
+    const unpaidHours = totalHours - paidHours;
+
+    const isSettled = (record: CheckInRecord) => Boolean(record.paidAt) || record.date <= PAID_CUTOFF_DATE;
+    const getDateSettlementState = (recordsForDate: CheckInRecord[]) => (
+        recordsForDate.length > 0 && recordsForDate.every(isSettled)
+    );
 
     // 個人月曆熱力圖：每天工時加總
     const dailyHours = useMemo(() => {
@@ -91,12 +105,31 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         return map;
     }, [filteredRecords]);
 
+    const dailyRecords = useMemo(() => {
+        const map: Record<string, CheckInRecord[]> = {};
+        filteredRecords.forEach(r => {
+            if (!map[r.date]) map[r.date] = [];
+            map[r.date].push(r);
+        });
+        return map;
+    }, [filteredRecords]);
+
     // 多人熱力圖：{ userId → { date → hours } }
     const userDailyHours = useMemo(() => {
         const map: Record<string, Record<string, number>> = {};
         liveRecords.filter(r => !bossIds.has(r.userId) && r.date.startsWith(monthFilter)).forEach(r => {
             if (!map[r.userId]) map[r.userId] = {};
             map[r.userId][r.date] = (map[r.userId][r.date] || 0) + (r.totalHours || 0);
+        });
+        return map;
+    }, [liveRecords, monthFilter, bossIds]);
+
+    const userDailyRecords = useMemo(() => {
+        const map: Record<string, Record<string, CheckInRecord[]>> = {};
+        liveRecords.filter(r => !bossIds.has(r.userId) && r.date.startsWith(monthFilter)).forEach(r => {
+            if (!map[r.userId]) map[r.userId] = {};
+            if (!map[r.userId][r.date]) map[r.userId][r.date] = [];
+            map[r.userId][r.date].push(r);
         });
         return map;
     }, [liveRecords, monthFilter, bossIds]);
@@ -127,6 +160,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
     };
 
     const handleSaveEdit = async (record: CheckInRecord) => {
+        if (isSettled(record)) return;
         const newTotal = calculateHours(editStart, editEnd, editBreak);
         const updated: CheckInRecord = { ...record, date: editDate, startTime: editStart, endTime: editEnd, breakHours: editBreak, totalHours: newTotal };
         await TaskService.updateCheckIn(updated);
@@ -135,6 +169,8 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
     };
 
     const handleDelete = async (id: string) => {
+        const record = liveRecords.find(item => item.id === id);
+        if (record && isSettled(record)) return;
         if (confirm('確定刪除此筆紀錄？')) {
             await TaskService.deleteCheckIn(id);
             onUpdate();
@@ -142,11 +178,25 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
     };
 
     const startEdit = (r: CheckInRecord) => {
+        if (isSettled(r)) return;
         setEditingId(r.id);
         setEditDate(r.date);
         setEditStart(r.startTime);
         setEditEnd(r.endTime || '');
         setEditBreak(r.breakHours);
+    };
+
+    const handleMarkPaid = async (record: CheckInRecord) => {
+        if (!canSettlePayroll || isSettled(record)) return;
+        const confirmed = confirm([
+            '確定要將這筆工時標記為已結算薪資嗎？',
+            '',
+            '結算後將無法再修改工時、刪除紀錄，也不能取消結算。',
+            '請確認薪資已實際發放後再繼續。'
+        ].join('\n'));
+        if (!confirmed) return;
+        await TaskService.markCheckInPaid(record, currentUser);
+        onUpdate();
     };
 
     const Legend = () => (
@@ -158,6 +208,10 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                     <span className="text-xs text-gray-400">{label}</span>
                 </div>
             ))}
+            <div className="flex items-center gap-1.5">
+                <div className={`w-5 h-5 rounded ${PAID_CELL_CLASS}`} />
+                <span className="text-xs text-gray-400">已結算</span>
+            </div>
         </div>
     );
 
@@ -204,8 +258,16 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                         />
                     </div>
                     <div className="flex items-center gap-3">
-                        <div className="bg-blue-50 text-blue-800 px-4 py-2 rounded-xl font-bold text-lg">
-                            總工時：{totalHours} <span className="text-sm">小時</span>
+                        <div className="flex flex-wrap items-center gap-2">
+                            <div className="bg-blue-50 text-blue-800 px-4 py-2 rounded-xl font-bold text-lg">
+                                總工時：{totalHours} <span className="text-sm">小時</span>
+                            </div>
+                            <div className="bg-white border border-gray-200 text-gray-600 px-3 py-2 rounded-xl font-bold text-sm">
+                                未結算：{unpaidHours}
+                            </div>
+                            <div className="bg-emerald-50 border border-emerald-200 text-emerald-800 px-3 py-2 rounded-xl font-bold text-sm">
+                                已結算：{paidHours}
+                            </div>
                         </div>
                         <button
                             onClick={() => setShowHeatmap(v => !v)}
@@ -257,10 +319,11 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                             const dateStr = `${monthFilter}-${String(d).padStart(2, '0')}`;
                                             const hours = userDailyHours[user.id]?.[dateStr] || 0;
                                             const cellKey = `${user.id}:${dateStr}`;
+                                            const settled = getDateSettlementState(userDailyRecords[user.id]?.[dateStr] || []);
                                             return (
                                                 <div
                                                     key={d}
-                                                    className={`w-5 shrink-0 h-8 rounded ${getHeatmapBg(hours)} flex items-center justify-center`}
+                                                    className={`w-5 shrink-0 h-8 rounded ${settled ? PAID_CELL_CLASS : getHeatmapBg(hours)} flex items-center justify-center`}
                                                     onMouseEnter={() => setHoveredMultiCell(cellKey)}
                                                     onMouseLeave={() => setHoveredMultiCell(null)}
                                                 >
@@ -288,10 +351,11 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                             if (!day) return <div key={di} />;
                                             const dateStr = `${monthFilter}-${String(day).padStart(2, '0')}`;
                                             const hours = dailyHours[dateStr] || 0;
+                                            const settled = getDateSettlementState(dailyRecords[dateStr] || []);
                                             return (
                                                 <div
                                                     key={di}
-                                                    className={`${getHeatmapBg(hours)} rounded-xl h-10 flex items-center justify-center transition-all cursor-default`}
+                                                    className={`${settled ? PAID_CELL_CLASS : getHeatmapBg(hours)} rounded-xl h-10 flex items-center justify-center transition-all cursor-default`}
                                                     onMouseEnter={() => setHoveredDate(dateStr)}
                                                     onMouseLeave={() => setHoveredDate(null)}
                                                 >
@@ -324,8 +388,10 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                 {filteredRecords.length === 0 ? (
                                     <tr><td colSpan={canManageTimesheets ? 7 : 6} className="p-10 text-center text-gray-400">沒有符合的紀錄</td></tr>
                                 ) : (
-                                    filteredRecords.map(r => (
-                                        <tr key={r.id} className="hover:bg-gray-50 transition-colors">
+                                    filteredRecords.map(r => {
+                                      const settled = isSettled(r);
+                                      return (
+                                        <tr key={r.id} className={`${settled ? PAID_ROW_CLASS : 'hover:bg-gray-50'} transition-colors`} title={settled ? '此工時已結算，不能修改或刪除' : undefined}>
                                             <td className="p-4 font-bold text-gray-700">{r.userName}</td>
                                             <td className="p-2 text-gray-600 font-mono">
                                                 {editingId === r.id
@@ -353,15 +419,23 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                                     {canManageTimesheets && (
                                                         <td className="p-4 text-center">
                                                             <div className="flex items-center justify-center gap-2">
-                                                                <button onClick={() => startEdit(r)} className="text-gray-400 hover:text-blue-600 text-sm">編輯</button>
-                                                                <button onClick={() => handleDelete(r.id)} className="text-gray-300 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
+                                                                {!settled && (
+                                                                    <>
+                                                                        <button onClick={() => startEdit(r)} className="text-gray-400 hover:text-blue-600 text-sm">編輯</button>
+                                                                        {canSettlePayroll && (
+                                                                            <button onClick={() => handleMarkPaid(r)} className="text-emerald-700 hover:text-emerald-900 text-sm font-bold">結算薪資</button>
+                                                                        )}
+                                                                        <button onClick={() => handleDelete(r.id)} className="text-gray-300 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
+                                                                    </>
+                                                                )}
                                                             </div>
                                                         </td>
                                                     )}
                                                 </>
                                             )}
                                         </tr>
-                                    ))
+                                      );
+                                    })
                                 )}
                             </tbody>
                         </table>

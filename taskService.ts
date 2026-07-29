@@ -602,6 +602,14 @@ export const TaskService = {
       await setDoc(doc(db, "checkIns", String(updatedRecord.id)), updatedRecord, { merge: true });
   },
 
+  async markCheckInPaid(record: CheckInRecord, user: User): Promise<void> {
+      await setDoc(doc(db, "checkIns", String(record.id)), {
+          paidAt: new Date().toISOString(),
+          paidBy: user.name,
+          paidById: user.id,
+      }, { merge: true });
+  },
+
   async deleteCheckIn(recordId: string): Promise<void> {
       await deleteDoc(doc(db, "checkIns", String(recordId)));
   },

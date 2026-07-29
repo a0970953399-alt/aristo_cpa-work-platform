@@ -204,6 +204,9 @@ export interface CheckInRecord {
     endTime?: string;   // 格式: HH:mm (上班時是空的)
     breakHours: number; // 午休扣除時數
     totalHours: number; // 最終計算工時
+    paidAt?: string;    // 薪資結算時間；一旦寫入即視為不可再修改
+    paidBy?: string;    // 結算人員姓名
+    paidById?: string;  // 結算人員 ID
 }
 
 export type MessageCategory = 'announcement' | 'bug' | 'chat';

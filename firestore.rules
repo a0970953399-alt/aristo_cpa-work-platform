@@ -26,6 +26,10 @@ service cloud.firestore {
       return isActiveUser() && profile().role in ['boss', 'supervisor'];
     }
 
+    function isBoss() {
+      return isActiveUser() && profile().role == 'boss';
+    }
+
     function hasPermission(permission) {
       return isPrivileged()
         || (isActiveUser() && profile().permissions[permission] == true);
@@ -49,6 +53,26 @@ service cloud.firestore {
 
     function canDeleteRecords() {
       return hasPermission('canDeleteRecords');
+    }
+
+    function paidFields() {
+      return ['paidAt', 'paidBy', 'paidById'];
+    }
+
+    function hasNoPaidFields() {
+      return !request.resource.data.keys().hasAny(paidFields());
+    }
+
+    function changesPaidFieldsOnly() {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(paidFields());
+    }
+
+    function changesNoPaidFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny(paidFields());
+    }
+
+    function isEditableCheckIn() {
+      return resource.data.date > '2026-06-30' && resource.data.paidAt == null;
     }
 
     match /users/{userId} {
@@ -102,12 +126,22 @@ service cloud.firestore {
       allow read: if hasPermission('manageTimesheets')
         || (isActiveUser() && resource.data.userId == profile().userId);
       allow create: if hasPermission('manageTimesheets')
-        || (isActiveUser() && request.resource.data.userId == profile().userId);
+        && hasNoPaidFields();
+      allow create: if isActiveUser()
+        && request.resource.data.userId == profile().userId
+        && hasNoPaidFields();
       allow update: if hasPermission('manageTimesheets')
-        || (isActiveUser()
+        && isEditableCheckIn()
+        && changesNoPaidFields();
+      allow update: if isActiveUser()
+          && isEditableCheckIn()
           && resource.data.userId == profile().userId
-          && request.resource.data.userId == profile().userId);
-      allow delete: if hasPermission('manageTimesheets') && canDeleteRecords();
+          && request.resource.data.userId == profile().userId
+          && changesNoPaidFields();
+      allow update: if isBoss()
+        && isEditableCheckIn()
+        && changesPaidFieldsOnly();
+      allow delete: if hasPermission('manageTimesheets') && canDeleteRecords() && isEditableCheckIn();
     }
 
     match /messages/{messageId} {
