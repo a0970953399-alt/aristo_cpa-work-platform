@@ -33,10 +33,12 @@ type PlatformUser = {
 };
 
 type PlatformPermissions = {
+  clientTasks?: boolean;
+  clientData?: boolean;
   cash?: boolean;
-  clients?: boolean;
   mail?: boolean;
   payroll?: boolean;
+  manageTimesheets?: boolean;
   canDeleteRecords?: boolean;
 };
 
@@ -93,10 +95,12 @@ const normalizePermissions = (value: unknown): PlatformPermissions => {
   if (!value || typeof value !== 'object') return {};
   const source = value as Record<string, unknown>;
   return {
+    ...(source.clientTasks === true ? { clientTasks: true } : {}),
+    ...(source.clientData === true ? { clientData: true } : {}),
     ...(source.cash === true ? { cash: true } : {}),
-    ...(source.clients === true ? { clients: true } : {}),
     ...(source.mail === true ? { mail: true } : {}),
     ...(source.payroll === true ? { payroll: true } : {}),
+    ...(source.manageTimesheets === true ? { manageTimesheets: true } : {}),
     ...(source.canDeleteRecords === true ? { canDeleteRecords: true } : {}),
   };
 };

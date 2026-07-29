@@ -5,6 +5,8 @@ import { ListView } from './ListView';
 import { TaskService } from './taskService';
 import { NotificationService } from './notificationService';
 import { GoogleIntegrationService } from './googleIntegrationService';
+import { EXTRA_PERMISSION_OPTIONS, canAccessTab, hasPlatformPermission, isPrivilegedRole } from './permissions';
+import type { PlatformPermissionKey } from './permissions';
 
 const ClientMasterView = React.lazy(() => import('./ClientMasterView').then(module => ({ default: module.ClientMasterView })));
 const InvoiceGenerator = React.lazy(() => import('./InvoiceGenerator').then(module => ({ default: module.InvoiceGenerator })));
@@ -177,16 +179,22 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   // --- Computed ---
   const dateStr = currentTime.toLocaleDateString('zh-TW', { year: 'numeric', month: 'long', day: 'numeric', weekday: 'long' });
   const timeStr = currentTime.toLocaleTimeString('zh-TW', { hour: '2-digit', minute: '2-digit', hour12: false });
-  const isBoss = currentUser.role === UserRole.BOSS;
-  const isSupervisor = currentUser.role === UserRole.SUPERVISOR;
-  const isTrainee = currentUser.role === UserRole.TRAINEE;
+  const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
+  const isBoss = activeUser.role === UserRole.BOSS;
+  const isSupervisor = activeUser.role === UserRole.SUPERVISOR;
   const isPrivileged = isSupervisor || isBoss; // boss 或主管都有的權限
-  const canViewMatrix = !isTrainee && ((isPrivileged && !showMyList) || (!isPrivileged && showOverview));
+  const canManageUsers = isPrivilegedRole(activeUser);
+  const canManageClientData = hasPlatformPermission(activeUser, 'clientData');
+  const canUseCash = hasPlatformPermission(activeUser, 'cash');
+  const canUseMail = hasPlatformPermission(activeUser, 'mail');
+  const canUsePayroll = hasPlatformPermission(activeUser, 'payroll');
+  const canManageTimesheets = hasPlatformPermission(activeUser, 'manageTimesheets');
+  const availableTabs = useMemo(() => TABS.filter(tab => canAccessTab(activeUser, tab)), [activeUser]);
+  const canViewMatrix = availableTabs.length > 0 && ((isPrivileged && !showMyList) || (!isPrivileged && showOverview));
   const activeAssignableUsers = users.filter(user => user.role !== UserRole.BOSS && user.isActive !== false);
   const activeShiftUsers = users.filter(user =>
     (user.role === UserRole.INTERN || user.role === UserRole.TRAINEE) && user.isActive !== false
   );
-  const activeUser = users.find(u => u.id === currentUser.id) || currentUser;
   const isAssignedReminder = (event: CalendarEvent | null) =>
     event?.type === 'reminder' && Boolean(event.creatorId) && event.creatorId !== event.ownerId;
   const canManageSelectedEvent = !selectedEvent
@@ -195,6 +203,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       && selectedEvent.ownerId === currentUser.id
       && !isAssignedReminder(selectedEvent));
   const handleRealtimeUpdate = () => {};
+
+  useEffect(() => {
+    if (availableTabs.length === 0 || availableTabs.includes(activeTab)) return;
+    setActiveTab(availableTabs[0] as TabCategory);
+  }, [activeTab, availableTabs]);
 
   // -----------------------------------------------------------
   const getTodayString = () => {
@@ -362,20 +375,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   }, [dbConnected, isMessageBoardOpen]);
 
   useEffect(() => {
-    if (!dbConnected || activeTab !== '收發信件') return;
+    if (!dbConnected || !canUseMail || activeTab !== '收發信件') return;
     return TaskService.subscribeMailRecords(setMailRecords, error => {
       console.error('Mail real-time sync failed:', error);
       setDataSyncStatus('error');
     });
-  }, [dbConnected, activeTab]);
+  }, [dbConnected, activeTab, canUseMail]);
 
   useEffect(() => {
-    if (!dbConnected || activeTab !== '零用金/代墊款') return;
+    if (!dbConnected || !canUseCash || activeTab !== '零用金/代墊款') return;
     return TaskService.subscribeCashRecords(setCashRecords, error => {
       console.error('Cash real-time sync failed:', error);
       setDataSyncStatus('error');
     });
-  }, [dbConnected, activeTab]);
+  }, [dbConnected, activeTab, canUseCash]);
 
   useEffect(() => {
     if (!dbConnected || (!isGalleryOpen && !isInstructionModalOpen)) return;
@@ -470,9 +483,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       // Ctrl+1~9: switch tabs
       if (e.ctrlKey && e.key >= '1' && e.key <= '9') {
         const idx = parseInt(e.key) - 1;
-        if (idx < TABS.length) {
+        if (idx < availableTabs.length) {
           e.preventDefault();
-          setActiveTab(TABS[idx] as TabCategory);
+          setActiveTab(availableTabs[idx] as TabCategory);
         }
         return;
       }
@@ -483,7 +496,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       isNoteEditModalOpen, isUserDeleteModalOpen, isUserModalOpen, isEventDeleteModalOpen,
       isEventModalOpen, isDailyReminderOpen, isCalendarOpen, isGalleryOpen, isInstructionModalOpen,
       isCheckOutModalOpen, isTimesheetOpen, isInvoiceOpen, isMessageBoardOpen, isClientMasterOpen,
-      selectedClientForDrawer, isAppMenuOpen]);
+      selectedClientForDrawer, isAppMenuOpen, availableTabs]);
 
   // 🔌 連線邏輯
   const handleConnectDB = async () => {
@@ -793,6 +806,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleDeleteUserClick = (user: User) => { setUserToDelete(user); setIsUserDeleteModalOpen(true); };
   const handleConfirmDeleteUser = () => { if (!userToDelete) return; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.filter(u => u.id !== userToDelete.id); TaskService.saveUsers(updatedUsers); onUserUpdate(); setIsUserDeleteModalOpen(false); setUserToDelete(null); };
   const handleToggleUserActive = async (user: User) => { const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(item => item.id === user.id ? { ...item, isActive: item.isActive === false } : item); await TaskService.saveUsers(updatedUsers); onUserUpdate(); };
+  const handleToggleUserPermission = async (user: User, permission: PlatformPermissionKey) => {
+    if (permission === 'clientTasks') return;
+    const currentUsers = TaskService.getUsers();
+    const updatedUsers = currentUsers.map(item => {
+      if (item.id !== user.id) return item;
+      const nextPermissions = {
+        ...(item.permissions || {}),
+        [permission]: item.permissions?.[permission] !== true,
+      };
+      return { ...item, permissions: nextPermissions };
+    });
+    await TaskService.saveUsers(updatedUsers);
+    onUserUpdate();
+  };
   const handleAvatarClick = (userId: string) => { setEditingUserId(userId); if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && editingUserId) { if (file.size > 500 * 1024) { alert("圖片大小請小於 500KB"); return; } const reader = new FileReader(); reader.onloadend = async () => { const base64String = reader.result as string; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === editingUserId ? { ...u, avatar: base64String } : u ); await TaskService.saveUsers(updatedUsers); onUserUpdate(); setEditingUserId(null); }; reader.readAsDataURL(file); } };
   const handleUpdatePin = () => { if (!newUserPin.trim()) return; if (newUserPin.length !== 4 || isNaN(Number(newUserPin))) { alert("請輸入 4 位數字密碼"); return; } const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === currentUser.id ? { ...u, pin: newUserPin.trim() } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserPin(''); alert("密碼已更新"); };
@@ -1061,7 +1088,10 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     }
   };
 
-  const handleClientNameClick = (client: Client) => { if (!dbConnected) return; setSelectedClientForDrawer(client); };
+  const handleClientNameClick = (client: Client) => {
+    if (!dbConnected || !canManageClientData) return;
+    setSelectedClientForDrawer(client);
+  };
   const handleSaveProfile = (profile: ClientProfile) => { TaskService.saveClientProfile(profile); };
   const handleAssignSubmit = async (isNA: boolean = false) => {
     if (!selectedCell) return;
@@ -1292,7 +1322,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                 <button onClick={() => setShowMyList(!showMyList)} title={showMyList ? "返回全所進度" : "查看每日進度"} className={`flex items-center justify-center p-2.5 rounded-xl transition-colors border shadow-sm ${showMyList ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
                     {showMyList ? <ReturnIcon className="w-5 h-5"/> : <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M13 5h8"/><path d="M13 12h8"/><path d="M13 19h8"/><path d="m3 17 2 2 4-4"/><rect x="3" y="4" width="6" height="6" rx="1"/></svg>}
                 </button>
-            ) : !isTrainee ? (
+            ) : availableTabs.length > 0 ? (
                 <button onClick={() => setShowOverview(!showOverview)} title={showOverview ? "返回我的進度" : "查看全所進度"} className={`flex items-center justify-center p-2.5 rounded-xl transition-colors border shadow-sm ${showOverview ? 'bg-blue-600 text-white border-blue-700' : 'bg-white text-gray-600 border-gray-300 hover:bg-gray-50'}`}>
                     {showOverview ? <ReturnIcon className="w-5 h-5"/> : <TableCellsIcon className="w-5 h-5"/>}
                 </button>
@@ -1322,11 +1352,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                             <ClockIcon className="w-6 h-6" />
                             <span className="text-xs font-bold">工時紀錄</span>
                         </button>
-                        {!isTrainee && <button onClick={() => { setIsInvoiceOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-pink-50 rounded-xl text-gray-600 hover:text-pink-600 transition-colors">
+                        {(canUseCash || canManageClientData) && <button onClick={() => { setIsInvoiceOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-pink-50 rounded-xl text-gray-600 hover:text-pink-600 transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 17V7"/><path d="M16 8h-6a2 2 0 0 0 0 4h4a2 2 0 0 1 0 4H8"/><path d="M4 3a1 1 0 0 1 1-1 1.3 1.3 0 0 1 .7.2l.933.6a1.3 1.3 0 0 0 1.4 0l.934-.6a1.3 1.3 0 0 1 1.4 0l.933.6a1.3 1.3 0 0 0 1.4 0l.933-.6a1.3 1.3 0 0 1 1.4 0l.934.6a1.3 1.3 0 0 0 1.4 0l.933-.6A1.3 1.3 0 0 1 19 2a1 1 0 0 1 1 1v18a1 1 0 0 1-1 1 1.3 1.3 0 0 1-.7-.2l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.934.6a1.3 1.3 0 0 1-1.4 0l-.933-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-1.4 0l-.934-.6a1.3 1.3 0 0 0-1.4 0l-.933.6a1.3 1.3 0 0 1-.7.2 1 1 0 0 1-1-1z"/></svg>
                             <span className="text-xs font-bold">請款單</span>
                         </button>}
-                        {!isTrainee && <button onClick={() => { setIsClientMasterOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-indigo-50 rounded-xl text-gray-600 hover:text-indigo-600 transition-colors">
+                        {canManageClientData && <button onClick={() => { setIsClientMasterOpen(true); setIsAppMenuOpen(false); }} className="flex flex-col items-center justify-center gap-1 p-3 hover:bg-indigo-50 rounded-xl text-gray-600 hover:text-indigo-600 transition-colors">
                             <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M18 21a8 8 0 0 0-16 0"/><circle cx="10" cy="8" r="5"/><path d="M22 20c0-3.37-2-6.5-4-8a5 5 0 0 0-.45-8.3"/></svg>
                             <span className="text-xs font-bold">客戶</span>
                         </button>}
@@ -1360,7 +1390,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           <div className="flex-none bg-white border-b border-gray-200 z-40">
               <div className="w-full px-6">
                   <nav className="-mb-px flex space-x-8 overflow-x-auto no-scrollbar">
-                      {TABS.map((tab) => (
+                      {availableTabs.map((tab) => (
                           <button key={tab} onClick={() => setActiveTab(tab)} className={`whitespace-nowrap py-4 px-4 border-b-4 font-medium text-xl transition-colors ${activeTab === tab ? 'border-blue-500 text-blue-600' : 'border-transparent text-gray-500 hover:text-gray-700 hover:border-gray-300'}`}>
                               {tab}
                           </button>
@@ -1384,14 +1414,14 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         </button>
                     </div>
                 ) :
-                activeTab === '收發信件' ? (
+                activeTab === '收發信件' && canUseMail ? (
                     <MailLogView
                         records={mailRecords}
                         onUpdate={handleRealtimeUpdate}
                         isSupervisor={true}
                     />
                 ) :
-                activeTab === '零用金/代墊款' ? (
+                activeTab === '零用金/代墊款' && canUseCash ? (
                     <CashLogView
                         records={cashRecords}
                         clients={clients}
@@ -1399,12 +1429,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         isSupervisor={true}
                     />
                     ) :
-                    activeTab === '股票進銷存' ? (
+                    activeTab === '股票進銷存' && isPrivileged ? (
                         <StockInventoryView 
                             clients={clients} 
                             />
                     ) : 
-                    activeTab === '薪資計算' ? (
+                    activeTab === '薪資計算' && canUsePayroll ? (
                     // ✨ 新增：當點擊薪資計算時，渲染這個畫面
                     <PayrollView 
                         clients={clients}
@@ -1652,7 +1682,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                               <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 pl-1">工作人員名單</h4>
                               <div className="space-y-3 mb-6">
                                   {users.filter(u => u.role === UserRole.INTERN || u.role === UserRole.TRAINEE).map(user => (
-                                      <div key={user.id} className={`flex items-center justify-between p-3 rounded-lg border ${user.isActive === false ? 'bg-gray-100 border-gray-200 opacity-70' : 'bg-gray-50 border-gray-100'}`}>
+                                      <div key={user.id} className={`p-3 rounded-lg border ${user.isActive === false ? 'bg-gray-100 border-gray-200 opacity-70' : 'bg-gray-50 border-gray-100'}`}>
+                                          <div className="flex items-center justify-between gap-3">
                                           <div className="flex items-center gap-3">
                                               <div className="relative w-10 h-10"><img src={user.avatar} className="w-full h-full rounded-full bg-white border object-cover" alt={user.name} /></div>
                                               <div>
@@ -1676,6 +1707,32 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                                           ) : (
                                               <button onClick={() => handleDeleteUserClick(user)} className="text-gray-400 hover:text-red-500 p-2 hover:bg-red-50 rounded transition-colors"><TrashIcon className="w-5 h-5 pointer-events-none" /></button>
                                           )}
+                                          </div>
+                                          <div className="mt-3 border-t border-gray-200 pt-3">
+                                              <div className="mb-2 flex flex-wrap gap-2">
+                                                  <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700">基礎：客戶事務矩陣</span>
+                                                  <span className="rounded bg-sky-100 px-2 py-1 text-xs font-bold text-sky-700">基礎：本人工時唯讀</span>
+                                              </div>
+                                              <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
+                                                  {EXTRA_PERMISSION_OPTIONS.map(option => {
+                                                      const enabled = user.permissions?.[option.key] === true;
+                                                      return (
+                                                          <label key={option.key} className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors ${enabled ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
+                                                              <input
+                                                                  type="checkbox"
+                                                                  checked={enabled}
+                                                                  onChange={() => handleToggleUserPermission(user, option.key)}
+                                                                  className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
+                                                              />
+                                                              <span className="min-w-0">
+                                                                  <span className="block text-sm font-bold text-gray-700">{option.label}</span>
+                                                                  <span className="block text-xs text-gray-500">{option.description}</span>
+                                                              </span>
+                                                          </label>
+                                                      );
+                                                  })}
+                                              </div>
+                                          </div>
                                       </div>
                                   ))}
                                   {users.filter(u => u.role === UserRole.INTERN || u.role === UserRole.TRAINEE).length === 0 && <p className="text-gray-400 text-center text-sm py-4">目前沒有工作人員資料</p>}
@@ -2122,7 +2179,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       {/* Timesheet Modal */}
       {isTimesheetOpen && (
           <TimesheetView 
-              currentUser={currentUser}
+              currentUser={activeUser}
               users={users}
               records={checkInRecords}
               onUpdate={handleRealtimeUpdate}
@@ -2141,7 +2198,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       )}
 
       {/* Invoice Generator Modal */}
-      {isInvoiceOpen && (
+      {isInvoiceOpen && (canUseCash || canManageClientData) && (
           <InvoiceGenerator
               onClose={() => setIsInvoiceOpen(false)}
               cashRecords={cashRecords}
@@ -2151,7 +2208,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       )}
 
       {/* Client Master Modal */}
-        {isClientMasterOpen && (
+      {isClientMasterOpen && canManageClientData && (
         <ClientMasterView 
             clients={clients}
             currentUser={currentUser}

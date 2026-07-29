@@ -8,10 +8,12 @@ export const UserRole = {
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
 export interface PlatformPermissions {
+  clientTasks?: boolean;
+  clientData?: boolean;
   cash?: boolean;
-  clients?: boolean;
   mail?: boolean;
   payroll?: boolean;
+  manageTimesheets?: boolean;
   canDeleteRecords?: boolean;
 }
 

@@ -233,6 +233,12 @@ export const TaskService = {
       ]);
   },
 
+  subscribeCheckInsForUser(userId: string, onChanged: (items: CheckInRecord[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
+      return subscribeCollection("checkIns", d => ({ id: d.id, ...d.data() } as CheckInRecord), onChanged, onError, [
+          where("userId", "==", String(userId))
+      ]);
+  },
+
   subscribeMessages(onChanged: (items: Message[]) => void, onError: RealtimeErrorHandler): Unsubscribe {
       return subscribeCollection("messages", d => ({ id: d.id, ...d.data() } as Message), onChanged, onError);
   },

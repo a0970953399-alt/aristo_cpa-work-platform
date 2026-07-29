@@ -23,7 +23,18 @@
 - 新增 `rebuildGoogleUserProfiles` callable，供已綁定主管或老闆之後手動回填既有已綁定使用者。
 - 新增 `unlinkOwnGoogleAccount` callable 與前端 service 方法，供後續 UI 接上「本人解除 Google 帳號綁定」；目前尚未在人員設定畫面加按鈕。
 - `firestore.rules` 已先把 `googleUserProfiles` 加入前端禁止直接讀寫的敏感集合，避免新對應表被現有 catch-all 規則公開。
-- 本階段尚未部署 Functions 或 Firestore Rules；部署時需同時部署 Functions 與 rules，避免 `googleUserProfiles` 建立後仍受舊 rules 公開。
+- 本階段已於 2026-07-29 部署 Functions 與 Firestore Rules，並推送至 GitHub `main`，提交為 `5482a41 Add Google user profile security foundation`。
+
+### 平台權限 UI 與基礎權限
+
+- 新增 `permissions.ts` 作為前端共同權限 helper；老闆與主管預設擁有全部權限。
+- 工讀生與實習生基礎權限包含：登入、自己的帳號/Google 綁定、自己的排班/提醒、可操作客戶事務矩陣、只能唯讀查看自己的工時。
+- 工讀生與實習生不能因基礎權限開啟客戶主檔；矩陣中的客戶名稱點擊只有具備 `clientData` 權限者才會開啟客戶資料抽屜。
+- 人員設定頁面已新增平台權限勾選：客戶主檔、零用金/代墊款、收發信件、薪資資料、管理工時、刪除正式資料。
+- 額外權限寫入 `users/{userId}.permissions`；既有已部署的 `syncGoogleUserProfileOnUserWrite` 會同步到 `googleUserProfiles`，但因本輪新增了新 permission key，Functions 仍需重新部署才會完整同步所有欄位。
+- 工時頁已改成：有 `manageTimesheets` 權限才可看全部人員、編輯、刪除；一般工讀生/實習生只訂閱自己的工時資料並唯讀顯示。
+- 前端頁籤會依權限顯示：客戶事務矩陣為基礎權限；收發信件、零用金、薪資依額外權限；股票進銷存目前仍限老闆/主管。
+- 本輪前端與 Functions 建置已通過；尚未部署到 Firebase，也尚未推送 GitHub。
 
 ### Codex 跨電腦交接
 
@@ -87,7 +98,7 @@
 ## 待辦與待確認
 
 - 部署資安地基時需同時執行 Functions 與 Firestore Rules 部署，之後由已綁定老闆/主管登入觸發 `googleUserProfiles` 自動建立，或呼叫 `rebuildGoogleUserProfiles` 回填。
-- 接著要在人員設定頁面新增「平台權限」區塊，讓老闆/主管可授權工讀生操作零用金、客戶、收發信件、薪資與刪除正式資料等模組。
+- 接著要把本輪平台權限 UI 部署/推送，並以老闆/主管帳號實測勾選權限後，確認工讀生/實習生可見頁籤與工時唯讀行為正確。
 - 接著要在人員設定或帳號區接上「解除自己的 Google 帳號綁定」按鈕，呼叫 `GoogleIntegrationService.unlinkOwnGoogleAccount()`。
 - 以實際主管及員工帳號再次確認 Google 登入持續狀態、主管審核與共用電腦登出流程。
 - 確認 `6b033ad` 的 Functions 版本是否已部署到 Firebase；GitHub 有程式碼不代表後端一定已部署。

@@ -2,6 +2,7 @@ import React, { useState, useMemo, useEffect } from 'react';
 import { User, CheckInRecord, UserRole } from './types';
 import { TaskService } from './taskService';
 import { TrashIcon, FunnelIcon } from './Icons';
+import { hasPlatformPermission } from './permissions';
 
 interface TimesheetViewProps {
     currentUser: User;
@@ -40,9 +41,9 @@ const getHeatmapBg = (hours: number): string => {
 };
 
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
-    const isSupervisor = currentUser.role === UserRole.SUPERVISOR || currentUser.role === UserRole.BOSS;
+    const canManageTimesheets = hasPlatformPermission(currentUser, 'manageTimesheets');
 
-    const [targetUserId, setTargetUserId] = useState<string>(isSupervisor ? 'ALL' : currentUser.id);
+    const [targetUserId, setTargetUserId] = useState<string>(canManageTimesheets ? 'ALL' : currentUser.id);
     const [monthFilter, setMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7));
     const [liveRecords, setLiveRecords] = useState<CheckInRecord[]>(records);
     const [showHeatmap, setShowHeatmap] = useState(false);
@@ -59,22 +60,25 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
     const bossIds = useMemo(() => new Set(users.filter(u => u.role === UserRole.BOSS).map(u => u.id)), [users]);
     const nonBossUsers = useMemo(() => users.filter(u => !bossIds.has(u.id)), [users, bossIds]);
 
-    const isMultiMode = targetUserId === 'ALL';
+    const isMultiMode = canManageTimesheets && targetUserId === 'ALL';
 
-    useEffect(() => TaskService.subscribeCheckInsForMonth(
-        monthFilter,
-        setLiveRecords,
-        error => console.error('Timesheet real-time sync failed:', error)
-    ), [monthFilter]);
+    useEffect(() => {
+        const handleRecords = (items: CheckInRecord[]) => setLiveRecords(items);
+        const handleError = (error: Error) => console.error('Timesheet real-time sync failed:', error);
+        return canManageTimesheets
+            ? TaskService.subscribeCheckInsForMonth(monthFilter, handleRecords, handleError)
+            : TaskService.subscribeCheckInsForUser(currentUser.id, handleRecords, handleError);
+    }, [monthFilter, canManageTimesheets, currentUser.id]);
 
     const filteredRecords = useMemo(() => {
         return liveRecords.filter(r => {
             if (bossIds.has(r.userId)) return false;
-            if (!isMultiMode && r.userId !== targetUserId) return false;
+            if (!canManageTimesheets && r.userId !== currentUser.id) return false;
+            if (canManageTimesheets && !isMultiMode && r.userId !== targetUserId) return false;
             if (!r.date.startsWith(monthFilter)) return false;
             return true;
         }).sort((a, b) => b.date.localeCompare(a.date) || b.startTime.localeCompare(a.startTime));
-    }, [liveRecords, targetUserId, monthFilter, bossIds, isMultiMode]);
+    }, [liveRecords, targetUserId, monthFilter, bossIds, isMultiMode, canManageTimesheets, currentUser.id]);
 
     const totalHours = useMemo(() => filteredRecords.reduce((sum, r) => sum + (r.totalHours || 0), 0), [filteredRecords]);
 
@@ -175,7 +179,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                     <div className="flex gap-4 items-center">
                         <div className="flex items-center gap-2 bg-gray-100 px-3 py-1.5 rounded-lg">
                             <FunnelIcon className="w-5 h-5 text-gray-500" />
-                            {isSupervisor ? (
+                            {canManageTimesheets ? (
                                 <select
                                     value={targetUserId}
                                     onChange={e => { setTargetUserId(e.target.value); setShowHeatmap(false); }}
@@ -313,12 +317,12 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                     <th className="p-4 font-bold text-gray-500 text-sm text-center">下班</th>
                                     <th className="p-4 font-bold text-gray-500 text-sm text-center">扣除午休</th>
                                     <th className="p-4 font-bold text-gray-500 text-sm text-center">小計工時</th>
-                                    {isSupervisor && <th className="p-4 font-bold text-gray-500 text-sm text-center">操作</th>}
+                                    {canManageTimesheets && <th className="p-4 font-bold text-gray-500 text-sm text-center">操作</th>}
                                 </tr>
                             </thead>
                             <tbody className="divide-y divide-gray-100">
                                 {filteredRecords.length === 0 ? (
-                                    <tr><td colSpan={7} className="p-10 text-center text-gray-400">沒有符合的紀錄</td></tr>
+                                    <tr><td colSpan={canManageTimesheets ? 7 : 6} className="p-10 text-center text-gray-400">沒有符合的紀錄</td></tr>
                                 ) : (
                                     filteredRecords.map(r => (
                                         <tr key={r.id} className="hover:bg-gray-50 transition-colors">
@@ -346,7 +350,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                                     <td className="p-4 text-center font-mono text-gray-700">{r.endTime || '--:--'}</td>
                                                     <td className="p-4 text-center text-gray-500">{r.breakHours} hr</td>
                                                     <td className="p-4 text-center font-bold text-blue-600 text-lg">{r.totalHours}</td>
-                                                    {isSupervisor && (
+                                                    {canManageTimesheets && (
                                                         <td className="p-4 text-center">
                                                             <div className="flex items-center justify-center gap-2">
                                                                 <button onClick={() => startEdit(r)} className="text-gray-400 hover:text-blue-600 text-sm">編輯</button>
