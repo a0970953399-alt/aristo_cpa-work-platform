@@ -35,7 +35,19 @@
 - 額外權限寫入 `users/{userId}.permissions`；既有已部署的 `syncGoogleUserProfileOnUserWrite` 會同步到 `googleUserProfiles`，但因本輪新增了新 permission key，Functions 仍需重新部署才會完整同步所有欄位。
 - 工時頁已改成：有 `manageTimesheets` 權限才可看全部人員、編輯、刪除；一般工讀生/實習生只訂閱自己的工時資料並唯讀顯示。
 - 前端頁籤會依權限顯示：客戶事務矩陣為基礎權限；收發信件、零用金、薪資依額外權限；股票進銷存目前仍限老闆/主管。
-- 本輪前端與 Functions 建置已通過；尚未部署到 Firebase，也尚未推送 GitHub。
+- 本輪前端與 Functions 建置已通過，相關修改已部署並推送 GitHub。
+
+### Firestore Rules 權限收緊
+
+- 第三階段已開始把前端平台權限同步落到 Firestore Rules。
+- `firestore.rules` 已改為以 `googleUserProfiles/{googleUid}` 判斷目前 Google 登入者的角色、停用狀態與平台權限。
+- `calendarConnections`、`googleBindingRequests`、`googleOAuthStates`、`googleUserProfiles` 維持只能由 Cloud Functions 透過 Firebase Admin 操作，前端不可直接讀寫。
+- `users` 仍暫時允許公開讀取，因為 PIN 過渡期與登入畫面需要先取得人員清單；但 Google UID、Google Email、Google 顯示名稱禁止前端直接改寫。新增、刪除、調整人員資料原則上限老闆/主管。
+- `tasks` 依 `clientTasks` 控制；工讀生基礎擁有，實習生需額外授權。
+- `checkIns` 已配合前端改為：管理工時者可查月份全部工時；一般使用者只訂閱自己的工時。Rules 也限制一般使用者只能讀寫自己的打卡紀錄，刪除工時需管理權限及刪除正式資料權限。
+- `mailRecords`、`cashRecords`、`payrollClients`、`payrollRecords`、`employees`、`monthlySalaries` 分別依收發信件、零用金/代墊款、薪資資料權限控制；刪除另需 `canDeleteRecords`。
+- `clients` 讀取目前開放給具客戶事務矩陣、客戶主檔、零用金、收發信件或薪資權限者；寫入客戶主檔需 `clientData`，刪除另需 `canDeleteRecords`。
+- 目前限制：只要 PIN 登入仍存在，登入所需的人員清單仍無法完全鎖成 Google Auth 才能讀；全面收緊讀取需等 PIN 移除或另建公開登入名單集合。
 
 ### Codex 跨電腦交接
 

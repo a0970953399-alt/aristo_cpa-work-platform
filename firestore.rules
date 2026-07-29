@@ -2,28 +2,178 @@ rules_version = '2';
 
 service cloud.firestore {
   match /databases/{database}/documents {
-    match /users/{userId} {
-      allow read, delete: if true;
-      allow create: if !request.resource.data.keys().hasAny([
-        'googleUid',
-        'googleEmail',
-        'googleDisplayName'
-      ]);
-      allow update: if !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+    function signedIn() {
+      return request.auth != null;
+    }
+
+    function profilePath() {
+      return /databases/$(database)/documents/googleUserProfiles/$(request.auth.uid);
+    }
+
+    function hasProfile() {
+      return signedIn() && exists(profilePath());
+    }
+
+    function profile() {
+      return get(profilePath()).data;
+    }
+
+    function isActiveUser() {
+      return hasProfile() && profile().isActive != false;
+    }
+
+    function isPrivileged() {
+      return isActiveUser() && profile().role in ['boss', 'supervisor'];
+    }
+
+    function hasPermission(permission) {
+      return isPrivileged()
+        || (isActiveUser() && profile().permissions[permission] == true);
+    }
+
+    function isSelfUser(userId) {
+      return isActiveUser() && profile().userId == userId;
+    }
+
+    function changedOnly(allowedKeys) {
+      return request.resource.data.diff(resource.data).affectedKeys().hasOnly(allowedKeys);
+    }
+
+    function safeUserGoogleFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
         'googleUid',
         'googleEmail',
         'googleDisplayName'
       ]);
     }
 
+    function canDeleteRecords() {
+      return hasPermission('canDeleteRecords');
+    }
+
+    match /users/{userId} {
+      // The login screen still needs the staff list while PIN fallback exists.
+      // Sensitive Google fields are protected from direct frontend writes.
+      allow read: if true;
+      allow create, delete: if isPrivileged();
+      allow update: if signedIn() && changedOnly([]);
+      allow update: if isPrivileged() && safeUserGoogleFields();
+      allow update: if isSelfUser(userId)
+        && safeUserGoogleFields()
+        && changedOnly(['avatar', 'pin', 'shiftColorHue']);
+    }
+
+    match /tasks/{taskId} {
+      allow read, create, update: if hasPermission('clientTasks');
+      allow delete: if hasPermission('clientTasks') && canDeleteRecords();
+    }
+
+    match /clients/{clientId} {
+      allow read: if hasPermission('clientTasks')
+        || hasPermission('clientData')
+        || hasPermission('cash')
+        || hasPermission('mail')
+        || hasPermission('payroll');
+      allow create, update: if hasPermission('clientData');
+      allow delete: if hasPermission('clientData') && canDeleteRecords();
+    }
+
+    match /clientProfiles/{clientId} {
+      allow read: if hasPermission('clientData');
+      allow create, update: if hasPermission('clientData');
+      allow delete: if hasPermission('clientData') && canDeleteRecords();
+    }
+
+    match /events/{eventId} {
+      allow read: if isActiveUser();
+      allow create, update: if isPrivileged()
+        || (isActiveUser()
+          && request.resource.data.type == 'reminder'
+          && request.resource.data.ownerId == profile().userId
+          && request.resource.data.creatorId == profile().userId);
+      allow delete: if isPrivileged()
+        || (isActiveUser()
+          && resource.data.type == 'reminder'
+          && resource.data.ownerId == profile().userId
+          && resource.data.creatorId == profile().userId);
+    }
+
+    match /checkIns/{recordId} {
+      allow read: if hasPermission('manageTimesheets')
+        || (isActiveUser() && resource.data.userId == profile().userId);
+      allow create: if hasPermission('manageTimesheets')
+        || (isActiveUser() && request.resource.data.userId == profile().userId);
+      allow update: if hasPermission('manageTimesheets')
+        || (isActiveUser()
+          && resource.data.userId == profile().userId
+          && request.resource.data.userId == profile().userId);
+      allow delete: if hasPermission('manageTimesheets') && canDeleteRecords();
+    }
+
+    match /messages/{messageId} {
+      allow read, create: if isActiveUser();
+      allow update: if false;
+      allow delete: if isPrivileged()
+        || (isActiveUser() && resource.data.authorId == profile().userId);
+    }
+
+    match /mailRecords/{recordId} {
+      allow read, create, update: if hasPermission('mail');
+      allow delete: if hasPermission('mail') && canDeleteRecords();
+    }
+
+    match /cashRecords/{recordId} {
+      allow read, create, update: if hasPermission('cash');
+      allow delete: if hasPermission('cash') && canDeleteRecords();
+    }
+
+    match /instructions/{instructionId} {
+      allow read: if isActiveUser();
+      allow create, update, delete: if isPrivileged();
+    }
+
+    match /stockClients/{document} {
+      allow read, write: if isPrivileged();
+    }
+
+    match /stockTargets/{document} {
+      allow read, write: if isPrivileged();
+    }
+
+    match /stockTransactions/{document} {
+      allow read, write: if isPrivileged();
+    }
+
+    match /payrollClients/{document} {
+      allow read, create, update: if hasPermission('payroll');
+      allow delete: if hasPermission('payroll') && canDeleteRecords();
+    }
+
+    match /payrollRecords/{document} {
+      allow read, create, update: if hasPermission('payroll');
+      allow delete: if hasPermission('payroll') && canDeleteRecords();
+    }
+
+    match /employees/{document} {
+      allow read, create, update: if hasPermission('payroll');
+      allow delete: if hasPermission('payroll') && canDeleteRecords();
+    }
+
+    match /monthlySalaries/{document} {
+      allow read, create, update: if hasPermission('payroll');
+      allow delete: if hasPermission('payroll') && canDeleteRecords();
+    }
+
+    match /mail/{document} {
+      // Firestore Email Extension delivery requests.
+      allow create: if hasPermission('payroll');
+      allow read, update, delete: if false;
+    }
+
     // These collections contain OAuth credentials or approval state and are
     // accessible only through Firebase Admin in Cloud Functions.
     match /{collection}/{document=**} {
-      allow read, write: if collection != 'users'
-        && collection != 'calendarConnections'
-        && collection != 'googleBindingRequests'
-        && collection != 'googleOAuthStates'
-        && collection != 'googleUserProfiles';
+      allow read, write: if false;
     }
   }
 }

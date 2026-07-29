@@ -185,10 +185,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const isPrivileged = isSupervisor || isBoss; // boss 或主管都有的權限
   const canManageUsers = isPrivilegedRole(activeUser);
   const canManageClientData = hasPlatformPermission(activeUser, 'clientData');
+  const canUseClientTasks = hasPlatformPermission(activeUser, 'clientTasks');
   const canUseCash = hasPlatformPermission(activeUser, 'cash');
   const canUseMail = hasPlatformPermission(activeUser, 'mail');
   const canUsePayroll = hasPlatformPermission(activeUser, 'payroll');
   const canManageTimesheets = hasPlatformPermission(activeUser, 'manageTimesheets');
+  const canReadClients = canUseClientTasks || canManageClientData || canUseCash || canUseMail || canUsePayroll;
   const availableTabs = useMemo(() => TABS.filter(tab => canAccessTab(activeUser, tab)), [activeUser]);
   const canViewMatrix = availableTabs.length > 0 && ((isPrivileged && !showMyList) || (!isPrivileged && showOverview));
   const activeAssignableUsers = users.filter(user => user.role !== UserRole.BOSS && user.isActive !== false);
@@ -335,10 +337,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     }
 
     setDataSyncStatus('connecting');
+    const expectedCollections = 2 + (canUseClientTasks ? 1 : 0) + (canReadClients ? 1 : 0);
     const readyCollections = new Set<string>();
     const markReady = (collectionName: string) => {
       readyCollections.add(collectionName);
-      if (readyCollections.size === 4) setDataSyncStatus('live');
+      if (readyCollections.size === expectedCollections) setDataSyncStatus('live');
     };
     const handleSyncError = (error: Error) => {
       console.error('Real-time sync failed:', error);
@@ -357,14 +360,26 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     const currentCheckInMonth = `${new Date().getFullYear()}-${String(new Date().getMonth() + 1).padStart(2, '0')}`;
 
     const unsubscribe = [
-      TaskService.subscribeTasksForYear(currentYear, updateIfChanged(setTasks, 'tasks'), handleSyncError),
       TaskService.subscribeEventsForRange(formatDate(calendarStart), formatDate(calendarEnd), updateIfChanged(setEvents, 'events'), handleSyncError),
-      TaskService.subscribeClients(updateIfChanged(setClients, 'clients'), handleSyncError),
-      TaskService.subscribeCheckInsForMonth(currentCheckInMonth, updateIfChanged(setCheckInRecords, 'checkIns'), handleSyncError)
+      canManageTimesheets
+        ? TaskService.subscribeCheckInsForMonth(currentCheckInMonth, updateIfChanged(setCheckInRecords, 'checkIns'), handleSyncError)
+        : TaskService.subscribeCheckInsForUser(activeUser.id, updateIfChanged(setCheckInRecords, 'checkIns'), handleSyncError),
     ];
 
+    if (canUseClientTasks) {
+      unsubscribe.push(TaskService.subscribeTasksForYear(currentYear, updateIfChanged(setTasks, 'tasks'), handleSyncError));
+    } else {
+      setTasks([]);
+    }
+
+    if (canReadClients) {
+      unsubscribe.push(TaskService.subscribeClients(updateIfChanged(setClients, 'clients'), handleSyncError));
+    } else {
+      setClients([]);
+    }
+
     return () => unsubscribe.forEach(stopListening => stopListening());
-  }, [dbConnected, currentYear, currentMonth]);
+  }, [dbConnected, currentYear, currentMonth, canManageTimesheets, canUseClientTasks, canReadClients, activeUser.id]);
 
   useEffect(() => {
     if (!dbConnected || !isMessageBoardOpen) return;
