@@ -68,4 +68,10 @@ export const GoogleIntegrationService = {
     const disconnect = httpsCallable<void, void>(functions, 'disconnectGoogleCalendar');
     await disconnect();
   },
+
+  async unlinkOwnGoogleAccount(): Promise<void> {
+    const unlink = httpsCallable<void, void>(functions, 'unlinkOwnGoogleAccount');
+    await unlink();
+    await signOut(auth);
+  },
 };

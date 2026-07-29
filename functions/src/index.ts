@@ -26,9 +26,18 @@ type PlatformUser = {
   name: string;
   role: 'boss' | 'supervisor' | 'intern' | 'trainee';
   isActive?: boolean;
+  permissions?: PlatformPermissions;
   googleUid?: string;
   googleEmail?: string;
   googleDisplayName?: string;
+};
+
+type PlatformPermissions = {
+  cash?: boolean;
+  clients?: boolean;
+  mail?: boolean;
+  payroll?: boolean;
+  canDeleteRecords?: boolean;
 };
 
 type PlatformEvent = {
@@ -80,6 +89,48 @@ const requireAuth = (auth: { uid: string; token: Record<string, unknown> } | und
 
 const normalizeEmail = (value: unknown) => String(value || '').trim().toLowerCase();
 
+const normalizePermissions = (value: unknown): PlatformPermissions => {
+  if (!value || typeof value !== 'object') return {};
+  const source = value as Record<string, unknown>;
+  return {
+    ...(source.cash === true ? { cash: true } : {}),
+    ...(source.clients === true ? { clients: true } : {}),
+    ...(source.mail === true ? { mail: true } : {}),
+    ...(source.payroll === true ? { payroll: true } : {}),
+    ...(source.canDeleteRecords === true ? { canDeleteRecords: true } : {}),
+  };
+};
+
+const getGoogleUserProfilePayload = (userId: string, profile: PlatformUser) => {
+  const payload: Record<string, unknown> = {
+    userId,
+    name: profile.name,
+    role: profile.role,
+    isActive: profile.isActive !== false,
+    permissions: normalizePermissions(profile.permissions),
+    updatedAt: FieldValue.serverTimestamp(),
+  };
+  const googleEmail = normalizeEmail(profile.googleEmail);
+  if (googleEmail) payload.googleEmail = googleEmail;
+  if (profile.googleDisplayName) payload.googleDisplayName = String(profile.googleDisplayName);
+  return payload;
+};
+
+const syncGoogleUserProfile = async (userId: string, profile: PlatformUser) => {
+  if (!profile.googleUid) return;
+  const profileRef = db.collection('googleUserProfiles').doc(profile.googleUid);
+  if (profile.isActive === false) {
+    await profileRef.delete();
+    return;
+  }
+  await profileRef.set(getGoogleUserProfilePayload(userId, profile), { merge: true });
+};
+
+const deleteGoogleUserProfile = async (googleUid?: unknown) => {
+  const uid = String(googleUid || '').trim();
+  if (uid) await db.collection('googleUserProfiles').doc(uid).delete();
+};
+
 const getProfileByGoogleUid = async (uid: string) => {
   const snapshot = await db.collection('users').where('googleUid', '==', uid).limit(1).get();
   if (snapshot.empty) return null;
@@ -122,6 +173,7 @@ export const requestAccountBinding = onCall(
       throw new HttpsError('failed-precondition', '此人員已綁定其他 Gmail');
     }
     if (profile.googleUid === auth.uid) {
+      await syncGoogleUserProfile(profileId, profile);
       return { status: 'linked', profile: serializeProfile(profileId, profile) };
     }
 
@@ -145,6 +197,7 @@ export const requestAccountBinding = onCall(
     if (canBootstrap) {
       const updates = { googleUid: auth.uid, googleEmail, googleDisplayName };
       await profileRef.set(updates, { merge: true });
+      await syncGoogleUserProfile(profileId, { ...profile, ...updates });
       return { status: 'linked', profile: serializeProfile(profileId, { ...profile, ...updates }) };
     }
 
@@ -224,7 +277,79 @@ export const reviewAccountBinding = onCall(async request => {
     reviewedBy: reviewer.name,
   }, { merge: true });
   await batch.commit();
+  await syncGoogleUserProfile(profileId, {
+    ...profile,
+    googleUid: String(binding.googleUid),
+    googleEmail: normalizeEmail(binding.googleEmail),
+    googleDisplayName: String(binding.googleDisplayName || ''),
+  });
 });
+
+export const rebuildGoogleUserProfiles = onCall(async request => {
+  const auth = requireAuth(request.auth);
+  await requirePrivilegedProfile(auth.uid);
+  const snapshot = await db.collection('users').get();
+  let synced = 0;
+  let removed = 0;
+
+  for (const document of snapshot.docs) {
+    const profile = document.data() as PlatformUser;
+    if (!profile.googleUid) continue;
+    if (profile.isActive === false) {
+      await deleteGoogleUserProfile(profile.googleUid);
+      removed += 1;
+      continue;
+    }
+    await syncGoogleUserProfile(document.id, profile);
+    synced += 1;
+  }
+
+  return { synced, removed };
+});
+
+export const unlinkOwnGoogleAccount = onCall(async request => {
+  const auth = requireAuth(request.auth);
+  const profile = await requireLinkedProfile(auth.uid);
+  const profileRef = db.collection('users').doc(profile.id);
+  const batch = db.batch();
+  batch.update(profileRef, {
+    googleUid: FieldValue.delete(),
+    googleEmail: FieldValue.delete(),
+    googleDisplayName: FieldValue.delete(),
+  });
+  batch.delete(db.collection('calendarConnections').doc(auth.uid));
+  batch.delete(db.collection('googleUserProfiles').doc(auth.uid));
+  await batch.commit();
+});
+
+export const syncGoogleUserProfileOnUserWrite = onDocumentWritten(
+  'users/{userId}',
+  async event => {
+    const userId = String(event.params.userId);
+    const before = event.data?.before.exists
+      ? event.data.before.data() as PlatformUser
+      : null;
+    const after = event.data?.after.exists
+      ? event.data.after.data() as PlatformUser
+      : null;
+
+    if (before?.googleUid && before.googleUid !== after?.googleUid) {
+      await deleteGoogleUserProfile(before.googleUid);
+    }
+
+    if (!after) {
+      await deleteGoogleUserProfile(before?.googleUid);
+      return;
+    }
+
+    if (!after.googleUid || after.isActive === false) {
+      await deleteGoogleUserProfile(after.googleUid);
+      return;
+    }
+
+    await syncGoogleUserProfile(userId, after);
+  },
+);
 
 const getRedirectUri = () => {
   const projectId = process.env.GCLOUD_PROJECT || process.env.GOOGLE_CLOUD_PROJECT;

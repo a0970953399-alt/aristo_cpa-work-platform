@@ -7,6 +7,14 @@ export const UserRole = {
 } as const;
 export type UserRole = typeof UserRole[keyof typeof UserRole];
 
+export interface PlatformPermissions {
+  cash?: boolean;
+  clients?: boolean;
+  mail?: boolean;
+  payroll?: boolean;
+  canDeleteRecords?: boolean;
+}
+
 export interface User {
   id: string;
   name: string;
@@ -15,9 +23,21 @@ export interface User {
   pin?: string;
   shiftColorHue?: number;
   isActive?: boolean;
+  permissions?: PlatformPermissions;
   googleUid?: string;
   googleEmail?: string;
   googleDisplayName?: string;
+}
+
+export interface GoogleUserProfile {
+  userId: string;
+  name: string;
+  role: UserRole;
+  isActive: boolean;
+  permissions: PlatformPermissions;
+  googleEmail?: string;
+  googleDisplayName?: string;
+  updatedAt: string;
 }
 
 export interface GoogleBindingRequest {

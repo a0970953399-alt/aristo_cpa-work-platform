@@ -1,6 +1,6 @@
 # 碩業工作平台交接
 
-更新日期：2026-07-28
+更新日期：2026-07-29
 基準分支：`main`
 基準提交：`e6e7dd3 Add Codex handoff workflow and lock dependencies`
 
@@ -13,6 +13,17 @@
 - 原有 Firestore 寄信 Extension 必須保留，不可視為本專案自建 Function 刪除。
 
 ## 最近完成事項
+
+### 資安地基：Google UID 對應資料
+
+- 第一階段先建立 Firestore Rules 可直接讀取的 `googleUserProfiles/{googleUid}` 對應資料，不直接一次收緊全部業務資料權限。
+- `types.ts` 新增 `PlatformPermissions` 與 `GoogleUserProfile` 型別；`User` 可保存額外模組權限 `permissions`。
+- `functions/src/index.ts` 新增 `syncGoogleUserProfile` 相關 helper，Google 帳號首次 bootstrap 綁定、主管核准綁定、已綁定者再次登入時都會同步 `googleUserProfiles`。
+- 新增 `syncGoogleUserProfileOnUserWrite` Firestore trigger，當 `users/{userId}` 的角色、停用狀態、權限或 Google 綁定狀態被更新時，自動維護對應資料；使用者刪除或 Google UID 變更時會移除舊對應。
+- 新增 `rebuildGoogleUserProfiles` callable，供已綁定主管或老闆之後手動回填既有已綁定使用者。
+- 新增 `unlinkOwnGoogleAccount` callable 與前端 service 方法，供後續 UI 接上「本人解除 Google 帳號綁定」；目前尚未在人員設定畫面加按鈕。
+- `firestore.rules` 已先把 `googleUserProfiles` 加入前端禁止直接讀寫的敏感集合，避免新對應表被現有 catch-all 規則公開。
+- 本階段尚未部署 Functions 或 Firestore Rules；部署時需同時部署 Functions 與 rules，避免 `googleUserProfiles` 建立後仍受舊 rules 公開。
 
 ### Codex 跨電腦交接
 
@@ -75,6 +86,9 @@
 
 ## 待辦與待確認
 
+- 部署資安地基時需同時執行 Functions 與 Firestore Rules 部署，之後由已綁定老闆/主管登入觸發 `googleUserProfiles` 自動建立，或呼叫 `rebuildGoogleUserProfiles` 回填。
+- 接著要在人員設定頁面新增「平台權限」區塊，讓老闆/主管可授權工讀生操作零用金、客戶、收發信件、薪資與刪除正式資料等模組。
+- 接著要在人員設定或帳號區接上「解除自己的 Google 帳號綁定」按鈕，呼叫 `GoogleIntegrationService.unlinkOwnGoogleAccount()`。
 - 以實際主管及員工帳號再次確認 Google 登入持續狀態、主管審核與共用電腦登出流程。
 - 確認 `6b033ad` 的 Functions 版本是否已部署到 Firebase；GitHub 有程式碼不代表後端一定已部署。
 - 以主管及工讀生兩個實際帳號確認指定提醒的平台可見性、唯讀權限與多方 Google 日曆同步。
