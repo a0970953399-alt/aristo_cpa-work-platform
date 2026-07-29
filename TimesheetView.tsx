@@ -41,8 +41,8 @@ const getHeatmapBg = (hours: number): string => {
 };
 
 const PAID_CUTOFF_DATE = '2026-06-30';
-const PAID_ROW_CLASS = 'bg-[#F4F0FA] hover:bg-[#ECE4F7]';
-const PAID_CELL_CLASS = 'bg-[#DDD6FE] ring-1 ring-[#8B5CF6]';
+const PAID_ROW_CLASS = 'bg-[#EDE7F6] hover:bg-[#E3D8F2]';
+const PAID_CELL_CLASS = 'bg-[#C4B5FD] ring-1 ring-[#6D28D9]';
 
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
     const canManageTimesheets = hasPlatformPermission(currentUser, 'manageTimesheets');
@@ -265,7 +265,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                             <div className="bg-white border border-gray-200 text-gray-600 px-3 py-2 rounded-xl font-bold text-sm">
                                 未結算：{unpaidHours}
                             </div>
-                            <div className="bg-[#F4F0FA] border border-[#DDD6FE] text-[#6D28D9] px-3 py-2 rounded-xl font-bold text-sm">
+                            <div className="bg-[#EDE7F6] border border-[#C4B5FD] text-[#5B21B6] px-3 py-2 rounded-xl font-bold text-sm">
                                 已結算：{paidHours}
                             </div>
                         </div>
@@ -423,7 +423,7 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                                                     <>
                                                                         <button onClick={() => startEdit(r)} className="text-gray-400 hover:text-blue-600 text-sm">編輯</button>
                                                                         {canSettlePayroll && (
-                                                                            <button onClick={() => handleMarkPaid(r)} className="text-[#6D28D9] hover:text-[#4C1D95] text-sm font-bold">結算薪資</button>
+                                                                            <button onClick={() => handleMarkPaid(r)} className="text-[#5B21B6] hover:text-[#4C1D95] text-sm font-bold">結算薪資</button>
                                                                         )}
                                                                         <button onClick={() => handleDelete(r.id)} className="text-gray-300 hover:text-red-500"><TrashIcon className="w-4 h-4" /></button>
                                                                     </>
