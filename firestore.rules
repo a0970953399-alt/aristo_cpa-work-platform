@@ -72,7 +72,7 @@ service cloud.firestore {
     }
 
     function isEditableCheckIn() {
-      return resource.data.date > '2026-06-30' && resource.data.paidAt == null;
+      return resource.data.date > '2026-06-30' && !resource.data.keys().hasAny(['paidAt']);
     }
 
     match /users/{userId} {
