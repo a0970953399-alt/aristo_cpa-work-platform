@@ -10,6 +10,7 @@ interface TimesheetViewProps {
     records: CheckInRecord[];
     onUpdate: () => void;
     onClose: () => void;
+    testMode?: boolean;
 }
 
 const ChartIcon = ({ className }: { className?: string }) => (
@@ -44,7 +45,7 @@ const PAID_CUTOFF_DATE = '2026-06-30';
 const PAID_ROW_CLASS = 'bg-emerald-50 hover:bg-emerald-100';
 const PAID_CELL_CLASS = 'bg-emerald-200 ring-1 ring-emerald-500';
 
-export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
+export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose, testMode = false }) => {
     const canManageTimesheets = hasPlatformPermission(currentUser, 'manageTimesheets');
     const canSettlePayroll = currentUser.role === UserRole.BOSS;
 
@@ -68,12 +69,22 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
     const isMultiMode = canManageTimesheets && targetUserId === 'ALL';
 
     useEffect(() => {
+        if (testMode) {
+            setLiveRecords(records);
+            return;
+        }
         const handleRecords = (items: CheckInRecord[]) => setLiveRecords(items);
         const handleError = (error: Error) => console.error('Timesheet real-time sync failed:', error);
         return canManageTimesheets
             ? TaskService.subscribeCheckInsForMonth(monthFilter, handleRecords, handleError)
             : TaskService.subscribeCheckInsForUser(currentUser.id, handleRecords, handleError);
-    }, [monthFilter, canManageTimesheets, currentUser.id]);
+    }, [monthFilter, canManageTimesheets, currentUser.id, records, testMode]);
+
+    useEffect(() => {
+        if (!canManageTimesheets) {
+            setTargetUserId(currentUser.id);
+        }
+    }, [canManageTimesheets, currentUser.id]);
 
     const filteredRecords = useMemo(() => {
         return liveRecords.filter(r => {
@@ -163,7 +174,11 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         if (isSettled(record)) return;
         const newTotal = calculateHours(editStart, editEnd, editBreak);
         const updated: CheckInRecord = { ...record, date: editDate, startTime: editStart, endTime: editEnd, breakHours: editBreak, totalHours: newTotal };
-        await TaskService.updateCheckIn(updated);
+        if (testMode) {
+            setLiveRecords(previous => previous.map(item => item.id === record.id ? updated : item));
+        } else {
+            await TaskService.updateCheckIn(updated);
+        }
         setEditingId(null);
         onUpdate();
     };
@@ -172,7 +187,11 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         const record = liveRecords.find(item => item.id === id);
         if (record && isSettled(record)) return;
         if (confirm('確定刪除此筆紀錄？')) {
-            await TaskService.deleteCheckIn(id);
+            if (testMode) {
+                setLiveRecords(previous => previous.filter(item => item.id !== id));
+            } else {
+                await TaskService.deleteCheckIn(id);
+            }
             onUpdate();
         }
     };
@@ -195,7 +214,16 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
             '請確認薪資已實際發放後再繼續。'
         ].join('\n'));
         if (!confirmed) return;
-        await TaskService.markCheckInPaid(record, currentUser);
+        const paidFields = {
+            paidAt: new Date().toISOString(),
+            paidBy: currentUser.name,
+            paidById: currentUser.id,
+        };
+        if (testMode) {
+            setLiveRecords(previous => previous.map(item => item.id === record.id ? { ...item, ...paidFields } : item));
+        } else {
+            await TaskService.markCheckInPaid(record, currentUser);
+        }
         onUpdate();
     };
 
