@@ -4,10 +4,11 @@ import type { PlatformPermissions, User } from './types';
 export type PlatformPermissionKey = keyof PlatformPermissions;
 
 export const EXTRA_PERMISSION_OPTIONS: Array<{
-  key: Exclude<PlatformPermissionKey, 'clientTasks'>;
+  key: PlatformPermissionKey;
   label: string;
   description: string;
 }> = [
+  { key: 'clientTasks', label: '客戶事務矩陣', description: '可查看與更新帳務、稅務、送件等進度' },
   { key: 'clientData', label: '客戶主檔', description: '可開啟並維護客戶基本資料' },
   { key: 'cash', label: '零用金 / 代墊款', description: '可操作事務所零用金與客戶代墊款' },
   { key: 'mail', label: '收發信件', description: '可查看與登錄收發信件紀錄' },
@@ -21,7 +22,9 @@ export const isPrivilegedRole = (user: User) =>
 
 export const hasPlatformPermission = (user: User, permission: PlatformPermissionKey) => {
   if (isPrivilegedRole(user)) return true;
-  if (permission === 'clientTasks') return true;
+  if (permission === 'clientTasks') {
+    return user.role === UserRole.INTERN || user.permissions?.clientTasks === true;
+  }
   return user.permissions?.[permission] === true;
 };
 

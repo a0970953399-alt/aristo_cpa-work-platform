@@ -807,7 +807,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleConfirmDeleteUser = () => { if (!userToDelete) return; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.filter(u => u.id !== userToDelete.id); TaskService.saveUsers(updatedUsers); onUserUpdate(); setIsUserDeleteModalOpen(false); setUserToDelete(null); };
   const handleToggleUserActive = async (user: User) => { const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(item => item.id === user.id ? { ...item, isActive: item.isActive === false } : item); await TaskService.saveUsers(updatedUsers); onUserUpdate(); };
   const handleToggleUserPermission = async (user: User, permission: PlatformPermissionKey) => {
-    if (permission === 'clientTasks') return;
+    if (permission === 'clientTasks' && user.role === UserRole.INTERN) return;
     const currentUsers = TaskService.getUsers();
     const updatedUsers = currentUsers.map(item => {
       if (item.id !== user.id) return item;
@@ -1710,11 +1710,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                                           </div>
                                           <div className="mt-3 border-t border-gray-200 pt-3">
                                               <div className="mb-2 flex flex-wrap gap-2">
-                                                  <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700">基礎：客戶事務矩陣</span>
+                                                  {user.role === UserRole.INTERN && <span className="rounded bg-emerald-100 px-2 py-1 text-xs font-bold text-emerald-700">基礎：客戶事務矩陣</span>}
                                                   <span className="rounded bg-sky-100 px-2 py-1 text-xs font-bold text-sky-700">基礎：本人工時唯讀</span>
                                               </div>
                                               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
-                                                  {EXTRA_PERMISSION_OPTIONS.map(option => {
+                                                  {EXTRA_PERMISSION_OPTIONS.filter(option => option.key !== 'clientTasks' || user.role === UserRole.TRAINEE).map(option => {
                                                       const enabled = user.permissions?.[option.key] === true;
                                                       return (
                                                           <label key={option.key} className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors ${enabled ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>

@@ -106,12 +106,16 @@ const normalizePermissions = (value: unknown): PlatformPermissions => {
 };
 
 const getGoogleUserProfilePayload = (userId: string, profile: PlatformUser) => {
+  const normalizedPermissions = normalizePermissions(profile.permissions);
+  if (profile.role === 'boss' || profile.role === 'supervisor' || profile.role === 'intern') {
+    normalizedPermissions.clientTasks = true;
+  }
   const payload: Record<string, unknown> = {
     userId,
     name: profile.name,
     role: profile.role,
     isActive: profile.isActive !== false,
-    permissions: normalizePermissions(profile.permissions),
+    permissions: normalizedPermissions,
     updatedAt: FieldValue.serverTimestamp(),
   };
   const googleEmail = normalizeEmail(profile.googleEmail);
