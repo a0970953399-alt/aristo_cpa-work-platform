@@ -910,6 +910,22 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     }
   };
 
+  const handleUnlinkOwnGoogleAccount = async () => {
+    if (!confirm('確定要解除自己的 Google 帳號綁定嗎？解除後會停止 Google 日曆同步，且需要重新登入。')) return;
+    setIsGoogleActionLoading(true);
+    setGoogleSettingsMessage('');
+    try {
+      await GoogleIntegrationService.unlinkOwnGoogleAccount();
+      setCalendarStatus({ connected: false });
+      onUserUpdate();
+      alert('Google 帳號綁定已解除，請重新登入。');
+      onLogout();
+    } catch (error) {
+      setGoogleSettingsMessage(getGoogleErrorMessage(error, '解除 Google 帳號綁定失敗，請稍後再試。'));
+      setIsGoogleActionLoading(false);
+    }
+  };
+
   const renderGoogleIntegrationSettings = () => {
     const googleUser = GoogleIntegrationService.getCurrentGoogleUser();
     const isSignedInAsCurrentProfile = Boolean(
@@ -941,6 +957,16 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
               className="mt-4 w-full rounded-lg border border-blue-200 bg-blue-50 px-4 py-2.5 text-sm font-bold text-blue-700 hover:bg-blue-100 disabled:opacity-50"
             >
               {activeUser.googleUid ? '使用已綁定的 Google 帳號登入' : '綁定自己的 Google 帳號'}
+            </button>
+          )}
+          {isSignedInAsCurrentProfile && (
+            <button
+              type="button"
+              onClick={handleUnlinkOwnGoogleAccount}
+              disabled={isGoogleActionLoading}
+              className="mt-4 w-full rounded-lg border border-red-200 bg-red-50 px-4 py-2.5 text-sm font-bold text-red-700 hover:bg-red-100 disabled:opacity-50"
+            >
+              解除自己的 Google 帳號綁定
             </button>
           )}
         </section>
