@@ -8,7 +8,7 @@ import { StockClientConfig, StockTarget, StockTransaction } from './types';
 import { assignUniqueInternShiftColors } from './shiftColors';
 
 import { db } from './firebase'; 
-import { collection, getDocs, doc, setDoc, deleteDoc, deleteField, getDoc, onSnapshot, query, where, orderBy, limit, runTransaction } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, deleteDoc, deleteField, getDoc, onSnapshot, query, where, orderBy, limit, runTransaction, writeBatch } from "firebase/firestore";
 import type { DocumentData, QueryConstraint, QueryDocumentSnapshot, Unsubscribe } from "firebase/firestore";
 
 const USERS_STORAGE_KEY = 'shuoye_users_v1';
@@ -672,6 +672,23 @@ export const TaskService = {
   async updateCashRecord(updated: CashRecord): Promise<void> {
       const clean = Object.fromEntries(Object.entries(updated).filter(([, v]) => v !== undefined));
       await setDoc(doc(db, "cashRecords", String(updated.id)), clean, { merge: true });
+  },
+
+  async unlinkCashRecordFromClient(id: string): Promise<void> {
+      await setDoc(doc(db, "cashRecords", String(id)), {
+          clientId: deleteField()
+      }, { merge: true });
+  },
+
+  async unlinkCashRecordsFromClients(ids: string[]): Promise<void> {
+      const uniqueIds = Array.from(new Set(ids.map(String)));
+      for (let start = 0; start < uniqueIds.length; start += 450) {
+          const batch = writeBatch(db);
+          uniqueIds.slice(start, start + 450).forEach(id => {
+              batch.update(doc(db, "cashRecords", id), { clientId: deleteField() });
+          });
+          await batch.commit();
+      }
   },
 
   async deleteCashRecord(id: string): Promise<void> {
