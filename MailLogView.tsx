@@ -283,7 +283,7 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
     };
 
     return (
-        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-full flex flex-col">
+        <div className="bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden h-full min-h-0 flex flex-col">
             {/* Header & Tabs */}
             <div className="p-4 border-b bg-gray-50 flex flex-col sm:flex-row justify-between items-center gap-4">
                 <div className="flex gap-2 bg-white p-1 rounded-lg border shadow-sm">
@@ -319,7 +319,7 @@ export const MailLogView: React.FC<MailLogViewProps> = ({ records, onUpdate, isS
             </div>
 
             {/* Table Area */}
-            <div className="flex-1 overflow-auto custom-scrollbar">
+            <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
                 <table className="w-full text-left border-collapse min-w-[1000px]"> 
                   <thead className="bg-gray-100 sticky top-0 z-10 text-gray-600 text-sm font-bold uppercase tracking-wider">
                         <tr>

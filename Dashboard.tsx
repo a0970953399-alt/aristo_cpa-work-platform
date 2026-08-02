@@ -1442,9 +1442,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       ) : null}
 
       {/* 3. Main Content */}
-      <main className="flex-1 overflow-hidden relative w-full bg-gray-50">
+      <main className="flex-1 min-h-0 overflow-hidden relative w-full bg-gray-50">
         {canViewMatrix ? (
-            <div className="absolute inset-0 px-6 py-6">
+            <div className="absolute inset-0 min-h-0 px-6 py-6">
               <React.Suspense fallback={<ModuleLoading />}>
                 {!dbConnected ? (
                     <div className="flex flex-col items-center justify-center py-40 gap-5">

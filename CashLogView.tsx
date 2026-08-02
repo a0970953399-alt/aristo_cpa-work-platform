@@ -450,7 +450,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
   // 1. Dashboard (入口畫面)
     if (viewMode === 'dashboard') {
         return (
-            <div className="h-full min-h-[calc(100vh-120px)] flex flex-col bg-gray-50 rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+            <div className="h-full min-h-0 flex flex-col bg-gray-50 rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
                 <div className="p-6 pb-2">
                     <h3 className="text-gray-500 font-bold mb-4 flex items-center gap-2 uppercase tracking-wider text-sm">
                         <BanknotesIcon className="w-5 h-5" /> 事務所帳本
@@ -509,8 +509,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                     </div>
                 </div>
 
-              {/* ✨ 將 auto 改成 scroll 強制保留軌道 */}
-              <div className="flex-1 p-6 overflow-y-scroll custom-scrollbar">
+              {/* 內容區依實際剩餘高度捲動 */}
+              <div className="flex-1 min-h-0 p-6 overflow-y-auto custom-scrollbar">
                     {/* ✨ 修改標題區塊，加入搜尋按鈕與相對定位 */}
                     <div className="relative mb-4 flex items-center gap-2">
                         <h3 className="text-gray-500 font-bold flex items-center gap-2 uppercase tracking-wider text-sm">
@@ -605,7 +605,7 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
     else { pageTitle = `代墊款：${selectedClient?.name}`; headerColor = 'bg-blue-600'; }
 
   return (
-        <div className="h-full min-h-[calc(100vh-120px)] flex flex-col bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
+        <div className="h-full min-h-0 flex flex-col bg-white rounded-2xl shadow-sm border border-gray-200 overflow-hidden">
             <div className="p-4 border-b flex justify-between items-center bg-gray-50">
                 <div className="flex items-center gap-3">
                     <button onClick={() => { setViewMode('dashboard'); setSelectedClient(null); setFilterAllAdvClient(''); setFilterAllAdvRequestId(''); setFilterAllAdvCategory(''); }} className="p-2 hover:bg-gray-200 rounded-full transition-colors text-gray-500">
@@ -633,8 +633,8 @@ export const CashLogView: React.FC<CashLogViewProps> = ({ records, clients, onUp
                 </div>
             </div>
 
-          {/* ✨ 將 auto 改成 overflow-y-scroll overflow-x-auto */}
-            <div className="flex-1 overflow-y-scroll overflow-x-auto custom-scrollbar">
+          {/* 表格區依實際剩餘高度捲動 */}
+            <div className="flex-1 min-h-0 overflow-auto custom-scrollbar">
             {viewMode === 'all_advances' ? (
                 /* ── 代墊款總覽 table ── */
                 <table className="w-full text-left border-collapse min-w-[900px]">
