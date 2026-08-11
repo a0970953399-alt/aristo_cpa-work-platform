@@ -16,9 +16,10 @@ type BindingResult = {
   profile?: User;
 };
 
-const googleProvider = new GoogleAuthProvider();
-
 const ensurePersistence = () => setPersistence(auth, browserLocalPersistence);
+
+const createAuthError = (code: string, message: string) =>
+  Object.assign(new Error(message), { code });
 
 export const GoogleIntegrationService = {
   observeAuth(callback: (user: FirebaseUser | null) => void) {
@@ -29,12 +30,32 @@ export const GoogleIntegrationService = {
     return auth.currentUser;
   },
 
-  async requestAccountBinding(profileId: string): Promise<BindingResult> {
+  async requestAccountBinding(profileId: string, expectedGoogleUid?: string): Promise<BindingResult> {
     await ensurePersistence();
-    if (!auth.currentUser) await signInWithPopup(auth, googleProvider);
-    const requestBinding = httpsCallable<{ profileId: string }, BindingResult>(functions, 'requestAccountBinding');
-    const result = await requestBinding({ profileId });
-    return result.data;
+
+    if (auth.currentUser && auth.currentUser.uid !== expectedGoogleUid) {
+      await signOut(auth);
+    }
+
+    if (!auth.currentUser) {
+      const provider = new GoogleAuthProvider();
+      provider.setCustomParameters({ prompt: 'select_account' });
+      await signInWithPopup(auth, provider);
+    }
+
+    if (expectedGoogleUid && auth.currentUser?.uid !== expectedGoogleUid) {
+      await signOut(auth);
+      throw createAuthError('auth/account-mismatch', '目前選擇的 Google 帳號與平台人員不符');
+    }
+
+    try {
+      const requestBinding = httpsCallable<{ profileId: string }, BindingResult>(functions, 'requestAccountBinding');
+      const result = await requestBinding({ profileId });
+      return result.data;
+    } catch (error) {
+      await signOut(auth);
+      throw error;
+    }
   },
 
   async signOut(): Promise<void> {

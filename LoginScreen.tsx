@@ -5,10 +5,11 @@ import { GoogleIntegrationService } from './googleIntegrationService';
 
 interface LoginScreenProps {
   onLogin: (user: User) => void;
+  onGoogleLoginIntent: (userId: string | null) => void;
   users: User[];
 }
 
-const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
+const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLoginIntent, users }) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
   const [pin, setPin] = useState('');
   const [error, setError] = useState('');
@@ -34,6 +35,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
         const userPin = selectedUser.pin || '1234';
         if (pin === userPin) {
             await GoogleIntegrationService.signOut();
+            onGoogleLoginIntent(null);
             onLogin(selectedUser);
         } else {
             setError('密碼錯誤，請重試');
@@ -47,9 +49,11 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
     setIsGoogleLoading(true);
     setError('');
     setNotice('');
+    onGoogleLoginIntent(selectedUser.id);
     try {
-      const result = await GoogleIntegrationService.requestAccountBinding(selectedUser.id);
+      const result = await GoogleIntegrationService.requestAccountBinding(selectedUser.id, selectedUser.googleUid);
       if (result.status === 'linked' && result.profile) {
+        onGoogleLoginIntent(null);
         onLogin(result.profile);
         return;
       }
@@ -58,6 +62,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, users }) => {
       const code = typeof loginError === 'object' && loginError && 'code' in loginError ? String(loginError.code) : '';
       if (code.includes('popup-closed-by-user')) {
         setError('Google 登入視窗已關閉，請重新操作。');
+      } else if (code.includes('account-mismatch')) {
+        setError(`目前選擇的 Google 帳號不是「${selectedUser.name}」已綁定的帳號，請重新選擇。`);
       } else if (code.includes('already-exists')) {
         setError('這個 Gmail 已綁定其他人員，請聯絡主管。');
       } else if (code.includes('failed-precondition')) {

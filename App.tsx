@@ -23,6 +23,7 @@ const App: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [googleUserUid, setGoogleUserUid] = useState<string | null>(null);
+  const [googleLoginTargetId, setGoogleLoginTargetId] = useState<string | null>(null);
 
   // Initialize Users
   useEffect(() => {
@@ -39,9 +40,14 @@ const App: React.FC = () => {
   }, []);
 
   const handleLogin = (user: User) => setCurrentUser(user);
-  const handleLogout = () => {
-    void GoogleIntegrationService.signOut();
-    setCurrentUser(null);
+  const handleLogout = async () => {
+    try {
+      await GoogleIntegrationService.signOut();
+      setGoogleLoginTargetId(null);
+      setCurrentUser(null);
+    } catch (error) {
+      console.error('Google sign-out failed:', error);
+    }
   };
   const handleUserUpdate = () => setUsers(TaskService.getUsers());
 
@@ -59,20 +65,25 @@ const App: React.FC = () => {
     if (!googleUserUid) return;
     const linkedUser = users.find(user => user.googleUid === googleUserUid);
     if (!linkedUser) return;
+    if (googleLoginTargetId && String(linkedUser.id) !== String(googleLoginTargetId)) return;
     if (linkedUser.isActive === false) {
       void GoogleIntegrationService.signOut();
       setCurrentUser(null);
       return;
     }
     setCurrentUser(linkedUser);
-  }, [googleUserUid, users]);
+  }, [googleUserUid, googleLoginTargetId, users]);
 
   if (isLoading) return <div>Loading...</div>;
 
   return (
     <>
       {!currentUser ? (
-        <LoginScreen onLogin={handleLogin} users={users.filter(user => user.isActive !== false)} />
+        <LoginScreen
+          onLogin={handleLogin}
+          onGoogleLoginIntent={setGoogleLoginTargetId}
+          users={users.filter(user => user.isActive !== false)}
+        />
       ) : (
         <Suspense fallback={<AppLoading />}>
           <Dashboard
