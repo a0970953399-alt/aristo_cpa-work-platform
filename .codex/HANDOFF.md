@@ -132,7 +132,8 @@
 - `googleIntegrationService.ts` 會在現有 Google UID 與所選人員不符時先登出，並以 `prompt: select_account` 重新開啟帳號選擇；登入已綁定人員時也會核對 UID。
 - 選錯 Gmail 時會清除該次 Firebase Auth 並停在登入畫面，不會進入錯誤人員頁面；`LoginScreen.tsx` 會顯示明確的帳號不符訊息。
 - 尚未綁定人員仍沿用原本「送出申請、主管核准」流程；既有 `users`、`googleUserProfiles`、Google 日曆與所有業務資料均不遷移、不重寫。
-- 本輪只修改前端登入流程，不需變更 Functions 或 Firestore Rules。前端正式建置與 `git diff --check` 已通過，目前尚未推送或部署。
+- 本輪只修改前端登入流程，不需變更 Functions 或 Firestore Rules。前端正式建置與 `git diff --check` 已通過，已以提交 `f318c55` 推送至 GitHub `main`，由 Vercel 自動部署。
+- 已由使用者確認負向情境：點擊其他人員頭像後選擇自己的 Gmail，平台會阻止登入，不會跳進該 Gmail 原本綁定的人員頁面。共用電腦上兩個已綁定帳號的正向切換仍待實測。
 
 ### 零用金匯入
 
