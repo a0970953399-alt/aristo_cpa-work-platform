@@ -1,6 +1,6 @@
 # 碩業工作平台交接
 
-更新日期：2026-08-03
+更新日期：2026-08-11
 基準分支：`main`
 基準提交：`main` 最新提交（客戶代墊款與碩業零用金完全分離）
 
@@ -112,6 +112,31 @@
 - 新增 Google 事件格式版本；既有連線使用者下次載入平台時會自動更新既有事件一次，之後不重複執行。
 - 這一輪 Google 日曆文字格式修改已推送至 GitHub `main`，最新 Functions 也已成功部署。
 
+
+### 代墊款總覽與請款單總覽討論
+
+- 2026-08-11 討論零用金／代墊款頁面中的「代墊款總覽」功能。結論是目前代墊款總覽比較接近「代墊明細查詢表」，可以依請款單編號、客戶名稱、日期、代墊費用篩選，也能以 `requestId` 分組顯示小計，但尚未形成完整的請款管理流程。
+- 目前代墊款資料主要仍保存於 `cashRecords`。`requestId` 與 `isReimbursed` 是寫在每一筆代墊明細上的欄位；系統尚未建立獨立的「請款單」資料模型，因此無法完整保存請款單日期、承辦事項小計、稅額、總額、建立人、建立時間、寄出狀態、收款狀態、作廢狀態或重新下載紀錄。
+- 初步評估：現有代墊明細查詢功能約完成 70%，但請款管理流程約只完成 35%。缺口不在單筆代墊款的資料顯示，而在缺少「請款單層級」的狀態、歷史與流程管理。
+- 建議新增「請款單總覽」，並與既有「代墊款總覽」分工：代墊款總覽負責查看每一筆代墊明細；請款單總覽負責查看每一張請款單及其狀態。建議欄位包含請款單編號、客戶名稱、請款日期、代墊款小計、承辦事項小計、稅額、請款總額、狀態、建立人、建立時間與操作按鈕。
+- 請款單總覽有兩種技術路線。第一種是從現有 `cashRecords.requestId` 即時計算，改動較小，但無法完整保存請款單本身的資訊。第二種是新增正式請款單集合，例如 `invoiceRecords` 或 `billingRequests`，讓每張請款單成為正式資料；此方式改動較大，但較符合後續寄出、收款、作廢、重開與稽核需求。
+- 初步傾向採用第二種做法：新增真正的請款單資料表，而不是只用代墊明細反推。原因是請款單一旦涉及承辦事項金額、稅額、收款狀態、作廢與歷史追蹤，單靠 `cashRecords` 分組會使業務邏輯不穩定，也不利於日後查核。
+- 本次只是需求與架構討論，使用者明確要求未經同意不得修改程式碼。因此目前尚未變更 `CashLogView.tsx`、`InvoiceGenerator.tsx`、`taskService.ts`、`types.ts` 或 Firestore Rules。
+
+
+### 實習生 Google 登入失敗討論
+
+- 2026-08-11 討論「實習生無法成功使用 Google 帳號登入」的可能性。結論是：依目前平台設計，每個人原則上都可以使用 Google 帳號登入；實習生不應因角色本身被禁止登入。若只有實習生登入失敗，較可能是綁定狀態、角色資料、Google profile 同步或 Firestore Rules 權限資料不完整造成。
+- Google 登入流程目前由 `LoginScreen.tsx` 呼叫 `GoogleIntegrationService.requestAccountBinding(selectedUser.id)`，後端 `functions/src/index.ts` 的 `requestAccountBinding` 會檢查平台人員是否存在、是否停用、該人員是否已綁定其他 Gmail、目前 Gmail 是否已綁定其他人。若已綁定同一個 Google UID，回傳 `linked`；若尚未綁定，建立 `googleBindingRequests` 等待老闆或主管審核。
+- 第一個常見原因是實習生尚未完成 Google 綁定審核。這時畫面應顯示「綁定申請已送出，主管確認後會自動完成登入」，此狀態不是登入功能錯誤，而是尚未核准。
+- 第二個常見原因是該實習生的人員資料已綁定其他 Gmail，或目前使用的 Gmail 已綁定到其他平台人員。程式會分別回傳 `failed-precondition` 或 `already-exists` 類型錯誤，前端目前會顯示「此人員已綁定其他 Gmail」或「這個 Gmail 已綁定其他人員」。
+- 第三個原因是該 `users/{userId}` 人員資料被設為 `isActive === false`，後端會直接拒絕登入或綁定。
+- 第四個原因是 `users` 已有 `googleUid`，但 `googleUserProfiles/{googleUid}` 未建立或未同步。現行 Firestore Rules 依賴 `googleUserProfiles` 判斷 Google 登入者的角色、啟用狀態與權限；若對應文件不存在，使用者可能完成 Firebase Auth，但後續讀取平台資料時被 Rules 擋下，看起來像登入失敗或登入後資料載入失敗。此時需確認 Functions 是否已部署最新版本，或由已綁定老闆/主管呼叫 `rebuildGoogleUserProfiles` 回填。
+- 第五個原因是角色值不符合程式預期。程式型別預期實習生角色為 `trainee`，工讀生為 `intern`；若 Firestore 實際資料寫成中文、空值或拼字錯誤，後端與 Rules 可能無法正確套用基礎權限。
+- 目前在 `getGoogleUserProfilePayload` 中，`boss`、`supervisor`、`intern` 會自動取得 `clientTasks` 基礎權限，`trainee` 不會。這符合先前「實習生基礎權限較低」的決策，理論上不應阻止登入本身，但可能導致登入後可見頁籤或可讀資料少於工讀生。如果前端某些元件假設登入者一定能讀取特定集合，可能產生登入後體感異常。
+- 後續排查順序建議為：確認畫面錯誤訊息；檢查該實習生是否已送出並被核准 Google 綁定；檢查 `users` 中的 `role`、`isActive`、`googleUid`、`googleEmail`；檢查 `googleUserProfiles` 是否存在同 UID 文件；必要時檢查 Firebase Functions logs。
+- 本次只是問題分析與交接紀錄，尚未修改 Google 登入流程、Functions 或 Firestore Rules。
+
 ### 零用金匯入
 
 - `b3d93fc`：事務所零用金匯入改以金額正負判斷收入與支出，寫入時保存絕對值。
@@ -140,6 +165,10 @@
 - 用少量可刪除的測試資料確認：碩業零用金匯入會保留客戶名稱但不進入客戶代墊款，客戶代墊款匯入也不進入碩業零用金。
 - 前端部署後，由主管確認批次顯示筆數，再按「解除既有連結」執行正式資料更新；完成後確認客戶頁紀錄消失，而碩業零用金的客戶名稱、金額與餘額不變。
 - 所有人完成 Google 綁定並穩定使用後，再討論移除 PIN 與全面收緊 Firestore Auth 規則。
+
+- 請款單總覽尚未實作。下一步需先確認業務規則：請款單產生後是否可修改、是否允許作廢、已請款代墊款是否能移到另一張請款單、是否需要「已寄出」與「已收款」兩段狀態、請款單總覽是否納入承辦事項金額與稅額。
+
+- 實習生 Google 登入問題尚未實測定位。若再次發生，需先取得實際錯誤訊息，再依序檢查 `googleBindingRequests`、`users` 內該人員的 `role/isActive/googleUid/googleEmail`、`googleUserProfiles` 對應文件，以及 Firebase Functions logs。
 
 ## 驗證與部署
 
