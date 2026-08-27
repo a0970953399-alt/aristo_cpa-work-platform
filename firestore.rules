@@ -76,7 +76,7 @@ service cloud.firestore {
     }
 
     match /users/{userId} {
-      // The login screen still needs the staff list while PIN fallback exists.
+      // The login screen still needs the staff list to let users choose their profile before Google auth.
       // Sensitive Google fields are protected from direct frontend writes.
       allow read: if true;
       allow create, delete: if isPrivileged();
@@ -84,7 +84,7 @@ service cloud.firestore {
       allow update: if isPrivileged() && safeUserGoogleFields();
       allow update: if isSelfUser(userId)
         && safeUserGoogleFields()
-        && changedOnly(['avatar', 'pin', 'shiftColorHue']);
+        && changedOnly(['avatar', 'shiftColorHue']);
     }
 
     match /tasks/{taskId} {

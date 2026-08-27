@@ -2,7 +2,6 @@ import { UserRole, TabCategory } from './types';
 import type { User, Client, Instruction } from './types';
 
 export const SUPERVISOR_NAME = "周榆";
-export const DEFAULT_PIN = "1234";
 
 export const USERS: User[] = [
   // ✨ 新增 Brandon 在第一位，這樣登入畫面他就會在最左邊
@@ -10,22 +9,19 @@ export const USERS: User[] = [
     id: 'u0', // 給老闆一個獨立的 ID
     name: "Brandon",
     role: UserRole.BOSS, // 最高層級
-    avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Brandon&backgroundColor=ffd5dc&radius=50', // 隨機生成一個專屬頭像
-    pin: DEFAULT_PIN
+    avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=Brandon&backgroundColor=ffd5dc&radius=50' // 隨機生成一個專屬頭像
   },
   {
     id: 'u1',
     name: SUPERVISOR_NAME,
     role: UserRole.SUPERVISOR, // 確保原本的主管也是這個權限設定
-    avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=周榆&backgroundColor=ffdfbf&radius=50',
-    pin: DEFAULT_PIN
+    avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=周榆&backgroundColor=ffdfbf&radius=50'
   },
   {
     id: 'u2',
     name: "洪煥喆",
     role: UserRole.INTERN,
     avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=洪煥喆&backgroundColor=b6e3f4&radius=50',
-    pin: DEFAULT_PIN,
     shiftColorHue: 170
   },
   {
@@ -33,7 +29,6 @@ export const USERS: User[] = [
     name: "吳東曄",
     role: UserRole.INTERN,
     avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=吳東曄&backgroundColor=c0aede&radius=50',
-    pin: DEFAULT_PIN,
     shiftColorHue: 346
   },
   {
@@ -41,7 +36,6 @@ export const USERS: User[] = [
     name: "彭耀宣",
     role: UserRole.INTERN,
     avatar: 'https://api.dicebear.com/9.x/micah/svg?seed=彭耀宣&backgroundColor=d1d4f9&radius=50',
-    pin: DEFAULT_PIN,
     shiftColorHue: 270
   }
 ];
@@ -59,7 +53,7 @@ export const TABS = [
 ];
 
 export const ACCOUNTING_SUB_ITEMS = ['入帳', '檢核', '貼傳票', '覆核'];
-export const TAX_SUB_ITEMS = ["憑證整理", "EXCEL", "文中", "申報", "歸檔"];
+export const TAX_SUB_ITEMS = ["憑證整理", "EXCEL", "文中", "檢核", "申報", "歸檔"];
 
 export const COLUMN_CONFIG: Record<string, string[]> = {
     [TabCategory.ACCOUNTING]: ["1月", "2月", "3月", "4月", "5月", "6月", "7月", "8月", "9月", "10月", "11月", "12月"],

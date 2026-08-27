@@ -1,6 +1,6 @@
 # 碩業工作平台交接
 
-更新日期：2026-08-11
+更新日期：2026-08-27
 基準分支：`main`
 基準提交：`main` 最新提交（客戶代墊款與碩業零用金完全分離）
 
@@ -8,7 +8,7 @@
 
 - 專案為 React、Vite、Firebase 的網頁版工作平台，正式網址為 `https://aristo-cpa-work-platform.vercel.app/`。
 - GitHub `main` 已包含 Google 帳號登入、既有人員綁定、主管審核與 Google 日曆單向同步。
-- PIN 登入與修改 PIN 仍作為過渡期備援，尚未移除。
+- PIN 登入與修改 PIN 已從前端移除；平台登入改為只走 Google 帳號登入／綁定申請。
 - Firebase Functions 位於 `functions/src/index.ts`，區域為 `asia-east1`。
 - 原有 Firestore 寄信 Extension 必須保留，不可視為本專案自建 Function 刪除。
 
@@ -60,12 +60,12 @@
 - 第三階段已開始把前端平台權限同步落到 Firestore Rules。
 - `firestore.rules` 已改為以 `googleUserProfiles/{googleUid}` 判斷目前 Google 登入者的角色、停用狀態與平台權限。
 - `calendarConnections`、`googleBindingRequests`、`googleOAuthStates`、`googleUserProfiles` 維持只能由 Cloud Functions 透過 Firebase Admin 操作，前端不可直接讀寫。
-- `users` 仍暫時允許公開讀取，因為 PIN 過渡期與登入畫面需要先取得人員清單；但 Google UID、Google Email、Google 顯示名稱禁止前端直接改寫。新增、刪除、調整人員資料原則上限老闆/主管。
+- `users` 仍暫時允許公開讀取，因登入畫面需要先取得人員清單供使用者選擇平台身分；但 Google UID、Google Email、Google 顯示名稱禁止前端直接改寫。新增、刪除、調整人員資料原則上限老闆/主管。
 - `tasks` 依 `clientTasks` 控制；工讀生基礎擁有，實習生需額外授權。
 - `checkIns` 已配合前端改為：管理工時者可查月份全部工時；一般使用者只訂閱自己的工時。Rules 也限制一般使用者只能讀寫自己的打卡紀錄，刪除工時需管理權限及刪除正式資料權限。
 - `mailRecords`、`cashRecords`、`payrollClients`、`payrollRecords`、`employees`、`monthlySalaries` 分別依收發信件、零用金/代墊款、薪資資料權限控制；刪除另需 `canDeleteRecords`。
 - `clients` 讀取目前開放給具客戶事務矩陣、客戶主檔、零用金、收發信件或薪資權限者；寫入客戶主檔需 `clientData`，刪除另需 `canDeleteRecords`。
-- 目前限制：只要 PIN 登入仍存在，登入所需的人員清單仍無法完全鎖成 Google Auth 才能讀；全面收緊讀取需等 PIN 移除或另建公開登入名單集合。
+- 目前限制：雖然 PIN 登入已移除，但登入頁仍需在 Google Auth 前讀取人員清單；若要全面收緊 `users` 讀取，需另建只含姓名、頭像與必要狀態的公開登入名單集合，或改成先 Google Auth 再選擇平台人員。
 
 ### 內部工時結算
 
@@ -135,6 +135,22 @@
 - 本輪只修改前端登入流程，不需變更 Functions 或 Firestore Rules。前端正式建置與 `git diff --check` 已通過，已以提交 `f318c55` 推送至 GitHub `main`，由 Vercel 自動部署。
 - 已由使用者確認負向情境：點擊其他人員頭像後選擇自己的 Gmail，平台會阻止登入，不會跳進該 Gmail 原本綁定的人員頁面。共用電腦上兩個已綁定帳號的正向切換仍待實測。
 
+
+### 營業稅申報新增檢核欄位
+
+- 2026-08-27 依需求在「營業稅申報」矩陣中，於「文中」與「申報」之間新增「檢核」欄位。
+- 欄位定義位於 `constants.ts` 的 `TAX_SUB_ITEMS`，目前順序為「憑證整理、EXCEL、文中、檢核、申報、歸檔」。
+- 權限行為比照「帳務處理」的「覆核」欄位：一般工讀生／實習生不能自行登記該欄位；主管可開啟派案/直接完成流程；老闆可直接點擊完成並寫入今日日期。
+- 對應邏輯位於 `Dashboard.tsx` 的 `isBossAssignableColumn`，已加入 `TabCategory.TAX` 且子項目為「檢核」時回傳 true。
+
+### PIN 登入移除
+
+- 2026-08-27 依需求移除 PIN 密碼登入。`LoginScreen.tsx` 已刪除 PIN state、PIN 驗證函式、過渡期間登入分隔線、密碼輸入框與「進入系統」按鈕；使用者點選人員後只能透過 Google 帳號登入或送出 Google 綁定申請。
+- `Dashboard.tsx` 已移除個人設定與人員管理中的「修改登入密碼」區塊，並移除 `newUserPin` state、`handleUpdatePin` 函式與新增人員時寫入預設 `pin: '1234'` 的邏輯。
+- `constants.ts` 已移除 `DEFAULT_PIN` 與預設使用者的 `pin` 欄位；`types.ts` 已移除 `User.pin` 型別。
+- `firestore.rules` 已移除一般使用者自行更新 `pin` 的例外，只保留自行更新 `avatar` 與 `shiftColorHue`。這次 Rules 檔案有修改，若要讓 production 規則同步，需部署 Firestore Rules。
+- 目前資料庫既有 `users` 文件中若仍有舊 `pin` 欄位，不會被本次前端修改自動清除；該欄位已不再被登入流程讀取或設定頁更新。
+
 ### 零用金匯入
 
 - `b3d93fc`：事務所零用金匯入改以金額正負判斷收入與支出，寫入時保存絕對值。
@@ -162,7 +178,7 @@
 - Google 日曆文字格式部署後，以主管及工讀生帳號各自載入一次平台，確認既有事件已自動改成新標題。
 - 用少量可刪除的測試資料確認：碩業零用金匯入會保留客戶名稱但不進入客戶代墊款，客戶代墊款匯入也不進入碩業零用金。
 - 前端部署後，由主管確認批次顯示筆數，再按「解除既有連結」執行正式資料更新；完成後確認客戶頁紀錄消失，而碩業零用金的客戶名稱、金額與餘額不變。
-- 所有人完成 Google 綁定並穩定使用後，再討論移除 PIN 與全面收緊 Firestore Auth 規則。
+- PIN 登入已移除。後續若要進一步收緊 `users` 公開讀取，需設計公開登入名單集合或調整為先 Google Auth 再選平台人員。
 
 - 請款單總覽尚未實作。下一步需先確認業務規則：請款單產生後是否可修改、是否允許作廢、已請款代墊款是否能移到另一張請款單、是否需要「已寄出」與「已收款」兩段狀態、請款單總覽是否納入承辦事項金額與稅額。
 

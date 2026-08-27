@@ -11,7 +11,6 @@ interface LoginScreenProps {
 
 const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLoginIntent, users }) => {
   const [selectedUser, setSelectedUser] = useState<User | null>(null);
-  const [pin, setPin] = useState('');
   const [error, setError] = useState('');
   const [notice, setNotice] = useState('');
   const [isGoogleLoading, setIsGoogleLoading] = useState(false);
@@ -24,24 +23,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLoginIntent,
 
   const handleUserClick = (user: User) => {
     setSelectedUser(user);
-    setPin('');
     setError('');
     setNotice('');
-  };
-
-  const handlePinSubmit = async (e: React.FormEvent) => {
-    e.preventDefault();
-    if (selectedUser) {
-        const userPin = selectedUser.pin || '1234';
-        if (pin === userPin) {
-            await GoogleIntegrationService.signOut();
-            onGoogleLoginIntent(null);
-            onLogin(selectedUser);
-        } else {
-            setError('密碼錯誤，請重試');
-            setPin('');
-        }
-    }
   };
 
   const handleGoogleLogin = async () => {
@@ -76,9 +59,8 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLoginIntent,
     }
   };
 
-  const closePinModal = () => {
+  const closeLoginModal = () => {
     setSelectedUser(null);
-    setPin('');
     setError('');
     setNotice('');
   };
@@ -131,7 +113,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLoginIntent,
         <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50 animate-fade-in">
           <div className="bg-white rounded-xl shadow-2xl p-8 max-w-sm w-full relative animate-scale-in">
             <button 
-              onClick={closePinModal}
+              onClick={closeLoginModal}
               className="absolute top-4 right-4 text-gray-400 hover:text-gray-600 p-2"
             >
               ✕
@@ -154,29 +136,7 @@ const LoginScreen: React.FC<LoginScreenProps> = ({ onLogin, onGoogleLoginIntent,
               {isGoogleLoading ? '正在連接 Google...' : selectedUser.googleUid ? '使用 Google 帳號登入' : '使用 Google 帳號並申請綁定'}
             </button>
             {notice && <p className="mt-3 text-green-700 bg-green-50 border border-green-200 rounded-lg p-3 text-sm text-center font-bold">{notice}</p>}
-            <div className="flex items-center gap-3 my-5">
-              <span className="h-px flex-1 bg-gray-200"></span>
-              <span className="text-xs font-bold text-gray-400">過渡期間登入</span>
-              <span className="h-px flex-1 bg-gray-200"></span>
-            </div>
-            <form onSubmit={handlePinSubmit} className="space-y-4">
-              <input
-                type="password"
-                value={pin}
-                onChange={(e) => setPin(e.target.value)}
-                className="w-full px-4 py-3 text-center text-3xl tracking-[0.5em] font-bold border border-gray-300 rounded-xl focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-transparent transition-all placeholder-gray-200"
-                placeholder="••••"
-                autoFocus
-                maxLength={4}
-              />
-              {error && <p className="text-red-500 text-sm text-center font-bold">{error}</p>}
-              <button
-                type="submit"
-                className="w-full py-3.5 bg-blue-600 hover:bg-blue-700 text-white font-bold rounded-xl transition-colors shadow-lg shadow-blue-200"
-              >
-                進入系統
-              </button>
-            </form>
+            {error && <p className="mt-3 text-red-500 text-sm text-center font-bold">{error}</p>}
           </div>
         </div>
       )}

@@ -37,7 +37,7 @@ import {
 
 import { 
     RefreshSvg, FolderIcon, LightningIcon, TrashIcon, UserGroupIcon, TableCellsIcon, 
-    ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, LockClosedIcon, CalendarIcon, 
+    ReturnIcon, BellAlertIcon, GearIcon, CameraIcon, CalendarIcon,
     LightBulbIcon, ClockIcon, DocumentTextIcon, Squares2X2Icon, FunnelIcon
 } from './Icons';
 
@@ -157,7 +157,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [newUserRole, setNewUserRole] = useState<UserRole>(UserRole.INTERN);
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
-  const [newUserPin, setNewUserPin] = useState('');
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
   const [modalBossDate, setModalBossDate] = useState('');
   const [checkInRecords, setCheckInRecords] = useState<CheckInRecord[]>([]);
@@ -817,7 +816,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
 
   // User Mgmt
-  const handleAddUser = () => { if (!newUserName.trim()) return; const newUser: User = { id: Date.now().toString(), name: newUserName.trim(), role: newUserRole, avatar: `https://api.dicebear.com/9.x/micah/svg?seed=${newUserName}&backgroundColor=c0aede&radius=50`, pin: '1234', isActive: true }; const currentUsers = TaskService.getUsers(); const updatedUsers = [...currentUsers, newUser]; TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserName(''); };
+  const handleAddUser = () => { if (!newUserName.trim()) return; const newUser: User = { id: Date.now().toString(), name: newUserName.trim(), role: newUserRole, avatar: `https://api.dicebear.com/9.x/micah/svg?seed=${newUserName}&backgroundColor=c0aede&radius=50`, isActive: true }; const currentUsers = TaskService.getUsers(); const updatedUsers = [...currentUsers, newUser]; TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserName(''); };
   const handleDeleteUserClick = (user: User) => { setUserToDelete(user); setIsUserDeleteModalOpen(true); };
   const handleConfirmDeleteUser = () => { if (!userToDelete) return; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.filter(u => u.id !== userToDelete.id); TaskService.saveUsers(updatedUsers); onUserUpdate(); setIsUserDeleteModalOpen(false); setUserToDelete(null); };
   const handleToggleUserActive = async (user: User) => { const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(item => item.id === user.id ? { ...item, isActive: item.isActive === false } : item); await TaskService.saveUsers(updatedUsers); onUserUpdate(); };
@@ -837,7 +836,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
   const handleAvatarClick = (userId: string) => { setEditingUserId(userId); if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } };
   const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && editingUserId) { if (file.size > 500 * 1024) { alert("圖片大小請小於 500KB"); return; } const reader = new FileReader(); reader.onloadend = async () => { const base64String = reader.result as string; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === editingUserId ? { ...u, avatar: base64String } : u ); await TaskService.saveUsers(updatedUsers); onUserUpdate(); setEditingUserId(null); }; reader.readAsDataURL(file); } };
-  const handleUpdatePin = () => { if (!newUserPin.trim()) return; if (newUserPin.length !== 4 || isNaN(Number(newUserPin))) { alert("請輸入 4 位數字密碼"); return; } const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === currentUser.id ? { ...u, pin: newUserPin.trim() } : u ); TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserPin(''); alert("密碼已更新"); };
 
   const getGoogleErrorMessage = (error: unknown, fallback: string) => {
     const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
@@ -1283,10 +1281,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   
   const toggleColumn = (col: string) => { const newSet = new Set(collapsedColumns); if (newSet.has(col)) newSet.delete(col); else newSet.add(col); setCollapsedColumns(newSet); };
 
-  // Boss 可以自我指派的欄位：帳務處理-覆核、所得扣繳-鄧會確認、年度申報-鄧會確認
+  // Boss 可以自我指派的欄位：帳務處理-覆核、營業稅申報-檢核、所得扣繳-鄧會確認、年度申報-鄧會確認
   const isBossAssignableColumn = (tab: string, column: string): boolean => {
     const subItem = column.split('-').pop();
     if (tab === TabCategory.ACCOUNTING && subItem === '覆核') return true;
+    if (tab === TabCategory.TAX && subItem === '檢核') return true;
     if ((tab === TabCategory.INCOME_TAX || tab === TabCategory.ANNUAL) && column === '鄧會確認') return true;
     return false;
   };
@@ -1712,14 +1711,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                               </div>
 
                               {renderGoogleIntegrationSettings()}
-
-                              <div className="mb-6 p-4 bg-purple-50 rounded-xl border border-purple-100">
-                                  <h4 className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-2 flex items-center gap-1"><LockClosedIcon className="w-4 h-4" /> 修改登入密碼</h4>
-                                  <div className="flex gap-2">
-                                      <input type="text" placeholder="輸入新密碼 (4位數字)..." value={newUserPin} onChange={e => setNewUserPin(e.target.value)} className="flex-1 p-2 border border-purple-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 text-base bg-white" maxLength={4} />
-                                      <button onClick={handleUpdatePin} disabled={!newUserPin.trim()} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">更新</button>
-                                  </div>
-                              </div>
                               <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 pl-1">工作人員名單</h4>
                               <div className="space-y-3 mb-6">
                                   {users.filter(u => u.role === UserRole.INTERN || u.role === UserRole.TRAINEE).map(user => (
@@ -1801,13 +1792,6 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                                   <p className="text-sm text-gray-500 mt-2">點擊上方圖片即可更換大頭貼</p>
                               </div>
                               {renderGoogleIntegrationSettings()}
-                              <div className="p-4 bg-purple-50 rounded-xl border border-purple-100">
-                                  <h4 className="text-xs font-bold text-purple-800 uppercase tracking-wide mb-2 flex items-center gap-1"><LockClosedIcon className="w-4 h-4" /> 修改登入密碼</h4>
-                                  <div className="flex gap-2">
-                                      <input type="text" placeholder="輸入新密碼 (4位數字)..." value={newUserPin} onChange={e => setNewUserPin(e.target.value)} className="flex-1 p-2 border border-purple-200 rounded-lg outline-none focus:ring-2 focus:ring-purple-500 text-base bg-white" maxLength={4} />
-                                      <button onClick={handleUpdatePin} disabled={!newUserPin.trim()} className="bg-purple-600 text-white px-4 py-2 rounded-lg font-bold text-sm hover:bg-purple-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors shadow-sm">更新</button>
-                                  </div>
-                              </div>
                           </div>
                       )}
                   </div>
