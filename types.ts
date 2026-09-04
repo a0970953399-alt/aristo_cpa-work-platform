@@ -80,6 +80,9 @@ export interface ClientTask {
   year: string;
   completionDate?: string;
   completedAt?: string;
+  completedById?: string;
+  completedByName?: string;
+  completedByRole?: UserRole;
   entrySource?: 'assigned' | 'self_reported';
   isNA?: boolean;
   isMisc?: boolean;

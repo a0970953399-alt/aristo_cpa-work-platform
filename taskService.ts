@@ -380,6 +380,9 @@ export const TaskService = {
               assigneeId: user.id,
               assigneeName: user.name,
               completedAt: now,
+              completedById: user.id,
+              completedByName: user.name,
+              completedByRole: user.role,
               entrySource: 'self_reported',
               lastUpdatedBy: user.name,
               lastUpdatedAt: now,
@@ -408,6 +411,9 @@ export const TaskService = {
               status: 'done',
               isNA: false,
               completedAt: now,
+              completedById: supervisor.id,
+              completedByName: supervisor.name,
+              completedByRole: supervisor.role,
               entrySource: 'assigned',
               lastUpdatedBy: supervisor.name,
               lastUpdatedAt: now,
@@ -421,7 +427,7 @@ export const TaskService = {
       await deleteDoc(doc(db, "tasks", String(taskId)));
   },
 
-  async updateTaskStatus(taskId: string, status: TaskStatusType, user: string, completionDate?: string): Promise<void> {
+  async updateTaskStatus(taskId: string, status: TaskStatusType, user: User, completionDate?: string): Promise<void> {
       const ref = doc(db, "tasks", String(taskId));
       const docSnap = await getDoc(ref);
       
@@ -429,7 +435,7 @@ export const TaskService = {
           const taskData = docSnap.data() as ClientTask;
           const historyEntry: HistoryEntry = {
               timestamp: new Date().toISOString(),
-              userName: user,
+              userName: user.name,
               action: `更改狀態至 ${status}`,
               ...(completionDate ? { details: `完成日期: ${completionDate}` } : {})
           };
@@ -439,7 +445,10 @@ export const TaskService = {
               status: status,
               completionDate: completionDate !== undefined ? completionDate : taskData.completionDate,
               completedAt: status === 'done' ? new Date().toISOString() : deleteField(),
-              lastUpdatedBy: user,
+              completedById: status === 'done' ? taskData.completedById || user.id : deleteField(),
+              completedByName: status === 'done' ? taskData.completedByName || user.name : deleteField(),
+              completedByRole: status === 'done' ? taskData.completedByRole || user.role : deleteField(),
+              lastUpdatedBy: user.name,
               lastUpdatedAt: new Date().toISOString(),
               history: [historyEntry, ...(taskData.history || [])].slice(0, 20)
           }, { merge: true });

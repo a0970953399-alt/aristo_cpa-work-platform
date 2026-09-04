@@ -75,6 +75,16 @@ service cloud.firestore {
       return resource.data.date > '2026-06-30' && !resource.data.keys().hasAny(['paidAt']);
     }
 
+    function isSupervisor() {
+      return isActiveUser() && profile().role == 'supervisor';
+    }
+
+    function canWriteTask(task) {
+      return hasPermission('clientTasks')
+        && (!(task.category == '帳務處理' && task.workItem.matches('.*-檢核$')) || isSupervisor())
+        && (!(task.category == '帳務處理' && task.workItem.matches('.*-覆核$')) || isBoss());
+    }
+
     match /users/{userId} {
       // The login screen still needs the staff list to let users choose their profile before Google auth.
       // Sensitive Google fields are protected from direct frontend writes.
@@ -88,8 +98,10 @@ service cloud.firestore {
     }
 
     match /tasks/{taskId} {
-      allow read, create, update: if hasPermission('clientTasks');
-      allow delete: if hasPermission('clientTasks') && canDeleteRecords();
+      allow read: if hasPermission('clientTasks');
+      allow create: if canWriteTask(request.resource.data);
+      allow update: if canWriteTask(resource.data) && canWriteTask(request.resource.data);
+      allow delete: if canWriteTask(resource.data) && canDeleteRecords();
     }
 
     match /clients/{clientId} {

@@ -1,7 +1,7 @@
 // src/ClientMasterView.tsx
 
 import React, { useState, useRef, useEffect } from 'react';
-import { Client } from './types';
+import { Client, ClientTask, PaymentRecord, TabCategory, WorkRecord } from './types';
 import { TaskService } from './taskService';
 
 import PizZip from 'pizzip';
@@ -45,19 +45,43 @@ const CloudArrowUpIcon = ({ className }: { className?: string }) => (
 interface ClientMasterViewProps {
     clients: Client[];
     currentUser: { name: string };
+    tasks: ClientTask[];
+    currentYear: string;
     onClose: () => void;
     onUpdate: () => void;
 }
 
-export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, currentUser, onClose, onUpdate }) => {
+const abbreviateSignatureName = (name: string): string => ({
+    Brandon: 'BD',
+    '周榆': 'Yeu',
+}[name] || name);
+
+export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, currentUser, tasks, currentYear, onClose, onUpdate }) => {
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
     const [isSaving, setIsSaving] = useState(false);
+    const [historicalTasks, setHistoricalTasks] = useState<ClientTask[]>([]);
     // 🆕 新增：控制總署牆面是否處於「刪除模式」
     const [isDeleteMode, setIsDeleteMode] = useState(false);
 
     const [activeTab, setActiveTab] = useState<'work' | 'payment' | 'notes'>('work');
     
     const fileInputRef = useRef<HTMLInputElement>(null);
+
+    const workRecordYear = selectedClient?.year?.trim() || currentYear;
+    const workRecordTasks = workRecordYear === currentYear ? tasks : historicalTasks;
+
+    useEffect(() => {
+        if (!selectedClient || workRecordYear === currentYear) {
+            setHistoricalTasks([]);
+            return;
+        }
+
+        return TaskService.subscribeTasksForYear(
+            workRecordYear,
+            setHistoricalTasks,
+            error => console.error('讀取過往年度工作紀錄失敗', error)
+        );
+    }, [selectedClient?.year, workRecordYear, currentYear]);
 
     // --- Keyboard Shortcuts ---
     useEffect(() => {
@@ -318,15 +342,68 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
 
     // ✨ 專屬簽名產生器：自動抓取登入者姓名 + 今天的 月/日
     const generateSignature = () => {
-        const nameAbbreviations: Record<string, string> = {
-            'Brandon': 'BD',
-            '周榆': 'Yeu',
-        };
         const userName = currentUser?.name || '使用者';
-        const abbr = nameAbbreviations[userName] || userName;
+        const abbr = abbreviateSignatureName(userName);
         const today = `${new Date().getMonth() + 1}/${new Date().getDate()}`;
         return `${abbr} ${today}`;
     };
+
+    const getAutomaticWorkSignature = (period: string, subItem: '檢核' | '覆核'): string | null => {
+        if (!selectedClient) return null;
+        const match = period.match(/^(\d+)-(\d+)月$/);
+        if (!match) return null;
+
+        const months = [Number(match[1]), Number(match[2])];
+        const completedTasks = months.map(month => workRecordTasks.find(task =>
+            !task.isMisc
+            && !task.isNA
+            && task.status === 'done'
+            && String(task.clientId) === String(selectedClient.id)
+            && task.year === workRecordYear
+            && task.category === TabCategory.ACCOUNTING
+            && task.workItem === `${month}月-${subItem}`
+        ));
+
+        if (completedTasks.some(task => !task)) return null;
+
+        const validTasks = completedTasks.filter((task): task is ClientTask => Boolean(task));
+        const completionActors = validTasks.map(task =>
+            task.completedByName
+            || (subItem === '檢核'
+                ? task.history?.find(entry => entry.action === '主管標記完成')?.userName
+                : undefined)
+            || task.lastUpdatedBy
+            || task.assigneeName
+            || ''
+        );
+
+        const latestTaskIndex = validTasks.reduce((latestIndex, task, index, allTasks) => {
+            const taskTime = Date.parse(task.completedAt || task.lastUpdatedAt || '') || 0;
+            const latestTime = Date.parse(allTasks[latestIndex].completedAt || allTasks[latestIndex].lastUpdatedAt || '') || 0;
+            return taskTime >= latestTime ? index : latestIndex;
+        }, 0);
+        const latestTask = validTasks[latestTaskIndex];
+        const actorName = completionActors[latestTaskIndex];
+        const completionDate = latestTask.completionDate || (() => {
+            const timestamp = latestTask.completedAt || latestTask.lastUpdatedAt;
+            if (!timestamp) return '';
+            const date = new Date(timestamp);
+            return Number.isNaN(date.getTime()) ? '' : `${date.getMonth() + 1}/${date.getDate()}`;
+        })();
+
+        if (!completionDate) return null;
+        return actorName ? `${abbreviateSignatureName(actorName)} ${completionDate}` : completionDate;
+    };
+
+    const getResolvedWorkRecord = (record: WorkRecord): WorkRecord => ({
+        ...record,
+        incharge: /^\d+-\d+月$/.test(record.period)
+            ? getAutomaticWorkSignature(record.period, '檢核') || ''
+            : record.incharge,
+        cpa: /^\d+-\d+月$/.test(record.period)
+            ? getAutomaticWorkSignature(record.period, '覆核') || ''
+            : record.cpa,
+    });
   
     // ✨ 階段三：一鍵生成 Word (支援動態表格陣列匯出)
     const handleGenerateWord = () => {
@@ -377,7 +454,7 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
             };
 
             // 2. 📊 動態塞入 8 筆工作紀錄變數 (w_inc_1, w_cpa_1...)
-            selectedClient.workRecords?.forEach((record, index) => {
+            selectedClient.workRecords?.map(getResolvedWorkRecord).forEach((record, index) => {
                 const i = index + 1; // 讓 Index 從 1 開始算
                 if (i <= 8) {
                     data[`w_inc_${i}`] = record.incharge || '';
@@ -726,29 +803,33 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
                                                 </tr>
                                             </thead>
                                             <tbody className="divide-y divide-gray-100">
-                                                {selectedClient.workRecords?.map((row, index) => (
+                                                {selectedClient.workRecords?.map((row, index) => {
+                                                    const resolvedRow = getResolvedWorkRecord(row);
+                                                    const isLinkedAccountingPeriod = /^\d+-\d+月$/.test(row.period);
+                                                    return (
                                                     <tr key={row.period} className="hover:bg-blue-100/30 transition-colors group">
                                                         <td className="px-4 py-3 font-bold text-center text-blue-900 bg-blue-50 border-r border-blue-100">{row.period}</td>
                                                         
                                                         {/* Incharge 蓋章區 */}
                                                         <td className="px-4 py-2 border-r border-gray-100 relative cursor-pointer" 
-                                                            onClick={() => { if(!row.incharge) handleWorkRecordChange(index, 'incharge', generateSignature()); }}>
+                                                            onClick={() => { if(!isLinkedAccountingPeriod && !row.incharge) handleWorkRecordChange(index, 'incharge', generateSignature()); }}>
                                                             <div className="flex items-center justify-between">
-                                                                <input type="text" readOnly value={row.incharge} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
-                                                                {row.incharge && <button onClick={(e) => { e.stopPropagation(); handleWorkRecordChange(index, 'incharge', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>}
+                                                                <input type="text" readOnly value={resolvedRow.incharge} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
+                                                                {!isLinkedAccountingPeriod && row.incharge && <button onClick={(e) => { e.stopPropagation(); handleWorkRecordChange(index, 'incharge', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>}
                                                             </div>
                                                         </td>
 
                                                         {/* 會計師 蓋章區 */}
                                                         <td className="px-4 py-2 relative cursor-pointer"
-                                                            onClick={() => { if(!row.cpa) handleWorkRecordChange(index, 'cpa', generateSignature()); }}>
+                                                            onClick={() => { if(!isLinkedAccountingPeriod && !row.cpa) handleWorkRecordChange(index, 'cpa', generateSignature()); }}>
                                                             <div className="flex items-center justify-between">
-                                                                <input type="text" readOnly value={row.cpa} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
-                                                                {row.cpa && <button onClick={(e) => { e.stopPropagation(); handleWorkRecordChange(index, 'cpa', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>}
+                                                                <input type="text" readOnly value={resolvedRow.cpa} className="w-full bg-transparent border-none text-blue-800 font-bold outline-none cursor-pointer placeholder-gray-300" placeholder="點擊簽章..." />
+                                                                {!isLinkedAccountingPeriod && row.cpa && <button onClick={(e) => { e.stopPropagation(); handleWorkRecordChange(index, 'cpa', ''); }} className="text-gray-300 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-opacity p-1">✕</button>}
                                                             </div>
                                                         </td>
                                                     </tr>
-                                                ))}
+                                                    );
+                                                })}
                                             </tbody>
                                         </table>
                                     </div>

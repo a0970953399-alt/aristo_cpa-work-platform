@@ -575,7 +575,22 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時`);
   };
 
-  const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => { const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : undefined; try { await TaskService.updateTaskStatus(task.id, newStatus, currentUser.name, completionDateStr); } catch (error) { alert("失敗"); } };
+  const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => {
+    if (task.category === TabCategory.ACCOUNTING && task.workItem.endsWith('-檢核') && !isSupervisor) {
+      alert("帳務處理的檢核僅能由主管完成。");
+      return;
+    }
+    if (task.category === TabCategory.ACCOUNTING && task.workItem.endsWith('-覆核') && !isBoss) {
+      alert("帳務處理的覆核僅能由老闆完成。");
+      return;
+    }
+    const completionDateStr = newStatus === 'done' ? `${currentTime.getMonth() + 1}/${currentTime.getDate()}` : undefined;
+    try {
+      await TaskService.updateTaskStatus(task.id, newStatus, activeUser, completionDateStr);
+    } catch (error) {
+      alert("失敗");
+    }
+  };
   const openInternNoteEdit = (task: ClientTask) => { setEditingTask(task); setModalNote(task.note); setIsNoteEditModalOpen(true); };
   const handleInternNoteSubmit = async () => { if (!editingTask) return; setIsLoading(true); try { await TaskService.updateTaskNote(editingTask.id, modalNote, currentUser.name); setIsNoteEditModalOpen(false); setEditingTask(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } };
   const handleDeleteNote = async (task: ClientTask) => { try { await TaskService.updateTaskNote(task.id, '', currentUser.name); } catch (e) { alert("失敗"); } };
@@ -1023,13 +1038,16 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
       year: currentYear,
       status: 'done',
       isNA: false,
-      assigneeId: currentUser.id,
-      assigneeName: currentUser.name,
+      assigneeId: activeUser.id,
+      assigneeName: activeUser.name,
       completionDate: today,
       completedAt: new Date().toISOString(),
+      completedById: activeUser.id,
+      completedByName: activeUser.name,
+      completedByRole: activeUser.role,
       entrySource: 'assigned',
       note: task?.note || '',
-      lastUpdatedBy: currentUser.name,
+      lastUpdatedBy: activeUser.name,
       lastUpdatedAt: new Date().toISOString(),
       history: task?.history || []
     };
@@ -1055,7 +1073,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     }
 
     if (!isPrivileged) {
-      if (isBossAssignableColumn(activeTab, column)) {
+      if (isBossAssignableColumn(activeTab, column) || isSupervisorReviewColumn(activeTab, column)) {
         alert("此欄位由主管處理，無法自行登記。");
         return;
       }
@@ -1077,6 +1095,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         setModalDate('');
         setIsDateModalOpen(true);
       }
+      return;
+    }
+
+    if (isSupervisor && isAccountingBossReviewColumn(activeTab, column)) {
+      alert("此欄位由老闆處理。");
       return;
     }
 
@@ -1219,6 +1242,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
   const handleRevertStatus = async () => {
     if (!selectedCell || !selectedCell.task) return;
+    if (isSupervisor && isAccountingBossReviewColumn(activeTab, selectedCell.column)) return;
+    if (isBoss && isSupervisorReviewColumn(activeTab, selectedCell.column)) return;
     setIsLoading(true);
     try {
       const isBossOwnTask = isBoss && isBossAssignableColumn(activeTab, selectedCell.column);
@@ -1226,7 +1251,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         // N/A 或 boss 自我完成的格子 → 直接刪除，讓格子回到空白
         await TaskService.deleteTask(selectedCell.task.id);
       } else {
-        await TaskService.updateTaskStatus(selectedCell.task.id, 'in_progress', currentUser.name);
+        await TaskService.updateTaskStatus(selectedCell.task.id, 'in_progress', activeUser);
       }
       setIsDateModalOpen(false);
       setSelectedCell(null);
@@ -1289,6 +1314,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     if ((tab === TabCategory.INCOME_TAX || tab === TabCategory.ANNUAL) && column === '鄧會確認') return true;
     return false;
   };
+
+  const isSupervisorReviewColumn = (tab: string, column: string): boolean =>
+    tab === TabCategory.ACCOUNTING && column.split('-').pop() === '檢核';
+
+  const isAccountingBossReviewColumn = (tab: string, column: string): boolean =>
+    tab === TabCategory.ACCOUNTING && column.split('-').pop() === '覆核';
 
   // --- Render ---
 
@@ -2071,7 +2102,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   <div className="p-6 space-y-4 overflow-y-auto flex-1">
                       <div className="bg-gray-50 p-4 rounded-xl space-y-2">
                           {!selectedCell.task?.isNA && (
-                              isSupervisor ? (
+                              isSupervisor && !isAccountingBossReviewColumn(activeTab, selectedCell.column) ? (
                                   <div>
                                       <label htmlFor="completion-date" className="block text-sm font-bold text-gray-600 mb-2">完成日期</label>
                                       <input
@@ -2110,7 +2141,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           {!selectedCell.task?.isNA && !isSupervisor && selectedCell.task?.assigneeName && <div className="flex justify-between text-base"><span className="text-gray-500">負責人</span><span className="font-bold text-gray-800">{users.find(user => String(user.id) === String(selectedCell.task?.assigneeId))?.name || selectedCell.task.assigneeName}</span></div>}
                           {selectedCell.task?.note && <div className="pt-2 border-t border-gray-200 mt-2"><span className="text-xs text-gray-400 block mb-1">備註</span><p className="text-base text-gray-700">{selectedCell.task.note}</p></div>}
                       </div>
-                      {(isSupervisor || (isBoss && isBossAssignableColumn(activeTab, selectedCell.column))) && <button onClick={handleRevertStatus} className="w-full bg-white border border-red-200 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-base">{selectedCell.task?.isNA ? '取消 N/A (重置)' : '撤銷完成狀態'}</button>}
+                      {((isSupervisor && !isAccountingBossReviewColumn(activeTab, selectedCell.column)) || (isBoss && isBossAssignableColumn(activeTab, selectedCell.column))) && <button onClick={handleRevertStatus} className="w-full bg-white border border-red-200 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-base">{selectedCell.task?.isNA ? '取消 N/A (重置)' : '撤銷完成狀態'}</button>}
                       {selectedCell.task?.history && selectedCell.task.history.length > 0 && (
                           <div className="pt-4 border-t border-gray-100">
                               <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1"><ClockIcon className="w-3 h-3" /> 任務履歷紀錄</h4>
@@ -2237,6 +2268,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         <ClientMasterView 
             clients={clients}
             currentUser={currentUser}
+            tasks={tasks}
+            currentYear={currentYear}
             onClose={() => setIsClientMasterOpen(false)} 
             onUpdate={handleRealtimeUpdate}
             />
