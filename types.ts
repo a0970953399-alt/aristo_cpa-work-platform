@@ -209,6 +209,11 @@ export interface CheckInRecord {
     paidAt?: string;    // 薪資結算時間；一旦寫入即視為不可再修改
     paidBy?: string;    // 結算人員姓名
     paidById?: string;  // 結算人員 ID
+    manualEntryAt?: string;      // 主管或老闆補登時間
+    manualEntryById?: string;    // 補登人員 ID
+    manualEntryByName?: string;  // 補登人員姓名
+    manualEntryReason?: string;  // 補登原因
+    manualEntryNote?: string;    // 補登補充說明
 }
 
 export type MessageCategory = 'announcement' | 'bug' | 'chat';

@@ -71,6 +71,62 @@ service cloud.firestore {
       return !request.resource.data.diff(resource.data).affectedKeys().hasAny(paidFields());
     }
 
+    function changesNoManualEntryFields() {
+      return !request.resource.data.diff(resource.data).affectedKeys().hasAny([
+        'manualEntryAt',
+        'manualEntryById',
+        'manualEntryByName',
+        'manualEntryReason',
+        'manualEntryNote'
+      ]);
+    }
+
+    function hasNoManualEntryFields() {
+      return !request.resource.data.keys().hasAny([
+        'manualEntryAt',
+        'manualEntryById',
+        'manualEntryByName',
+        'manualEntryReason',
+        'manualEntryNote'
+      ]);
+    }
+
+    function isActiveNonBossCheckInTarget(userId) {
+      let targetPath = /databases/$(database)/documents/users/$(userId);
+      return exists(targetPath)
+        && get(targetPath).data.isActive != false
+        && get(targetPath).data.role != 'boss';
+    }
+
+    function isValidNewCheckIn() {
+      return request.resource.data.userId is string
+        && request.resource.data.userName is string
+        && request.resource.data.date is string
+        && request.resource.data.date > '2026-06-30'
+        && request.resource.data.startTime is string
+        && request.resource.data.breakHours is number
+        && request.resource.data.breakHours >= 0
+        && request.resource.data.totalHours is number
+        && request.resource.data.totalHours >= 0
+        && isActiveNonBossCheckInTarget(request.resource.data.userId)
+        && request.resource.data.userName == get(/databases/$(database)/documents/users/$(request.resource.data.userId)).data.name
+        && (!request.resource.data.keys().hasAny(['endTime'])
+          || request.resource.data.endTime is string)
+        && hasNoPaidFields();
+    }
+
+    function isValidManualCheckIn() {
+      return request.resource.data.manualEntryAt is string
+        && request.resource.data.manualEntryById == profile().userId
+        && request.resource.data.manualEntryByName == profile().name
+        && request.resource.data.manualEntryReason is string
+        && request.resource.data.manualEntryReason.size() > 0
+        && request.resource.data.endTime is string
+        && request.resource.data.totalHours > 0
+        && (!request.resource.data.keys().hasAny(['manualEntryNote'])
+          || request.resource.data.manualEntryNote is string);
+    }
+
     function isEditableCheckIn() {
       return resource.data.date > '2026-06-30' && !resource.data.keys().hasAny(['paidAt']);
     }
@@ -137,19 +193,28 @@ service cloud.firestore {
     match /checkIns/{recordId} {
       allow read: if hasPermission('manageTimesheets')
         || (isActiveUser() && resource.data.userId == profile().userId);
-      allow create: if hasPermission('manageTimesheets')
-        && hasNoPaidFields();
+      allow create: if isPrivileged()
+        && isValidNewCheckIn()
+        && isValidManualCheckIn();
       allow create: if isActiveUser()
         && request.resource.data.userId == profile().userId
-        && hasNoPaidFields();
+        && isValidNewCheckIn()
+        && hasNoManualEntryFields();
       allow update: if hasPermission('manageTimesheets')
         && isEditableCheckIn()
-        && changesNoPaidFields();
+        && request.resource.data.date > '2026-06-30'
+        && request.resource.data.userId == resource.data.userId
+        && request.resource.data.userName == resource.data.userName
+        && changesNoPaidFields()
+        && changesNoManualEntryFields();
       allow update: if isActiveUser()
           && isEditableCheckIn()
           && resource.data.userId == profile().userId
           && request.resource.data.userId == profile().userId
-          && changesNoPaidFields();
+          && request.resource.data.userName == resource.data.userName
+          && request.resource.data.date > '2026-06-30'
+          && changesNoPaidFields()
+          && changesNoManualEntryFields();
       allow update: if isBoss()
         && isEditableCheckIn()
         && changesPaidFieldsOnly();

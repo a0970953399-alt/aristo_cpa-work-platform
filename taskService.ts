@@ -607,6 +607,16 @@ export const TaskService = {
       await setDoc(doc(db, "checkIns", String(record.id)), record);
   },
 
+  async hasCheckInForUserOnDate(userId: string, date: string): Promise<boolean> {
+      const snapshot = await getDocs(query(
+          collection(db, "checkIns"),
+          where("userId", "==", userId),
+          where("date", "==", date),
+          limit(1)
+      ));
+      return !snapshot.empty;
+  },
+
   async updateCheckIn(updatedRecord: CheckInRecord): Promise<void> {
       await setDoc(doc(db, "checkIns", String(updatedRecord.id)), updatedRecord, { merge: true });
   },

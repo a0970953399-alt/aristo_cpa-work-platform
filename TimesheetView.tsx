@@ -1,7 +1,7 @@
 import React, { useState, useMemo, useEffect } from 'react';
 import { User, CheckInRecord, UserRole } from './types';
 import { TaskService } from './taskService';
-import { TrashIcon, FunnelIcon } from './Icons';
+import { TrashIcon, FunnelIcon, PlusIcon } from './Icons';
 import { hasPlatformPermission } from './permissions';
 
 interface TimesheetViewProps {
@@ -43,15 +43,35 @@ const getHeatmapBg = (hours: number): string => {
 const PAID_CUTOFF_DATE = '2026-06-30';
 const PAID_ROW_CLASS = 'bg-[#EDE7F6] hover:bg-[#E3D8F2]';
 const PAID_CELL_CLASS = 'bg-[#C4B5FD] ring-1 ring-[#6D28D9]';
+const MANUAL_REASONS = ['忘記打卡', '系統異常', '主管補登', '其他'] as const;
+
+const getLocalDateString = () => {
+    const now = new Date();
+    const year = now.getFullYear();
+    const month = String(now.getMonth() + 1).padStart(2, '0');
+    const day = String(now.getDate()).padStart(2, '0');
+    return `${year}-${month}-${day}`;
+};
 
 export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users, records, onUpdate, onClose }) => {
     const canManageTimesheets = hasPlatformPermission(currentUser, 'manageTimesheets');
     const canSettlePayroll = currentUser.role === UserRole.BOSS;
+    const canAddManualEntry = currentUser.role === UserRole.BOSS || currentUser.role === UserRole.SUPERVISOR;
 
     const [targetUserId, setTargetUserId] = useState<string>(canManageTimesheets ? 'ALL' : currentUser.id);
     const [monthFilter, setMonthFilter] = useState<string>(new Date().toISOString().slice(0, 7));
     const [liveRecords, setLiveRecords] = useState<CheckInRecord[]>(records);
     const [showHeatmap, setShowHeatmap] = useState(false);
+    const [showManualEntry, setShowManualEntry] = useState(false);
+    const [manualUserId, setManualUserId] = useState('');
+    const [manualDate, setManualDate] = useState('');
+    const [manualStart, setManualStart] = useState('09:00');
+    const [manualEnd, setManualEnd] = useState('17:30');
+    const [manualBreak, setManualBreak] = useState(1);
+    const [manualReason, setManualReason] = useState('');
+    const [manualNote, setManualNote] = useState('');
+    const [manualError, setManualError] = useState('');
+    const [isSavingManual, setIsSavingManual] = useState(false);
 
     const [hoveredDate, setHoveredDate] = useState<string | null>(null);
     const [hoveredMultiCell, setHoveredMultiCell] = useState<string | null>(null);
@@ -64,6 +84,10 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
 
     const bossIds = useMemo(() => new Set(users.filter(u => u.role === UserRole.BOSS).map(u => u.id)), [users]);
     const nonBossUsers = useMemo(() => users.filter(u => !bossIds.has(u.id)), [users, bossIds]);
+    const manualEntryUsers = useMemo(
+        () => users.filter(u => u.role !== UserRole.BOSS && u.isActive !== false),
+        [users]
+    );
 
     const isMultiMode = canManageTimesheets && targetUserId === 'ALL';
 
@@ -157,6 +181,104 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
         let hours = minutes / 60 - breakH;
         if (hours < 0) hours = 0;
         return Math.floor(hours * 2) / 2;
+    };
+
+    const manualTotalHours = useMemo(
+        () => calculateHours(manualStart, manualEnd, manualBreak),
+        [manualStart, manualEnd, manualBreak]
+    );
+
+    const openManualEntry = () => {
+        const today = getLocalDateString();
+        const selectedMonthDate = `${monthFilter}-01`;
+        const defaultDate = today.startsWith(monthFilter)
+            ? today
+            : selectedMonthDate > PAID_CUTOFF_DATE && selectedMonthDate <= today
+                ? selectedMonthDate
+                : today;
+        const preferredUserId = targetUserId !== 'ALL' && manualEntryUsers.some(user => user.id === targetUserId)
+            ? targetUserId
+            : manualEntryUsers[0]?.id || '';
+        setManualUserId(preferredUserId);
+        setManualDate(defaultDate);
+        setManualStart('09:00');
+        setManualEnd('17:30');
+        setManualBreak(1);
+        setManualReason('');
+        setManualNote('');
+        setManualError('');
+        setShowManualEntry(true);
+    };
+
+    const closeManualEntry = () => {
+        if (isSavingManual) return;
+        setShowManualEntry(false);
+        setManualError('');
+    };
+
+    const handleAddManualEntry = async () => {
+        setManualError('');
+        const targetUser = manualEntryUsers.find(user => user.id === manualUserId);
+        if (!targetUser) {
+            setManualError('請選擇要補登工時的人員。');
+            return;
+        }
+        if (!manualDate || manualDate <= PAID_CUTOFF_DATE) {
+            setManualError('已結算期間不能補登工時。');
+            return;
+        }
+        if (manualDate > getLocalDateString()) {
+            setManualError('不能補登未來日期的工時。');
+            return;
+        }
+        if (!manualStart || !manualEnd || manualEnd <= manualStart) {
+            setManualError('下班時間必須晚於上班時間。');
+            return;
+        }
+        if (!Number.isFinite(manualBreak) || manualBreak < 0 || manualTotalHours <= 0) {
+            setManualError('請確認休息時數及實際工時。');
+            return;
+        }
+        if (!manualReason || (manualReason === '其他' && !manualNote.trim())) {
+            setManualError(manualReason === '其他' ? '選擇其他原因時，請填寫補充說明。' : '請選擇補登原因。');
+            return;
+        }
+
+        setIsSavingManual(true);
+        try {
+            if (await TaskService.hasCheckInForUserOnDate(targetUser.id, manualDate)) {
+                setManualError('該人員當日已有工時紀錄，請改為編輯原紀錄。');
+                return;
+            }
+
+            const now = new Date().toISOString();
+            const record: CheckInRecord = {
+                id: `manual-${Date.now()}`,
+                userId: targetUser.id,
+                userName: targetUser.name,
+                date: manualDate,
+                startTime: manualStart,
+                endTime: manualEnd,
+                breakHours: manualBreak,
+                totalHours: manualTotalHours,
+                manualEntryAt: now,
+                manualEntryById: currentUser.id,
+                manualEntryByName: currentUser.name,
+                manualEntryReason: manualReason,
+                ...(manualNote.trim() ? { manualEntryNote: manualNote.trim() } : {})
+            };
+            await TaskService.addCheckIn(record);
+            setShowManualEntry(false);
+            if (!manualDate.startsWith(monthFilter)) setMonthFilter(manualDate.slice(0, 7));
+            if (targetUserId !== 'ALL') setTargetUserId(targetUser.id);
+            setShowHeatmap(false);
+            onUpdate();
+        } catch (error) {
+            console.error('Failed to add manual timesheet entry:', error);
+            setManualError('補登失敗，請確認網路連線後再試一次。');
+        } finally {
+            setIsSavingManual(false);
+        }
     };
 
     const handleSaveEdit = async (record: CheckInRecord) => {
@@ -258,6 +380,15 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                         />
                     </div>
                     <div className="flex items-center gap-3">
+                        {canAddManualEntry && (
+                            <button
+                                onClick={openManualEntry}
+                                className="flex items-center gap-1.5 px-3 py-2 rounded-xl font-bold text-sm bg-blue-600 text-white hover:bg-blue-700 transition-colors shadow-sm"
+                            >
+                                <PlusIcon className="w-4 h-4" />
+                                補登工時
+                            </button>
+                        )}
                         <div className="flex flex-wrap items-center gap-2">
                             <div className="bg-blue-50 text-blue-800 px-4 py-2 rounded-xl font-bold text-lg">
                                 總工時：{totalHours} <span className="text-sm">小時</span>
@@ -392,7 +523,19 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                                       const settled = isSettled(r);
                                       return (
                                         <tr key={r.id} className={`${settled ? PAID_ROW_CLASS : 'hover:bg-gray-50'} transition-colors`} title={settled ? '此工時已結算，不能修改或刪除' : undefined}>
-                                            <td className="p-4 font-bold text-gray-700">{r.userName}</td>
+                                            <td className="p-4 font-bold text-gray-700">
+                                                <div className="flex items-center gap-2">
+                                                    <span>{r.userName}</span>
+                                                    {r.manualEntryAt && (
+                                                        <span
+                                                            className="rounded bg-amber-100 px-1.5 py-0.5 text-[11px] font-bold text-amber-700"
+                                                            title={`由 ${r.manualEntryByName || '主管'} 補登：${r.manualEntryReason || '未註明原因'}${r.manualEntryNote ? `；${r.manualEntryNote}` : ''}`}
+                                                        >
+                                                            補登
+                                                        </span>
+                                                    )}
+                                                </div>
+                                            </td>
                                             <td className="p-2 text-gray-600 font-mono">
                                                 {editingId === r.id
                                                     ? <input type="date" value={editDate} onChange={e => setEditDate(e.target.value)} className="border rounded p-1 w-full text-center font-mono" />
@@ -441,6 +584,80 @@ export const TimesheetView: React.FC<TimesheetViewProps> = ({ currentUser, users
                         </table>
                     )}
                 </div>
+
+                {showManualEntry && (
+                    <div
+                        className="fixed inset-0 z-[120] flex items-center justify-center bg-black/40 p-4"
+                        onClick={event => { event.stopPropagation(); closeManualEntry(); }}
+                    >
+                        <div className="max-h-[90vh] w-full max-w-lg overflow-y-auto rounded-lg bg-white shadow-2xl" onClick={event => event.stopPropagation()}>
+                            <div className="flex items-center justify-between border-b bg-gray-50 px-5 py-4">
+                                <h3 className="text-lg font-bold text-gray-800">補登工時</h3>
+                                <button onClick={closeManualEntry} className="p-2 text-gray-400 hover:text-gray-700" aria-label="關閉補登工時視窗">✕</button>
+                            </div>
+
+                            <div className="grid grid-cols-1 gap-4 p-5 sm:grid-cols-2">
+                                <label className="sm:col-span-2">
+                                    <span className="mb-1.5 block text-sm font-bold text-gray-700">人員</span>
+                                    <select value={manualUserId} onChange={event => setManualUserId(event.target.value)} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                        {manualEntryUsers.length === 0 && <option value="">目前沒有可補登人員</option>}
+                                        {manualEntryUsers.map(user => <option key={user.id} value={user.id}>{user.name}</option>)}
+                                    </select>
+                                </label>
+
+                                <label className="sm:col-span-2">
+                                    <span className="mb-1.5 block text-sm font-bold text-gray-700">日期</span>
+                                    <input type="date" min="2026-07-01" max={getLocalDateString()} value={manualDate} onChange={event => setManualDate(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 font-mono outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                </label>
+
+                                <label>
+                                    <span className="mb-1.5 block text-sm font-bold text-gray-700">上班時間</span>
+                                    <input type="time" value={manualStart} onChange={event => setManualStart(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 font-mono outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                </label>
+
+                                <label>
+                                    <span className="mb-1.5 block text-sm font-bold text-gray-700">下班時間</span>
+                                    <input type="time" value={manualEnd} onChange={event => setManualEnd(event.target.value)} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 font-mono outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                </label>
+
+                                <label>
+                                    <span className="mb-1.5 block text-sm font-bold text-gray-700">扣除休息</span>
+                                    <div className="flex items-center gap-2">
+                                        <input type="number" min="0" step="0.5" value={manualBreak} onChange={event => setManualBreak(Number(event.target.value))} className="w-full rounded-lg border border-gray-300 px-3 py-2.5 text-center outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" />
+                                        <span className="shrink-0 text-sm text-gray-500">小時</span>
+                                    </div>
+                                </label>
+
+                                <div>
+                                    <span className="mb-1.5 block text-sm font-bold text-gray-700">實際工時</span>
+                                    <div className="rounded-lg border border-blue-200 bg-blue-50 px-3 py-2.5 text-center font-bold text-blue-700">{manualTotalHours} 小時</div>
+                                </div>
+
+                                <label className="sm:col-span-2">
+                                    <span className="mb-1.5 block text-sm font-bold text-gray-700">補登原因</span>
+                                    <select value={manualReason} onChange={event => setManualReason(event.target.value)} className="w-full rounded-lg border border-gray-300 bg-white px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100">
+                                        <option value="">請選擇原因</option>
+                                        {MANUAL_REASONS.map(reason => <option key={reason} value={reason}>{reason}</option>)}
+                                    </select>
+                                </label>
+
+                                <label className="sm:col-span-2">
+                                    <span className="mb-1.5 block text-sm font-bold text-gray-700">補充說明{manualReason === '其他' ? '（必填）' : '（選填）'}</span>
+                                    <textarea value={manualNote} onChange={event => setManualNote(event.target.value)} rows={2} maxLength={200} className="w-full resize-none rounded-lg border border-gray-300 px-3 py-2.5 outline-none focus:border-blue-500 focus:ring-2 focus:ring-blue-100" placeholder="補充本次補登情況" />
+                                </label>
+
+                                {manualError && <div className="sm:col-span-2 rounded-lg border border-red-200 bg-red-50 px-3 py-2 text-sm font-medium text-red-700">{manualError}</div>}
+                            </div>
+
+                            <div className="flex justify-end gap-3 border-t bg-gray-50 px-5 py-4">
+                                <button onClick={closeManualEntry} disabled={isSavingManual} className="rounded-lg border border-gray-300 bg-white px-4 py-2 font-bold text-gray-600 hover:bg-gray-100 disabled:opacity-50">取消</button>
+                                <button onClick={handleAddManualEntry} disabled={isSavingManual || manualEntryUsers.length === 0} className="rounded-lg bg-blue-600 px-4 py-2 font-bold text-white hover:bg-blue-700 disabled:cursor-not-allowed disabled:opacity-50">
+                                    {isSavingManual ? '補登中…' : '確認補登'}
+                                </button>
+                            </div>
+                        </div>
+                    </div>
+                )}
             </div>
         </div>
     );
