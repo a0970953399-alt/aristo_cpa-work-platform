@@ -51,10 +51,18 @@ interface ClientMasterViewProps {
     onUpdate: () => void;
 }
 
-const abbreviateSignatureName = (name: string): string => ({
-    Brandon: 'BD',
-    '周榆': 'Yeu',
+const resolveSignatureName = (name: string): string => ({
+    Brandon: '鄧會',
+    BD: '鄧會',
+    Yue: '周榆',
+    Yeu: '周榆',
 }[name] || name);
+
+const normalizeStoredSignature = (signature: string = ''): string => {
+    const match = signature.trim().match(/^(Yue|Yeu|BD)(?=\s|$)/);
+    if (!match) return signature;
+    return signature.replace(match[1], resolveSignatureName(match[1]));
+};
 
 export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, currentUser, tasks, currentYear, onClose, onUpdate }) => {
     const [selectedClient, setSelectedClient] = useState<Client | null>(null);
@@ -343,9 +351,9 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
     // ✨ 專屬簽名產生器：自動抓取登入者姓名 + 今天的 月/日
     const generateSignature = () => {
         const userName = currentUser?.name || '使用者';
-        const abbr = abbreviateSignatureName(userName);
+        const signatureName = resolveSignatureName(userName);
         const today = `${new Date().getMonth() + 1}/${new Date().getDate()}`;
-        return `${abbr} ${today}`;
+        return `${signatureName} ${today}`;
     };
 
     const getAutomaticWorkSignature = (period: string, subItem: '檢核' | '覆核'): string | null => {
@@ -392,17 +400,17 @@ export const ClientMasterView: React.FC<ClientMasterViewProps> = ({ clients, cur
         })();
 
         if (!completionDate) return null;
-        return actorName ? `${abbreviateSignatureName(actorName)} ${completionDate}` : completionDate;
+        return actorName ? `${resolveSignatureName(actorName)} ${completionDate}` : completionDate;
     };
 
     const getResolvedWorkRecord = (record: WorkRecord): WorkRecord => ({
         ...record,
         incharge: /^\d+-\d+月$/.test(record.period)
             ? getAutomaticWorkSignature(record.period, '檢核') || ''
-            : record.incharge,
+            : normalizeStoredSignature(record.incharge),
         cpa: /^\d+-\d+月$/.test(record.period)
             ? getAutomaticWorkSignature(record.period, '覆核') || ''
-            : record.cpa,
+            : normalizeStoredSignature(record.cpa),
     });
   
     // ✨ 階段三：一鍵生成 Word (支援動態表格陣列匯出)
