@@ -99,6 +99,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [clients, setClients] = useState<Client[]>([]);
   const [instructions, setInstructions] = useState<Instruction[]>([]); // ✨ 新增：動態懶人包資料
   const [isLoading, setIsLoading] = useState(false);
+  const [attendancePending, setAttendancePending] = useState(false);
+  const attendancePendingRef = useRef(false);
   const [dbConnected, setDbConnected] = useState(false);
   const [permissionNeeded, setPermissionNeeded] = useState(false);
   const [dataSyncStatus, setDataSyncStatus] = useState<'connecting' | 'live' | 'error'>('connecting');
@@ -528,9 +530,36 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
 
   // --- Handlers ---
+  const reportAttendanceError = (error: unknown) => {
+      const code = (error as { code?: string })?.code || 'unknown';
+      console.error('Attendance write failed:', error);
+      const message = code === 'permission-denied'
+          ? '打卡未成功：帳號權限驗證未通過，請通知主管檢查帳號設定。'
+          : code === 'unavailable' || code === 'deadline-exceeded'
+          ? '目前無法確認打卡結果，請檢查網路並查看工時紀錄後再試。'
+          : code === 'unauthenticated'
+          ? '登入已失效，請重新登入後再打卡。'
+          : '打卡未能完成，請查看工時紀錄並將錯誤代碼提供給主管。';
+      alert(`${message}\n錯誤代碼：${code}`);
+  };
+
+  const sendAttendanceNotification = (type: 'CLOCK_IN' | 'CLOCK_OUT') => {
+      try {
+          NotificationService.send(currentUser.name, type);
+      } catch (error) {
+          console.error('Attendance saved, but local notification failed:', error);
+      }
+  };
+
   const handleCheckIn = async () => {
+      if (attendancePendingRef.current) return;
+      if (!navigator.onLine) {
+          alert('目前沒有網路連線，請連線後再打卡。');
+          return;
+      }
       if (!confirm(`現在時間 ${timeStr}，確定上班打卡？`)) return;
-      setIsLoading(true);
+      attendancePendingRef.current = true;
+      setAttendancePending(true);
       
       const newRecord: CheckInRecord = {
           id: Date.now().toString(),
@@ -542,15 +571,26 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           totalHours: 0
       };
       
-      await TaskService.addCheckIn(newRecord);
-      NotificationService.send(currentUser.name, 'CLOCK_IN');
-
-      setIsLoading(false);
-      alert("✅ 上班打卡成功！");
+      try {
+          await TaskService.addCheckIn(newRecord);
+          sendAttendanceNotification('CLOCK_IN');
+          alert("✅ 上班打卡成功！");
+      } catch (error) {
+          reportAttendanceError(error);
+      } finally {
+          attendancePendingRef.current = false;
+          setAttendancePending(false);
+      }
   };
 
   const handleCheckOut = async () => {
-      if (!myTodayRecord) return;
+      if (!myTodayRecord || attendancePendingRef.current) return;
+      if (!navigator.onLine) {
+          alert('目前沒有網路連線，請連線後再打卡。');
+          return;
+      }
+      attendancePendingRef.current = true;
+      setAttendancePending(true);
       const endTime = new Date().toLocaleTimeString('en-GB', { hour: '2-digit', minute: '2-digit' });
       const [sh, sm] = myTodayRecord.startTime.split(':').map(Number);
       const [eh, em] = endTime.split(':').map(Number);
@@ -567,12 +607,17 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
           breakHours: breakH,
           totalHours: finalHours
       };
-      await TaskService.updateCheckIn(updatedRecord);
-      
-      NotificationService.send(currentUser.name, 'CLOCK_OUT');
-      
-      setIsCheckOutModalOpen(false);
-      alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時`);
+      try {
+          await TaskService.updateCheckIn(updatedRecord);
+          sendAttendanceNotification('CLOCK_OUT');
+          setIsCheckOutModalOpen(false);
+          alert(`⏳ 下班申請已送出！\n今日工時：${finalHours} 小時`);
+      } catch (error) {
+          reportAttendanceError(error);
+      } finally {
+          attendancePendingRef.current = false;
+          setAttendancePending(false);
+      }
   };
 
   const handleUpdateStatus = async (task: ClientTask, newStatus: TaskStatusType) => {
@@ -1377,14 +1422,17 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
             {!isBoss && (
             <button
                 onClick={() => isWorking ? setIsCheckOutModalOpen(true) : handleCheckIn()}
-                title={isWorking ? "工作中...點擊下班" : "上班打卡"}
-                className={`flex items-center justify-center p-2.5 rounded-xl shadow-sm transition-all active:scale-95 border ${
-                    isWorking
+                disabled={attendancePending}
+                aria-busy={attendancePending}
+                aria-label={attendancePending ? '打卡送出中' : isWorking ? '下班打卡' : '上班打卡'}
+                title={attendancePending ? "打卡送出中，等待伺服器確認" : isWorking ? "工作中...點擊下班" : "上班打卡"}
+                className={`flex items-center justify-center p-2.5 rounded-xl shadow-sm transition-all active:scale-95 border disabled:opacity-60 disabled:cursor-wait ${
+                    isWorking && !attendancePending
                     ? 'bg-green-500 border-green-600 text-white hover:bg-green-600 animate-pulse'
                     : 'bg-white border-gray-300 text-gray-600 hover:bg-gray-50'
                 }`}
             >
-                <ClockIcon className="w-5 h-5" />
+                <ClockIcon className={`w-5 h-5 ${attendancePending ? 'animate-spin' : ''}`} />
             </button>
             )}
 
@@ -2226,7 +2274,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   </div>
                   <div className="flex gap-3">
                       <button onClick={() => setIsCheckOutModalOpen(false)} className="flex-1 py-3 bg-gray-100 text-gray-600 rounded-xl font-bold">取消</button>
-                      <button onClick={handleCheckOut} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200">確認下班</button>
+                      <button onClick={handleCheckOut} disabled={attendancePending} className="flex-1 py-3 bg-blue-600 text-white rounded-xl font-bold hover:bg-blue-700 shadow-lg shadow-blue-200 disabled:opacity-60 disabled:cursor-wait">{attendancePending ? '送出中...' : '確認下班'}</button>
                   </div>
               </div>
           </div>

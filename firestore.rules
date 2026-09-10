@@ -94,7 +94,7 @@ service cloud.firestore {
     function isActiveNonBossCheckInTarget(userId) {
       let targetPath = /databases/$(database)/documents/users/$(userId);
       return exists(targetPath)
-        && get(targetPath).data.isActive != false
+        && get(targetPath).data.get('isActive', true) != false
         && get(targetPath).data.role != 'boss';
     }
 
