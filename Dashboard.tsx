@@ -126,6 +126,9 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [isNoteEditModalOpen, setIsNoteEditModalOpen] = useState(false);
   const [isUserModalOpen, setIsUserModalOpen] = useState(false);
   const [isUserDeleteModalOpen, setIsUserDeleteModalOpen] = useState(false);
+  const permissionPendingRef = useRef(new Set<string>());
+  const [permissionPending, setPermissionPending] = useState<Set<string>>(new Set());
+  const [permissionError, setPermissionError] = useState('');
   const [isAppMenuOpen, setIsAppMenuOpen] = useState(false);
   const [isMessageBoardOpen, setIsMessageBoardOpen] = useState(false);
   const [isInvoiceOpen, setIsInvoiceOpen] = useState(false);
@@ -879,23 +882,38 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleAddUser = () => { if (!newUserName.trim()) return; const newUser: User = { id: Date.now().toString(), name: newUserName.trim(), role: newUserRole, avatar: `https://api.dicebear.com/9.x/micah/svg?seed=${newUserName}&backgroundColor=c0aede&radius=50`, isActive: true }; const currentUsers = TaskService.getUsers(); const updatedUsers = [...currentUsers, newUser]; TaskService.saveUsers(updatedUsers); onUserUpdate(); setNewUserName(''); };
   const handleDeleteUserClick = (user: User) => { setUserToDelete(user); setIsUserDeleteModalOpen(true); };
   const handleConfirmDeleteUser = () => { if (!userToDelete) return; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.filter(u => u.id !== userToDelete.id); TaskService.saveUsers(updatedUsers); onUserUpdate(); setIsUserDeleteModalOpen(false); setUserToDelete(null); };
-  const handleToggleUserActive = async (user: User) => { const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(item => item.id === user.id ? { ...item, isActive: item.isActive === false } : item); await TaskService.saveUsers(updatedUsers); onUserUpdate(); };
+  const handleToggleUserActive = async (user: User) => {
+    try {
+      await TaskService.updateUserActive(String(user.id), user.isActive === false);
+    } catch (error) {
+      console.error('User active state update failed:', error);
+      alert('帳號啟用狀態儲存失敗，請確認網路後重試。');
+    }
+  };
   const handleToggleUserPermission = async (user: User, permission: PlatformPermissionKey) => {
-    if (permission === 'clientTasks' && user.role === UserRole.INTERN) return;
-    const currentUsers = TaskService.getUsers();
-    const updatedUsers = currentUsers.map(item => {
-      if (item.id !== user.id) return item;
-      const nextPermissions = {
-        ...(item.permissions || {}),
-        [permission]: item.permissions?.[permission] !== true,
-      };
-      return { ...item, permissions: nextPermissions };
-    });
-    await TaskService.saveUsers(updatedUsers);
-    onUserUpdate();
+    if (!canManageUsers || (permission === 'clientTasks' && user.role === UserRole.INTERN)) return;
+    const key = String(user.id) + ':' + permission;
+    if (permissionPendingRef.current.has(key)) return;
+    if (!navigator.onLine) {
+      setPermissionError('目前沒有網路連線，權限尚未儲存。請連線後重試。');
+      return;
+    }
+    permissionPendingRef.current.add(key);
+    setPermissionPending(new Set(permissionPendingRef.current));
+    setPermissionError('');
+    try {
+      await TaskService.updateUserPermission(String(user.id), permission, user.permissions?.[permission] !== true);
+      // subscribeUsers supplies the confirmed state, including rollback on write failure.
+    } catch (error) {
+      console.error('User permission update failed:', error);
+      setPermissionError('權限儲存失敗，未完成變更。請確認網路與登入狀態後重試。');
+    } finally {
+      permissionPendingRef.current.delete(key);
+      setPermissionPending(new Set(permissionPendingRef.current));
+    }
   };
   const handleAvatarClick = (userId: string) => { setEditingUserId(userId); if (fileInputRef.current) { fileInputRef.current.value = ''; fileInputRef.current.click(); } };
-  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && editingUserId) { if (file.size > 500 * 1024) { alert("圖片大小請小於 500KB"); return; } const reader = new FileReader(); reader.onloadend = async () => { const base64String = reader.result as string; const currentUsers = TaskService.getUsers(); const updatedUsers = currentUsers.map(u => u.id === editingUserId ? { ...u, avatar: base64String } : u ); await TaskService.saveUsers(updatedUsers); onUserUpdate(); setEditingUserId(null); }; reader.readAsDataURL(file); } };
+  const handleFileChange = (e: React.ChangeEvent<HTMLInputElement>) => { const file = e.target.files?.[0]; if (file && editingUserId) { if (file.size > 500 * 1024) { alert("圖片大小請小於 500KB"); return; } const reader = new FileReader(); reader.onloadend = async () => { const base64String = reader.result as string; try { await TaskService.updateUserAvatar(String(editingUserId), base64String); setEditingUserId(null); } catch (error) { console.error('Avatar update failed:', error); alert('頭像儲存失敗，請稍後重試。'); } }; reader.readAsDataURL(file); } };
 
   const getGoogleErrorMessage = (error: unknown, fallback: string) => {
     const code = typeof error === 'object' && error && 'code' in error ? String(error.code) : '';
@@ -1791,6 +1809,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
                               {renderGoogleIntegrationSettings()}
                               <h4 className="text-xs font-bold text-gray-500 uppercase tracking-wide mb-2 pl-1">工作人員名單</h4>
+                              {permissionError && <p role="alert" className="mb-3 rounded-lg bg-red-50 p-3 text-sm text-red-700">{permissionError}</p>}
                               <div className="space-y-3 mb-6">
                                   {users.filter(u => u.role === UserRole.INTERN || u.role === UserRole.TRAINEE).map(user => (
                                       <div key={user.id} className={`p-3 rounded-lg border ${user.isActive === false ? 'bg-gray-100 border-gray-200 opacity-70' : 'bg-gray-50 border-gray-100'}`}>
@@ -1827,17 +1846,20 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                                               <div className="grid grid-cols-1 gap-2 sm:grid-cols-2">
                                                   {EXTRA_PERMISSION_OPTIONS.filter(option => option.key !== 'clientTasks' || user.role === UserRole.TRAINEE).map(option => {
                                                       const enabled = user.permissions?.[option.key] === true;
+                                                      const saving = permissionPending.has(String(user.id) + ':' + option.key);
                                                       return (
                                                           <label key={option.key} className={`flex cursor-pointer items-start gap-2 rounded-lg border p-2 transition-colors ${enabled ? 'border-blue-200 bg-blue-50' : 'border-gray-200 bg-white hover:bg-gray-50'}`}>
                                                               <input
                                                                   type="checkbox"
                                                                   checked={enabled}
+                                                                  disabled={saving}
+                                                                  aria-busy={saving}
                                                                   onChange={() => handleToggleUserPermission(user, option.key)}
                                                                   className="mt-1 h-4 w-4 rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                                                               />
                                                               <span className="min-w-0">
                                                                   <span className="block text-sm font-bold text-gray-700">{option.label}</span>
-                                                                  <span className="block text-xs text-gray-500">{option.description}</span>
+                                                                  <span className="block text-xs text-gray-500">{saving ? '儲存中，請稍候…' : option.description}</span>
                                                               </span>
                                                           </label>
                                                       );

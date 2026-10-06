@@ -92,16 +92,15 @@ const requireAuth = (auth: { uid: string; token: Record<string, unknown> } | und
 const normalizeEmail = (value: unknown) => String(value || '').trim().toLowerCase();
 
 const normalizePermissions = (value: unknown): PlatformPermissions => {
-  if (!value || typeof value !== 'object') return {};
-  const source = value as Record<string, unknown>;
+  const source = value && typeof value === 'object' ? value as Record<string, unknown> : {};
   return {
-    ...(source.clientTasks === true ? { clientTasks: true } : {}),
-    ...(source.clientData === true ? { clientData: true } : {}),
-    ...(source.cash === true ? { cash: true } : {}),
-    ...(source.mail === true ? { mail: true } : {}),
-    ...(source.payroll === true ? { payroll: true } : {}),
-    ...(source.manageTimesheets === true ? { manageTimesheets: true } : {}),
-    ...(source.canDeleteRecords === true ? { canDeleteRecords: true } : {}),
+    clientTasks: source.clientTasks === true,
+    clientData: source.clientData === true,
+    cash: source.cash === true,
+    mail: source.mail === true,
+    payroll: source.payroll === true,
+    manageTimesheets: source.manageTimesheets === true,
+    canDeleteRecords: source.canDeleteRecords === true,
   };
 };
 
@@ -124,19 +123,24 @@ const getGoogleUserProfilePayload = (userId: string, profile: PlatformUser) => {
   return payload;
 };
 
-const syncGoogleUserProfile = async (userId: string, profile: PlatformUser) => {
-  if (!profile.googleUid) return;
-  const profileRef = db.collection('googleUserProfiles').doc(profile.googleUid);
-  if (profile.isActive === false) {
-    await profileRef.delete();
-    return;
-  }
-  await profileRef.set(getGoogleUserProfilePayload(userId, profile), { merge: true });
-};
-
-const deleteGoogleUserProfile = async (googleUid?: unknown) => {
-  const uid = String(googleUid || '').trim();
-  if (uid) await db.collection('googleUserProfiles').doc(uid).delete();
+const syncGoogleUserProfile = async (userId: string, previousProfile?: PlatformUser | null) => {
+  // Transactions re-read the current source so delayed triggers/login requests cannot restore old grants.
+  await db.runTransaction(async transaction => {
+    const source = await transaction.get(db.collection('users').doc(userId));
+    const latest = source.exists ? source.data() as PlatformUser : null;
+    const currentUid = latest?.googleUid;
+    const previousUid = previousProfile?.googleUid;
+    const uids = [...new Set([previousUid, currentUid].filter((uid): uid is string => Boolean(uid)))];
+    const profiles = await Promise.all(uids.map(uid => transaction.get(db.collection('googleUserProfiles').doc(uid))));
+    for (const snapshot of profiles) {
+      if (snapshot.id !== currentUid || latest?.isActive === false) {
+        if (snapshot.exists && snapshot.data()?.userId === userId) transaction.delete(snapshot.ref);
+      }
+    }
+    if (!latest || !currentUid || latest.isActive === false) return;
+    const payload = getGoogleUserProfilePayload(userId, latest);
+    transaction.set(db.collection('googleUserProfiles').doc(currentUid), payload, { mergeFields: Object.keys(payload) });
+  });
 };
 
 const getProfileByGoogleUid = async (uid: string) => {
@@ -304,7 +308,7 @@ export const rebuildGoogleUserProfiles = onCall(async request => {
     const profile = document.data() as PlatformUser;
     if (!profile.googleUid) continue;
     if (profile.isActive === false) {
-      await deleteGoogleUserProfile(profile.googleUid);
+      await syncGoogleUserProfile(document.id, profile);
       removed += 1;
       continue;
     }
@@ -341,21 +345,7 @@ export const syncGoogleUserProfileOnUserWrite = onDocumentWritten(
       ? event.data.after.data() as PlatformUser
       : null;
 
-    if (before?.googleUid && before.googleUid !== after?.googleUid) {
-      await deleteGoogleUserProfile(before.googleUid);
-    }
-
-    if (!after) {
-      await deleteGoogleUserProfile(before?.googleUid);
-      return;
-    }
-
-    if (!after.googleUid || after.isActive === false) {
-      await deleteGoogleUserProfile(after.googleUid);
-      return;
-    }
-
-    await syncGoogleUserProfile(userId, after);
+    await syncGoogleUserProfile(userId, before || after);
   },
 );
 

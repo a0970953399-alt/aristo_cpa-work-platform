@@ -8,7 +8,7 @@ import { StockClientConfig, StockTarget, StockTransaction } from './types';
 import { assignUniqueInternShiftColors } from './shiftColors';
 
 import { db } from './firebase'; 
-import { collection, getDocs, doc, setDoc, deleteDoc, deleteField, getDoc, onSnapshot, query, where, orderBy, limit, runTransaction, writeBatch } from "firebase/firestore";
+import { collection, getDocs, doc, setDoc, updateDoc, deleteDoc, deleteField, getDoc, onSnapshot, query, where, orderBy, limit, runTransaction, writeBatch } from "firebase/firestore";
 import type { DocumentData, QueryConstraint, QueryDocumentSnapshot, Unsubscribe } from "firebase/firestore";
 
 const USERS_STORAGE_KEY = 'shuoye_users_v1';
@@ -122,35 +122,38 @@ export const TaskService = {
       return users;
   },
 
+  async updateUserPermission(userId: string, permission: keyof import('./types').PlatformPermissions, enabled: boolean): Promise<void> {
+      await updateDoc(doc(db, "users", String(userId)), { [`permissions.${permission}`]: enabled });
+  },
+
+  async updateUserAvatar(userId: string, avatar: string): Promise<void> {
+      await updateDoc(doc(db, "users", String(userId)), { avatar });
+  },
+
+  async updateUserActive(userId: string, isActive: boolean): Promise<void> {
+      await updateDoc(doc(db, "users", String(userId)), { isActive });
+  },
+
   async saveUsers(users: User[]): Promise<void> {
-      const usersWithColors = mergeUsersWithDefaults(users);
-      // 2. 自己換完頭貼，立刻存入自己的電腦
-      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(usersWithColors));
-      
-      // 3. ✨ 同時把新頭貼上傳到 Firebase 的 "users" 抽屜，讓全世界看到！
-      for (const user of usersWithColors) {
-          await setDoc(doc(db, "users", String(user.id)), user, { merge: true });
+      // Legacy list callers only create missing users; existing fields use dedicated update methods.
+      for (const user of mergeUsersWithDefaults(users)) {
+          const ref = doc(db, "users", String(user.id));
+          await runTransaction(db, async transaction => {
+              const snapshot = await transaction.get(ref);
+              const { permissions, googleUid, googleEmail, googleDisplayName, ...profile } = user;
+              if (!snapshot.exists()) transaction.set(ref, profile);
+          });
       }
+      await this.syncUsersFromCloud();
   },
 
   async syncUsersFromCloud(): Promise<void> {
-      // 4. 去 Firebase 抓大家最新的頭貼下來
       const snapshot = await getDocs(collection(db, "users"));
-      if (!snapshot.empty) {
-          const cloudUsers = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as User));
-          const finalUsers = mergeUsersWithDefaults(cloudUsers);
-          localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(finalUsers));
-
-          // 把修正後的角色與排班顏色同步回 Firebase。
-          for (const u of finalUsers) {
-              await setDoc(doc(db, "users", String(u.id)), u, { merge: true });
-          }
-      } else {
-          // 如果 Firebase 裡面還沒有名單，就把預設名單推上去建立檔案
-          await this.saveUsers(DEFAULT_USERS);
-      }
+      const cloudUsers = snapshot.docs.map(d => ({ ...d.data(), id: d.id } as User));
+      // Reading the directory must not write an older snapshot back to Firestore.
+      localStorage.setItem(USERS_STORAGE_KEY, JSON.stringify(mergeUsersWithDefaults(cloudUsers)));
   },
- 
+
   // ==========================================
   // ☁️ Firebase 雲端版：工作任務 API (Tasks)
   // ==========================================
@@ -189,7 +192,17 @@ export const TaskService = {
               });
               if (usersNeedingColorSync.length > 0) {
                   void Promise.all(usersNeedingColorSync.map(user =>
-                      setDoc(doc(db, "users", String(user.id)), user, { merge: true })
+                      runTransaction(db, async transaction => {
+                          const ref = doc(db, "users", String(user.id));
+                          const latest = await transaction.get(ref);
+                          if (!latest.exists()) return;
+                          const patch: Partial<User> = {};
+                          if (latest.data().role !== user.role) patch.role = user.role;
+                          if (user.shiftColorHue !== undefined && latest.data().shiftColorHue !== user.shiftColorHue) {
+                              patch.shiftColorHue = user.shiftColorHue;
+                          }
+                          if (Object.keys(patch).length) transaction.update(ref, patch);
+                      })
                   )).catch(onError);
               }
           },

@@ -18,3 +18,14 @@ installation, set `FIREBASE_TOOLS_LIB` to its `firebase-tools/lib` directory.
 An optional first argument selects another rules file for before/after comparisons.
 The API may coerce ISO strings to timestamps, so mock string timestamps use a
 non-ISO placeholder to preserve the type actually written by the client SDK.
+
+# Permission regression checks
+
+Run from the repository root:
+
+```powershell
+node --test tests/permission-regression.test.cjs tests/attendance-handlers.test.cjs
+node tests/run-permission-rules.cjs
+```
+
+Permission tests execute the actual handlers, service methods and profile synchronization helpers with mocked storage. They cover targeted writes, legacy list saves, color maintenance, revocation, stale events, disabled/deleted/rebound users, offline/failing submissions and role-specific tabs. The Rules tests use mocked documents only, including payroll grants/revocations, privileged role access, avatar updates and denial of self-escalation. They do not send mail, write production records or deploy rules.
