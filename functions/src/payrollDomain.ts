@@ -40,6 +40,8 @@ export type Slip = {
         name: string;
         email: string;
         empNo: string;
+        idNumber?: string;
+        bankAccount?: string;
     };
     company: {
         name: string;
@@ -83,6 +85,7 @@ export function calculate(b: Basis, t: Values, a: Values): Values {
     return { ...a, lateDeduction: Math.round(h / 60 * t.lateHours), leaveDeduction: Math.round(h * t.sickLeave / 2) + Math.round(h * t.personalLeave), taxFreeOt: b.employmentType === 'full_time' ? Math.round(ot * t.annualLeave) + Math.round(ot * t.holidayOt) + Math.round(ot * t.normalOt * 1.3333) : Math.round(ot * t.holidayOt * 2) + Math.round(ot * t.normalOt * 1.3333) };
 }
 export function totals(a: Values) { const add = a.baseSalary + a.fullAttendance + a.positionAllowance + a.performanceBonus + a.taxableOt; const deduct = a.leaveDeduction + a.dailyShortage + a.lateDeduction + a.pensionSelf; const exempt = a.foodAllowance + a.taxFreeOt; const withholding = a.laborIns + a.healthIns + a.incomeTax + a.advancePay; return { add, deduct, exempt, withholding, net: Math.round((add - deduct + exempt - withholding) * 100) / 100 }; }
+export function sameBasis(a: Basis, b: Basis): boolean { return (['employmentType','baseSalary','foodAllowance','insuranceBracket','hasLaborIns','hasHealthIns','effectiveDate','compensationId'] as (keyof Basis)[]).every(k=>a[k]===b[k]); }
 export function annualMetrics(a: Values) { return { '薪資總額': a.baseSalary + a.fullAttendance + a.positionAllowance + a.taxableOt - a.leaveDeduction - a.dailyShortage - a.lateDeduction, '伙食費': a.foodAllowance, '免稅加班費': a.taxFreeOt, '獎金': a.performanceBonus, '實發': totals(a).net }; }
 export function validateSlip(s: Slip, emp: any, others: Slip[], legacy: any[]) {
     assert(s.employeeId === emp.id && s.clientId === emp.clientId, '員工與客戶不符');
@@ -138,4 +141,137 @@ export function legacyIssues(r: any, all: any[], employees: any[]): string[] {
 }
 export function legacyAmounts(r: any): Values { return Object.fromEntries(amountFields.map(k => [k, typeof r[k] === 'number' && Number.isFinite(r[k]) ? r[k] : 0])); }
 export function escapeHtml(s: unknown): string { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)); }
-export function slipHtml(s: Slip): string { const e = escapeHtml; const rows = amountFields.map(k => `<tr><td style="padding:8px;border-bottom:1px solid #ddd">${labels[k]}</td><td style="text-align:right">${s.amounts[k].toLocaleString('zh-TW')}</td></tr>`).join(''); return `<!doctype html><html><meta charset="utf-8"><body style="font-family:Arial,sans-serif;color:#172033"><main style="max-width:650px;margin:24px auto"><h1>${e(s.company.name)} 薪資單</h1><p>${e(s.company.phone)} ${e(s.company.address)}</p><h2>${e(s.employee.name)}／${e(s.month)}</h2><p>計薪期間 ${e(s.periodStart)}～${e(s.periodEnd)}｜${s.basis.employmentType === 'full_time' ? '正職' : '兼職'}</p><p>單號 ${e(s.id)}／第 ${s.revision} 版／${s.status === 'confirmed' ? '已確認（不代表已付款）' : '草稿或歷史版本'}</p><table style="width:100%;border-collapse:collapse">${rows}<tr><th>實發金額</th><th style="text-align:right">${totals(s.amounts).net.toLocaleString('zh-TW')}</th></tr></table><p>${attendanceFields.map(k => `${labels[k]}：${s.attendance[k]}`).join('；')}</p><p>備註：${e(s.note)} ${e(s.reason)}</p></main></body></html>`; }
+export function slipHtml(s: Slip): string {
+ const e=escapeHtml,a=s.amounts;
+ const baseSalary=a.baseSalary,foodAllowance=a.foodAllowance,leaveDeduction=a.leaveDeduction,lateDeduction=a.lateDeduction,laborIns=a.laborIns,healthIns=a.healthIns;
+ const totalOtPay=a.taxableOt+a.taxFreeOt,otherAdditions=a.fullAttendance+a.positionAllowance+a.performanceBonus,otherDeductions=a.dailyShortage+a.pensionSelf+a.incomeTax+a.advancePay;
+ const netPay=totals(a).net,companyName=e(s.company.name),companyPhone=e(s.company.phone),companyAddress=e(s.company.address);
+ const remarks=e([s.note,s.reason, ...attendanceFields.filter(k=>s.attendance[k]>0).map(k=>labels[k]+'：'+s.attendance[k]), '計薪期間 '+s.periodStart+'～'+s.periodEnd, '單號 '+s.id+'／第 '+s.revision+' 版／'+(s.status==='confirmed'?'已確認（不代表已付款）':'草稿或歷史版本')].filter(Boolean).join('；'));
+ return `
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="utf-8">
+  <title>薪資單 - ${e(s.employee.name)}</title>
+</head>
+<body style="background-color: #e5e7eb; margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;">
+
+  <table width="100%" bgcolor="#e5e7eb" cellpadding="0" cellspacing="0" border="0" style="padding: 40px 10px;">
+    <tr>
+      <td align="center">
+
+        <table width="100%" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="max-width: 800px; width: 100%; border-radius: 8px; border: 1px solid #d1d5db; overflow: hidden;">
+
+          <tr>
+            <td style="padding: 30px 40px 20px 40px; border-bottom: 2px solid #1F2937;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" valign="bottom">
+                    <h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">薪資單</h1>
+                    <h2 style="margin: 0 0 6px 0; color: #1F2937; font-size: 18px; font-weight: bold;">${companyName}</h2>
+                    <div style="color: #4B5563; font-size: 13px; line-height: 1.6;">
+                        <div>📞 ${companyPhone}</div>
+                        <div>📍 ${companyAddress}</div>
+                    </div>
+                  </td>
+                  <td align="right" valign="bottom">
+                    <div style="color: #6B7280; font-size: 13px; margin-bottom: 4px;">發放月份</div>
+                    <div style="color: #111827; font-size: 20px; font-weight: bold;">${e(s.month)}</div>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 15px 40px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; color: #4B5563;">
+                <tr>
+                  <td style="padding: 6px 0; width: 50%;"><strong>員工姓名：</strong><span style="color: #111827;">${e(s.employee.name)}</span></td>
+                  <td style="padding: 6px 0; width: 50%;"><strong>員工代號：</strong><span style="color: #111827;">${e(s.employee.empNo || '-')}</span></td>
+                </tr>
+                <tr>
+                  <td style="padding: 6px 0;"><strong>身分證字號：</strong><span style="color: #111827;">${e(s.employee.idNumber || '-')}</span></td>
+                  <td style="padding: 6px 0;"><strong>E-mail：</strong><span style="color: #111827;">${e(s.employee.email || '尚未設定')}</span></td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 30px 40px;">
+              <p style="text-align: right; font-size: 12px; color: #9CA3AF; margin: 0 0 10px 0;">單位：新台幣 (元)</p>
+
+              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; font-size: 14px; text-align: right; border-collapse: separate; border-spacing: 0;">
+                <thead>
+                  <tr style="background-color: #F9FAFB; color: #374151;">
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">加項</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; border-right: 1px dashed #D1D5DB; text-align: center; width: 25%;">金額</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">減項</th>
+                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">金額</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">本薪</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${baseSalary.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">病事假扣薪</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${leaveDeduction.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">伙食費</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${foodAllowance.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">遲到扣薪</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${lateDeduction.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">加班費</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${totalOtPay.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">勞保自負額</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${laborIns.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">其他加項</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${otherAdditions.toLocaleString()}</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">健保自負額</td>
+                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${healthIns.toLocaleString()}</td>
+                  </tr>
+                  <tr>
+                    <td style="padding: 12px; text-align: center;"></td>
+                    <td style="padding: 12px; border-right: 1px dashed #D1D5DB;"></td>
+                    <td style="padding: 12px; text-align: center; color: #4B5563;">其他減項</td>
+                    <td style="padding: 12px; color: #B91C1C; font-weight: bold;">${otherDeductions.toLocaleString()}</td>
+                  </tr>
+                </tbody>
+              </table>
+            </td>
+          </tr>
+
+          <tr>
+            <td style="padding: 25px 40px; background-color: #F8FAFC; border-top: 1px solid #E5E7EB;">
+              <table width="100%" cellpadding="0" cellspacing="0" border="0">
+                <tr>
+                  <td align="left" valign="top" style="width: 50%;">
+                    <p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
+                      <strong style="color: #111827;">其他備註：</strong><br/>
+                      ${remarks || '無'}
+                    </p>
+                  </td>
+                  <td align="right" valign="bottom" style="width: 50%;">
+                    <span style="font-size: 16px; font-weight: bold; color: #374151;">實領金額：</span>
+                    <span style="font-size: 28px; font-weight: 900; color: #15803D; border-bottom: 4px double #15803D; padding-bottom: 2px;">
+                      $ ${netPay.toLocaleString()}
+                    </span>
+                  </td>
+                </tr>
+              </table>
+            </td>
+          </tr>
+        </table>
+      </td>
+    </tr>
+  </table>
+</body>
+</html>
+`;
+}

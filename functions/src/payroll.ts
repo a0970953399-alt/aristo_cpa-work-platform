@@ -1,7 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
-import { Slip, assert, periods, validatePeriods, validDate, basisAt, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml } from './payrollDomain.js';
+import { Slip, assert, periods, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml } from './payrollDomain.js';
 const key = (value: unknown) => { assert(typeof value === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(value), '識別碼不正確'); return value as string; };
 const text = (value: unknown, max = 2000) => { assert(typeof value === 'string' && value.length <= max, '文字欄位不正確'); return value as string; };
 const canonical = (v: any): string => JSON.stringify(v && typeof v === 'object' ? Array.isArray(v) ? v.map(x => JSON.parse(canonical(x))) : Object.fromEntries(Object.keys(v).sort().map(k => [k, JSON.parse(canonical(v[k]))])) : v);
@@ -118,7 +118,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 const attendance = numbers(raw.attendance, attendanceFields);
                 const amounts = calculate(basis, attendance, numbers(raw.amounts, amountFields));
                 const c = company.data()!;
-                const s: Slip = { id, schemaVersion: 2, revision: (current?.revision || 0) + 1, clientId, employeeId, employmentId, month: text(raw.month, 7), periodStart: start, periodEnd: end, kind: raw.kind, relatedId: raw.relatedId ? key(raw.relatedId) : '', replacesId: raw.replacesId ? key(raw.replacesId) : '', status: 'draft', basis, amounts, attendance, employee: { name: text((emp as any).name, 500), email: text((emp as any).email || '', 500), empNo: text((emp as any).empNo || '', 500) }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: text(raw.note || ''), reason: text(raw.reason || '', 500), reviewedMonth: raw.reviewedMonth === true, createdAt: current?.createdAt || now, updatedAt: now, actor: uid };
+                const s: Slip = { id, schemaVersion: 2, revision: (current?.revision || 0) + 1, clientId, employeeId, employmentId, month: text(raw.month, 7), periodStart: start, periodEnd: end, kind: raw.kind, relatedId: raw.relatedId ? key(raw.relatedId) : '', replacesId: raw.replacesId ? key(raw.replacesId) : '', status: 'draft', basis, amounts, attendance, employee: { name: text((emp as any).name, 500), email: text((emp as any).email || '', 500), empNo: text((emp as any).empNo || '', 500), idNumber: text((emp as any).idNumber || '', 50), bankAccount: text((emp as any).bankAccount || '', 100) }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: text(raw.note || ''), reason: text(raw.reason || '', 500), reviewedMonth: raw.reviewedMonth === true, createdAt: current?.createdAt || now, updatedAt: now, actor: uid };
                 validateSlip(s, emp, slips, legacy);
                 writeSlip(s);
                 result = { slip: s };
@@ -139,7 +139,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     const emp = { ...empDoc.data(), id: s.employeeId };
                     validateSlip(s, emp, slips, legacy);
                     const p = periods(emp).find(x => x.id === s.employmentId)!;
-                    assert(JSON.stringify(basisAt(emp, p, s.periodStart, s.periodEnd)) === JSON.stringify(s.basis), '待遇已變更，請重新編輯並儲存草稿');
+                    assert(sameBasis(basisAt(emp, p, s.periodStart, s.periodEnd), s.basis), '待遇已變更，請重新編輯並儲存草稿');
                     if (s.replacesId) {
                         const old = slips.find(x => x.id === s.replacesId)!;
                         writeSlip({ ...old, status: 'superseded', revision: old.revision + 1, updatedAt: now, actor: uid, reason: '由 ' + s.id + ' 更正取代' });

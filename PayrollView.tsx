@@ -1,5 +1,5 @@
-import { PayrollLedger } from './PayrollLedger';
-import { validatePeriods, periods } from './functions/src/payrollDomain';
+import { usePayrollPresentation, PayrollRow, payrollStatus } from './usePayrollPresentation';
+import { validatePeriods, periods, Slip, amountFields, attendanceFields, legacyAmounts, legacyIssues, annualMetrics, labels, calculate, emptyValues, slipHtml } from './functions/src/payrollDomain';
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
@@ -8,8 +8,7 @@ import { Client, PayrollClientConfig, PayrollRecord, Employee, EmploymentType, C
 import { ReturnIcon, PlusIcon, TrashIcon } from './Icons';
 import { TaskService } from './taskService';
 
-import { collection, addDoc } from 'firebase/firestore';
-import { db } from './firebase'; // 💡 假設你的 firebase 設定檔在同一個資料夾
+
 
 const PAYROLL_TEMPLATE_BASE64 = "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";
 
@@ -86,7 +85,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
   const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
   const [employees, setEmployees] = useState<Employee[]>([]);
-  const [monthlySalaries, setMonthlySalaries] = useState<MonthlySalaryRecord[]>([]);
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [activeInnerTab, setActiveInnerTab] = useState<'employees' | 'monthly' | 'yearly'>('employees');
@@ -99,17 +97,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const currentSystemMonth = String(new Date().getMonth() + 1).padStart(2, '0');
 
   const availableYears = Array.from(
-      { length: Math.max(currentSystemYear - 2025 + 2, 2) }, 
+      { length: Math.max(currentSystemYear - 2025 + 2, 2) },
       (_, i) => String(2025 + i)
   ).reverse();
 
   const [selectedYear, setSelectedYear] = useState(String(currentSystemYear));
   const [selectedMonth, setSelectedMonth] = useState(currentSystemMonth);
-  const [monthlyData, setMonthlyData] = useState<Record<string, any>>({});
-  
-  const [yearlySalaries, setYearlySalaries] = useState<any[]>([]);
-  const [refreshTrigger, setRefreshTrigger] = useState(0); // ✨ 用來觸發資料更新的魔法變數
-  
+
+
   const [isMonthlyEditModalOpen, setIsMonthlyEditModalOpen] = useState(false);
   const [editingMonthlyEmp, setEditingMonthlyEmp] = useState<Employee | null>(null);
   const [monthlyFormData, setMonthlyFormData] = useState<any>({});
@@ -121,681 +116,44 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [isSendingBatch, setIsSendingBatch] = useState(false); // ✨ 控制一鍵發送的轉圈圈狀態
 
   const [emailSendStatus, setEmailSendStatus] = useState<'idle' | 'success' | 'error'>('idle'); // ✨ 記錄單筆寄信狀態
-  
+
   // ✨ 新增：彈出視窗專用的月份狀態
   const [editModalMonth, setEditModalMonth] = useState(selectedMonth);
 
   // ✨ 新增：年度帳冊的反白選取狀態
   const [yearlyHighlightEmpId, setYearlyHighlightEmpId] = useState<string | null>(null);
-  
-  useEffect(() => {
-      const loadMonthlyData = async () => {
-          if (activeInnerTab === 'monthly' && selectedClient) {
-              const allSalaries = monthlySalaries;
-              const targetMonth = `${selectedYear}-${selectedMonth}`;
-              const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month === targetMonth);
-              
-              const initialData: Record<string, any> = {};
-              const activeEmps = employees.filter(e => {
-                  if (e.clientId !== String(selectedClient.id)) return false;
-                  const targetMonthStr = `${selectedYear}-${selectedMonth}`;
-                  const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
-                  const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
-                  if (startMonthStr && targetMonthStr < startMonthStr) return false;
-                  if (endMonthStr && targetMonthStr > endMonthStr) return false;
-                  return true;
-              });
-              
-              activeEmps.forEach(emp => {
-                  const saved = savedRecords.find(r => r.employeeId === emp.id);
-                  if (saved) {
-                      initialData[emp.id] = saved;
-                  } else {
-                      const empIsFullTime = resolveIsFullTime(emp, selectedYear, selectedMonth);
-                      initialData[emp.id] = {
-                          workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
-                          baseSalary: empIsFullTime ? (resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth)) : 0,
-                          fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
-                          leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
-                          foodAllowance: empIsFullTime ? (emp.defaultFoodAllowance || 3000) : 0, taxFreeOt: 0,
-                          laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
-                      };
-                  }
-              });
-              setMonthlyData(initialData);
-          }
-      };
 
-      const loadYearlyData = async () => {
-          if (activeInnerTab === 'yearly' && selectedClient) {
-              const allSalaries = monthlySalaries;
-              const savedRecords = allSalaries.filter(r => r.clientId === String(selectedClient.id) && r.month.startsWith(`${selectedYear}-`));
-              setYearlySalaries(savedRecords);
-          }
-      };
-
-      loadMonthlyData();
-      loadYearlyData();
-  }, [activeInnerTab, selectedClient, employees, selectedYear, selectedMonth, refreshTrigger, monthlySalaries]);
-
+  const payroll = usePayrollPresentation(selectedClient, selectedYear+'-'+selectedMonth);
+  const [previewHtml,setPreviewHtml] = useState('');
+  const [showPayrollHistory,setShowPayrollHistory] = useState(false);
+  const monthlyRows = payroll.rowsFor(selectedYear+'-'+selectedMonth);
+  const monthlyData: Record<string,any> = Object.fromEntries(monthlyRows.map(row=>[row.id,payroll.flat(row)]));
+  useEffect(()=>{
+    if(payroll.editing){setMonthlyFormData({...payroll.editing.amounts,...payroll.editing.attendance});const employee=payroll.employees.find(e=>e.id===payroll.editing!.employeeId);if(employee)setEditingMonthlyEmp({...employee,employmentType:payroll.editing.basis.employmentType});}
+    else if(payroll.oldEditing)setMonthlyFormData({...payroll.oldEditing,...legacyAmounts(payroll.oldEditing)});
+    else setMonthlyFormData({});
+  },[payroll.editing,payroll.oldEditing]);
+  useEffect(()=>{setEmailSendStatus(payroll.mailState==='SUCCESS'?'success':payroll.mailState==='ERROR'?'error':'idle');},[payroll.mailState]);
   // ✨ 專門給 Modal 讀取指定月份資料用的函數
   const loadFormDataForMonth = async (emp: Employee, month: string) => {
-      const targetMonthStr = `${selectedYear}-${month}`;
-      const allSalaries = await TaskService.fetchMonthlySalaries();
-      const record = allSalaries.find(r => r.clientId === String(selectedClient?.id) && r.employeeId === emp.id && r.month === targetMonthStr);
-
-      if (record) {
-          setMonthlyFormData(record);
-          setEmailSendStatus(record.isEmailSent ? 'success' : 'idle');
-      } else {
-          // ✨ 時光機邏輯：根據月份找出對應的任職身分與薪資歷程
-          const targetDateStr = `${selectedYear}-${month}-31`;
-          const targetMonthStart = `${selectedYear}-${month}-01`;
-
-          // 判斷該月適用的聘僱身分
-          let effectiveType: EmploymentType = emp.employmentType;
-          if (emp.employmentHistory && emp.employmentHistory.length > 0) {
-              const activeRecord = emp.employmentHistory.find(r =>
-                  r.startDate <= targetDateStr &&
-                  (r.endDate === null || r.endDate >= targetMonthStart)
-              );
-              if (activeRecord) effectiveType = activeRecord.type;
-          }
-
-          // 判斷該月適用的薪資待遇
-          let effectiveBase = emp.defaultBaseSalary || 0;
-
-          if (emp.compensationHistory && emp.compensationHistory.length > 0) {
-              const sorted = [...emp.compensationHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-              const matched = sorted.find(r => r.effectiveDate <= targetDateStr) || sorted[sorted.length - 1];
-              effectiveBase = matched.baseSalary;
-          }
-
-          setMonthlyFormData({
-              workHours: 0, lateHours: 0, sickLeave: 0, personalLeave: 0, annualLeave: 0, holidayOt: 0, normalOt: 0,
-              baseSalary: effectiveBase, fullAttendance: 0, positionAllowance: 0, performanceBonus: 0, taxableOt: 0,
-              leaveDeduction: 0, dailyShortage: 0, lateDeduction: 0, pensionSelf: 0,
-              foodAllowance: effectiveType === 'full_time' ? (emp.defaultFoodAllowance || 3000) : 0, taxFreeOt: 0,
-              laborIns: 0, healthIns: 0, incomeTax: 0, advancePay: 0
-          });
-          setEmailSendStatus('idle');
-      }
+    const id=(emp as PayrollRow).sourceEmployeeId||emp.id;
+    const rows=payroll.rowsFor(selectedYear+'-'+month).filter(row=>row.sourceEmployeeId===id);
+    payroll.open((rows.find(r=>r.id===emp.id)||rows[0]||{...emp,sourceEmployeeId:id}) as PayrollRow,selectedYear+'-'+month);
   };
-
-  const handleModalMonthSwitch = (m: string) => {
-      if (!editingMonthlyEmp) return;
-      setEditModalMonth(m);
-      loadFormDataForMonth(editingMonthlyEmp, m);
-  };
-
-  const handleSaveMonthlyData = async (e: React.FormEvent) => {
-      e.preventDefault();
-      if (!editingMonthlyEmp || !selectedClient) return;
-
-      const record: any = {
-          id: monthlyFormData.id || Date.now().toString(),
-          clientId: String(selectedClient.id),
-          employeeId: editingMonthlyEmp.id,
-          month: `${selectedYear}-${editModalMonth}`, // ✨ 存到視窗目前選擇的月份
-          updatedAt: new Date().toISOString(),
-          ...monthlyFormData
-      };
-
-      const allSalaries = await TaskService.fetchMonthlySalaries();
-      const existingIdx = allSalaries.findIndex(r => r.clientId === String(selectedClient.id) && r.employeeId === editingMonthlyEmp.id && r.month === record.month);
-      if (existingIdx !== -1) {
-          allSalaries[existingIdx] = record;
-      } else {
-          allSalaries.push(record);
-      }
-      
-      await TaskService.saveMonthlySalaries(allSalaries);
-      setRefreshTrigger(p => p + 1); // ✨ 觸發重新讀取，讓背景表格瞬間更新
-      setIsMonthlyEditModalOpen(false);
-  };
-
+  const handleModalMonthSwitch = (m:string)=>{if(!editingMonthlyEmp||payroll.busy)return;setEditModalMonth(m);loadFormDataForMonth(editingMonthlyEmp,m);};
+  const handleSaveMonthlyData = async(e:React.FormEvent)=>{e.preventDefault();await payroll.save();};
   // ✨ 新增：預覽 Email 薪資單
   const handlePreviewEmail = () => {
-      if (!editingMonthlyEmp) return;
-
-      // 1. 抓取當前表單的數字
-      const baseSalary = monthlyFormData.baseSalary || 0;
-      const foodAllowance = monthlyFormData.foodAllowance || 0;
-      const leaveDeduction = monthlyFormData.leaveDeduction || 0;
-      const lateDeduction = monthlyFormData.lateDeduction || 0;
-      const laborIns = monthlyFormData.laborIns || 0;
-      const healthIns = monthlyFormData.healthIns || 0;
-      
-      // 自動加總其他項目
-      const totalOtPay = (monthlyFormData.taxableOt || 0) + (monthlyFormData.taxFreeOt || 0);
-      const otherAdditions = (monthlyFormData.fullAttendance || 0) + (monthlyFormData.positionAllowance || 0) + (monthlyFormData.performanceBonus || 0);
-      const otherDeductions = (monthlyFormData.dailyShortage || 0) + (monthlyFormData.pensionSelf || 0) + (monthlyFormData.incomeTax || 0) + (monthlyFormData.advancePay || 0);
-
-      const netPay = (baseSalary + foodAllowance + totalOtPay + otherAdditions) - (leaveDeduction + lateDeduction + laborIns + healthIns + otherDeductions);
-
-      // 自動產生備註
-      const remarksArr = [];
-      if (monthlyFormData.lateHours > 0) remarksArr.push(`遲到${monthlyFormData.lateHours}分鐘`);
-      if (monthlyFormData.sickLeave > 0) remarksArr.push(`病假${monthlyFormData.sickLeave}小時`);
-      if (monthlyFormData.personalLeave > 0) remarksArr.push(`事假${monthlyFormData.personalLeave}小時`);
-      if (monthlyFormData.normalOt > 0 || monthlyFormData.holidayOt > 0) remarksArr.push(`加班${(monthlyFormData.normalOt||0) + (monthlyFormData.holidayOt||0)}小時`);
-      const remarks = remarksArr.length > 0 ? remarksArr.join('，') + '。' : '無';
-
-    // ✨ 1. 從目前選中的客戶資料中，抓取公司全名、電話與地址
-    const companyName = selectedClient?.fullName || selectedClient?.name || '公司名稱未設定';
-    const companyPhone = selectedClient?.phone || '電話未提供';
-    // 地址優先使用「聯絡地址」，沒有的話用「登記地址」
-    const companyAddress = selectedClient?.contactAddress || selectedClient?.regAddress || '地址未提供';;
-      
-// ✨ 信箱專用的 Table 排版 HTML (解決跑版問題)
-const htmlContent = `
-<!DOCTYPE html>
-<html>
-<head>
-  <meta charset="utf-8">
-  <title>薪資單 - ${editingMonthlyEmp.name}</title>
-</head>
-<body style="background-color: #e5e7eb; margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;">
-  
-  <table width="100%" bgcolor="#e5e7eb" cellpadding="0" cellspacing="0" border="0" style="padding: 40px 10px;">
-    <tr>
-      <td align="center">
-        
-        <table width="100%" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="max-width: 800px; width: 100%; border-radius: 8px; border: 1px solid #d1d5db; overflow: hidden;">
-          
-          <tr>
-            <td style="padding: 30px 40px 20px 40px; border-bottom: 2px solid #1F2937;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="left" valign="bottom">
-                    <h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">薪資單</h1>
-                    <h2 style="margin: 0 0 6px 0; color: #1F2937; font-size: 18px; font-weight: bold;">${companyName}</h2>
-                    <div style="color: #4B5563; font-size: 13px; line-height: 1.6;">
-                        <div>📞 ${companyPhone}</div>
-                        <div>📍 ${companyAddress}</div>
-                    </div>
-                  </td>
-                  <td align="right" valign="bottom">
-                    <div style="color: #6B7280; font-size: 13px; margin-bottom: 4px;">發放月份</div>
-                    <div style="color: #111827; font-size: 20px; font-weight: bold;">${selectedYear}-${editModalMonth}</div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <tr>
-            <td style="padding: 15px 40px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; color: #4B5563;">
-                <tr>
-                  <td style="padding: 6px 0; width: 50%;"><strong>員工姓名：</strong><span style="color: #111827;">${editingMonthlyEmp.name}</span></td>
-                  <td style="padding: 6px 0; width: 50%;"><strong>員工代號：</strong><span style="color: #111827;">${editingMonthlyEmp.empNo || '-'}</span></td>
-                </tr>
-                <tr>
-                  <td style="padding: 6px 0;"><strong>身分證字號：</strong><span style="color: #111827;">${editingMonthlyEmp.idNumber || '-'}</span></td>
-                  <td style="padding: 6px 0;"><strong>E-mail：</strong><span style="color: #111827;">${editingMonthlyEmp.email || '尚未設定'}</span></td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          
-          <tr>
-            <td style="padding: 30px 40px;">
-              <p style="text-align: right; font-size: 12px; color: #9CA3AF; margin: 0 0 10px 0;">單位：新台幣 (元)</p>
-              
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; font-size: 14px; text-align: right; border-collapse: separate; border-spacing: 0;">
-                <thead>
-                  <tr style="background-color: #F9FAFB; color: #374151;">
-                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">加項</th>
-                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; border-right: 1px dashed #D1D5DB; text-align: center; width: 25%;">金額</th>
-                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">減項</th>
-                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">金額</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">本薪</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${baseSalary.toLocaleString()}</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">病事假扣薪</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${leaveDeduction.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">伙食費</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${foodAllowance.toLocaleString()}</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">遲到扣薪</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${lateDeduction.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">加班費</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${totalOtPay.toLocaleString()}</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">勞保自負額</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${laborIns.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">其他加項</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${otherAdditions.toLocaleString()}</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">健保自負額</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${healthIns.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 12px; text-align: center;"></td>
-                    <td style="padding: 12px; border-right: 1px dashed #D1D5DB;"></td>
-                    <td style="padding: 12px; text-align: center; color: #4B5563;">其他減項</td>
-                    <td style="padding: 12px; color: #B91C1C; font-weight: bold;">${otherDeductions.toLocaleString()}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </td>
-          </tr>
-          
-          <tr>
-            <td style="padding: 25px 40px; background-color: #F8FAFC; border-top: 1px solid #E5E7EB;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="left" valign="top" style="width: 50%;">
-                    <p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
-                      <strong style="color: #111827;">其他備註：</strong><br/>
-                      ${remarks || '無'}
-                    </p>
-                  </td>
-                  <td align="right" valign="bottom" style="width: 50%;">
-                    <span style="font-size: 16px; font-weight: bold; color: #374151;">實領金額：</span>
-                    <span style="font-size: 28px; font-weight: 900; color: #15803D; border-bottom: 4px double #15803D; padding-bottom: 2px;">
-                      $ ${netPay.toLocaleString()}
-                    </span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-        </table>
-      </td>
-    </tr>
-  </table>
-</body>
-</html>
-`;
-      // 3. 開啟新分頁並寫入 HTML
-      const newWindow = window.open('', '_blank');
-      if (newWindow) {
-          newWindow.document.write(htmlContent);
-          newWindow.document.close();
-      } else {
-          alert('預覽視窗被瀏覽器阻擋了，請允許彈出視窗！');
-      }
+    if(payroll.editing){setPreviewHtml(slipHtml(payroll.editing));return;}
+    if(payroll.oldEditing&&editingMonthlyEmp&&selectedClient){
+      const r=payroll.oldEditing;
+      if(amountFields.some(k=>typeof (r as any)[k]!=='number'||!Number.isFinite((r as any)[k]))){alert('這份舊資料缺少金額明細，請在核對與歷史紀錄查看原始欄位，不能產生完整薪資單。');return;}
+      const old={id:r.id,schemaVersion:2,revision:0,month:r.month,periodStart:r.month+'-01',periodEnd:r.month+'（舊制未保存計薪區間）',status:'draft',amounts:legacyAmounts(r),attendance:Object.fromEntries(attendanceFields.map(k=>[k,(r as any)[k]||0])),employee:{name:editingMonthlyEmp.name,email:editingMonthlyEmp.email,empNo:editingMonthlyEmp.empNo,idNumber:editingMonthlyEmp.idNumber},company:{name:selectedClient.fullName||selectedClient.name,phone:selectedClient.phone||'',address:selectedClient.contactAddress||selectedClient.regAddress||''},note:'舊制保存值，確認及付款狀態未知',reason:legacyIssues(r,payroll.legacy,payroll.employees).join('；')} as Slip;
+      setPreviewHtml(slipHtml(old));
+    }
   };
-
-  // ✨ 單筆寄送薪資單 (Firebase Trigger Email)
-  const handleSendEmail = async () => {
-      if (!editingMonthlyEmp) return;
-
-      // 1. 防呆：檢查有沒有信箱
-      if (!editingMonthlyEmp.email) {
-          alert('❌ 此員工尚未設定 Email，無法寄送！');
-          return;
-      }
-
-      // 確認提示
-      if (!window.confirm(`確定要將薪資單寄送給 ${editingMonthlyEmp.name} (${editingMonthlyEmp.email}) 嗎？`)) {
-          return;
-      }
-
-      try {
-          // 2. 準備與預覽完全一樣的資訊與運算
-          const baseSalary = monthlyFormData.baseSalary || 0;
-          const foodAllowance = monthlyFormData.foodAllowance || 0;
-          const leaveDeduction = monthlyFormData.leaveDeduction || 0;
-          const lateDeduction = monthlyFormData.lateDeduction || 0;
-          const laborIns = monthlyFormData.laborIns || 0;
-          const healthIns = monthlyFormData.healthIns || 0;
-          
-          const totalOtPay = (monthlyFormData.taxableOt || 0) + (monthlyFormData.taxFreeOt || 0);
-          const otherAdditions = (monthlyFormData.fullAttendance || 0) + (monthlyFormData.positionAllowance || 0) + (monthlyFormData.performanceBonus || 0);
-          const otherDeductions = (monthlyFormData.dailyShortage || 0) + (monthlyFormData.pensionSelf || 0) + (monthlyFormData.incomeTax || 0) + (monthlyFormData.advancePay || 0);
-
-          const netPay = (baseSalary + foodAllowance + totalOtPay + otherAdditions) - (leaveDeduction + lateDeduction + laborIns + healthIns + otherDeductions);
-
-          const remarksArr = [];
-          if (monthlyFormData.lateHours > 0) remarksArr.push(`遲到${monthlyFormData.lateHours}分鐘`);
-          if (monthlyFormData.sickLeave > 0) remarksArr.push(`病假${monthlyFormData.sickLeave}小時`);
-          if (monthlyFormData.personalLeave > 0) remarksArr.push(`事假${monthlyFormData.personalLeave}小時`);
-          if (monthlyFormData.normalOt > 0 || monthlyFormData.holidayOt > 0) remarksArr.push(`加班${(monthlyFormData.normalOt||0) + (monthlyFormData.holidayOt||0)}小時`);
-          const remarks = remarksArr.length > 0 ? remarksArr.join('，') + '。' : '無';
-
-          const companyName = selectedClient?.fullName || selectedClient?.name || '公司名稱未設定';
-          const companyPhone = selectedClient?.phone || '電話未提供';
-          const companyAddress = selectedClient?.contactAddress || selectedClient?.regAddress || '地址未提供';
-          
-          // ✨ 請將你 handlePreviewEmail 裡面的那個 const htmlContent = `...` 整串複製下來，貼取代下面這行註解！
-          const htmlContent = `<meta charset="utf-8">
-  <title>薪資單 - ${editingMonthlyEmp.name}</title>
-</head>
-<body style="background-color: #e5e7eb; margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;">
-  
-  <table width="100%" bgcolor="#e5e7eb" cellpadding="0" cellspacing="0" border="0" style="padding: 40px 10px;">
-    <tr>
-      <td align="center">
-        
-        <table width="100%" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="max-width: 800px; width: 100%; border-radius: 8px; border: 1px solid #d1d5db; overflow: hidden;">
-          
-          <tr>
-            <td style="padding: 30px 40px 20px 40px; border-bottom: 2px solid #1F2937;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="left" valign="bottom">
-                    <h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">薪資單</h1>
-                    <h2 style="margin: 0 0 6px 0; color: #1F2937; font-size: 18px; font-weight: bold;">${companyName}</h2>
-                    <div style="color: #4B5563; font-size: 13px; line-height: 1.6;">
-                        <div>📞 ${companyPhone}</div>
-                        <div>📍 ${companyAddress}</div>
-                    </div>
-                  </td>
-                  <td align="right" valign="bottom">
-                    <div style="color: #6B7280; font-size: 13px; margin-bottom: 4px;">發放月份</div>
-                    <div style="color: #111827; font-size: 20px; font-weight: bold;">${selectedYear}-${editModalMonth}</div>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-
-          <tr>
-            <td style="padding: 15px 40px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; color: #4B5563;">
-                <tr>
-                  <td style="padding: 6px 0; width: 50%;"><strong>員工姓名：</strong><span style="color: #111827;">${editingMonthlyEmp.name}</span></td>
-                  <td style="padding: 6px 0; width: 50%;"><strong>員工代號：</strong><span style="color: #111827;">${editingMonthlyEmp.empNo || '-'}</span></td>
-                </tr>
-                <tr>
-                  <td style="padding: 6px 0;"><strong>身分證字號：</strong><span style="color: #111827;">${editingMonthlyEmp.idNumber || '-'}</span></td>
-                  <td style="padding: 6px 0;"><strong>E-mail：</strong><span style="color: #111827;">${editingMonthlyEmp.email || '尚未設定'}</span></td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          
-          <tr>
-            <td style="padding: 30px 40px;">
-              <p style="text-align: right; font-size: 12px; color: #9CA3AF; margin: 0 0 10px 0;">單位：新台幣 (元)</p>
-              
-              <table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; font-size: 14px; text-align: right; border-collapse: separate; border-spacing: 0;">
-                <thead>
-                  <tr style="background-color: #F9FAFB; color: #374151;">
-                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">加項</th>
-                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; border-right: 1px dashed #D1D5DB; text-align: center; width: 25%;">金額</th>
-                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">減項</th>
-                    <th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">金額</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  <tr>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">本薪</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${baseSalary.toLocaleString()}</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">病事假扣薪</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${leaveDeduction.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">伙食費</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${foodAllowance.toLocaleString()}</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">遲到扣薪</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${lateDeduction.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">加班費</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${totalOtPay.toLocaleString()}</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">勞保自負額</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${laborIns.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">其他加項</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${otherAdditions.toLocaleString()}</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">健保自負額</td>
-                    <td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${healthIns.toLocaleString()}</td>
-                  </tr>
-                  <tr>
-                    <td style="padding: 12px; text-align: center;"></td>
-                    <td style="padding: 12px; border-right: 1px dashed #D1D5DB;"></td>
-                    <td style="padding: 12px; text-align: center; color: #4B5563;">其他減項</td>
-                    <td style="padding: 12px; color: #B91C1C; font-weight: bold;">${otherDeductions.toLocaleString()}</td>
-                  </tr>
-                </tbody>
-              </table>
-            </td>
-          </tr>
-          
-          <tr>
-            <td style="padding: 25px 40px; background-color: #F8FAFC; border-top: 1px solid #E5E7EB;">
-              <table width="100%" cellpadding="0" cellspacing="0" border="0">
-                <tr>
-                  <td align="left" valign="top" style="width: 50%;">
-                    <p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
-                      <strong style="color: #111827;">其他備註：</strong><br/>
-                      ${remarks || '無'}
-                    </p>
-                  </td>
-                  <td align="right" valign="bottom" style="width: 50%;">
-                    <span style="font-size: 16px; font-weight: bold; color: #374151;">實領金額：</span>
-                    <span style="font-size: 28px; font-weight: 900; color: #15803D; border-bottom: 4px double #15803D; padding-bottom: 2px;">
-                      $ ${netPay.toLocaleString()}
-                    </span>
-                  </td>
-                </tr>
-              </table>
-            </td>
-          </tr>
-          
-          <tr>
-            <td align="center" style="background-color: #F3F4F6; padding: 16px; font-size: 12px; color: #9CA3AF; border-top: 1px solid #E5E7EB;">
-              此信件為系統自動發送，請勿直接回覆。若對薪資結算有疑問，請洽會計部門。
-            </td>
-          </tr>
-          
-        </table>
-      </td>
-    </tr>
-  </table>`; 
-
-        // 3. 召喚郵差：把信件丟進 Firebase 的 'mail' 資料夾
-          await addDoc(collection(db, 'mail'), {
-              to: [editingMonthlyEmp.email],
-              message: {
-                  subject: `${companyName} - ${selectedYear}年${editModalMonth}月 薪資明細表 (${editingMonthlyEmp.name})`,
-                  html: htmlContent
-              }
-          });
-
-          setEmailSendStatus('success'); // ✨ 這是剛剛加的
-
-          // 把「已寄送」狀態寫進本地 state
-          setMonthlyFormData(prev => ({ ...prev, isEmailSent: true }));
-          setMonthlyData(prev => ({
-              ...prev,
-              [editingMonthlyEmp.id]: {
-                  ...(prev[editingMonthlyEmp.id] || {}),
-                  isEmailSent: true
-              }
-          }));
-
-          // 永久寫入 Firebase
-          const targetMonth = `${selectedYear}-${editModalMonth}`;
-          const allSalaries = await TaskService.fetchMonthlySalaries();
-          const existingIdx = allSalaries.findIndex(r =>
-              r.clientId === String(selectedClient?.id) &&
-              r.employeeId === editingMonthlyEmp.id &&
-              r.month === targetMonth
-          );
-          if (existingIdx !== -1) {
-              allSalaries[existingIdx] = { ...allSalaries[existingIdx], isEmailSent: true };
-          } else {
-              allSalaries.push({
-                  id: Date.now().toString(),
-                  clientId: String(selectedClient?.id),
-                  employeeId: editingMonthlyEmp.id,
-                  month: targetMonth,
-                  isEmailSent: true,
-                  updatedAt: new Date().toISOString(),
-              } as any);
-          }
-          await TaskService.saveMonthlySalaries(allSalaries);
-
-          alert('✅ 薪資單已成功交給系統排程！郵差正在路上 (約需 10~30 秒)。');
-          
-      } catch (error) {
-          console.error('寄信失敗:', error);
-          setEmailSendStatus('error'); // ✨ 寄信失敗，打叉！
-          alert('寄信發生錯誤，請檢查網路連線或主控台資訊。');
-      }
-  };
-
-  // ✨ 一鍵批次寄送本月全體薪資單
-  const handleBatchSendEmails = async () => {
-      if (!selectedClient) return;
-
-      // 1. 篩選出本月有在職的員工
-      const currentMonthEmps = employees.filter(e => {
-          if (e.clientId !== String(selectedClient.id)) return false;
-          const targetMonthStr = `${selectedYear}-${selectedMonth}`;
-          const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
-          const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
-          if (startMonthStr && targetMonthStr < startMonthStr) return false;
-          if (endMonthStr && targetMonthStr > endMonthStr) return false;
-          return true;
-      });
-
-      if (currentMonthEmps.length === 0) {
-          alert('本月無在職員工可寄送！');
-          return;
-      }
-
-      // 2. 自動過濾出有信箱的員工
-      const validEmps = currentMonthEmps.filter(e => e.email && e.email.trim() !== '');
-      const invalidEmpsCount = currentMonthEmps.length - validEmps.length;
-
-      if (validEmps.length === 0) {
-          alert('❌ 本月所有員工都未設定 Email，無法寄送！');
-          return;
-      }
-
-      // 再次確認提示
-      let confirmMsg = `確定要一鍵寄送 ${validEmps.length} 封薪資單嗎？`;
-      if (invalidEmpsCount > 0) {
-          confirmMsg += `\n(⚠️ 提醒：有 ${invalidEmpsCount} 位員工未設定信箱，系統將自動跳過)`;
-      }
-
-      if (!window.confirm(confirmMsg)) return;
-
-      setIsSendingBatch(true);
-
-      try {
-          const companyName = selectedClient?.fullName || selectedClient?.name || '公司名稱未設定';
-          const companyPhone = selectedClient?.phone || '電話未提供';
-          const companyAddress = selectedClient?.contactAddress || selectedClient?.regAddress || '地址未提供';
-
-          // 3. 準備所有寄信任務 (打包成多個信件包裹)
-          const promises = validEmps.map(emp => {
-              const rowData = monthlyData[emp.id] || {};
-              const isFullTime = resolveIsFullTime(emp, selectedYear, selectedMonth);
-
-              const baseSalaryForCalc = rowData.baseSalary || 0;
-              const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
-              const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0));
-              const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2);
-              const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
-              const realLeaveDeduction = Math.round(realSickDeduction + realPersonalDeduction);
-
-              const foodAllowanceForCalc = isFullTime ? (emp.defaultFoodAllowance || 3000) : (rowData.foodAllowance || 0);
-              let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
-              if (isFullTime) {
-                  const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
-                  realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
-                  realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-                  realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
-              } else {
-                  const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
-                  realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
-                  realNormalPay = Math.round(partTimeHourlyWage * (rowData.normalOt || 0) * 1.3333);
-              }
-              const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
-
-              const baseSalary = rowData.baseSalary || 0;
-              const foodAllowance = rowData.foodAllowance || 0;
-              const leaveDeduction = rowData.leaveDeduction ?? realLeaveDeduction;
-              const lateDeduction = rowData.lateDeduction ?? realLateDeduction;
-              const laborIns = rowData.laborIns || 0;
-              const healthIns = rowData.healthIns || 0;
-
-              const totalOtPay = (rowData.taxableOt || 0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
-              const otherAdditions = (rowData.fullAttendance || 0) + (rowData.positionAllowance || 0) + (rowData.performanceBonus || 0);
-              const otherDeductions = (rowData.dailyShortage || 0) + (rowData.pensionSelf || 0) + (rowData.incomeTax || 0) + (rowData.advancePay || 0);
-
-              const netPay = (baseSalary + foodAllowance + totalOtPay + otherAdditions) - (leaveDeduction + lateDeduction + laborIns + healthIns + otherDeductions);
-
-              const remarksArr = [];
-              if (rowData.lateHours > 0) remarksArr.push(`遲到${rowData.lateHours}分鐘`);
-              if (rowData.sickLeave > 0) remarksArr.push(`病假${rowData.sickLeave}小時`);
-              if (rowData.personalLeave > 0) remarksArr.push(`事假${rowData.personalLeave}小時`);
-              if (rowData.normalOt > 0 || rowData.holidayOt > 0) remarksArr.push(`加班${(rowData.normalOt||0) + (rowData.holidayOt||0)}小時`);
-              const remarks = remarksArr.length > 0 ? remarksArr.join('，') + '。' : '無';
-
-              // 信箱專用 Table 排版
-              const htmlContent = `<!DOCTYPE html><html><head><meta charset="utf-8"><title>薪資單 - ${emp.name}</title></head><body style="background-color: #e5e7eb; margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;"><table width="100%" bgcolor="#e5e7eb" cellpadding="0" cellspacing="0" border="0" style="padding: 40px 10px;"><tr><td align="center"><table width="100%" bgcolor="#ffffff" cellpadding="0" cellspacing="0" border="0" style="max-width: 800px; width: 100%; border-radius: 8px; border: 1px solid #d1d5db; overflow: hidden;"><tr><td style="padding: 30px 40px 20px 40px; border-bottom: 2px solid #1F2937;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="left" valign="bottom"><h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">薪資單</h1><h2 style="margin: 0 0 6px 0; color: #1F2937; font-size: 18px; font-weight: bold;">${companyName}</h2><div style="color: #4B5563; font-size: 13px; line-height: 1.6;"><div>📞 ${companyPhone}</div><div>📍 ${companyAddress}</div></div></td><td align="right" valign="bottom"><div style="color: #6B7280; font-size: 13px; margin-bottom: 4px;">發放月份</div><div style="color: #111827; font-size: 20px; font-weight: bold;">${selectedYear}-${selectedMonth}</div></td></tr></table></td></tr><tr><td style="padding: 15px 40px; background-color: #ffffff; border-bottom: 1px solid #e5e7eb;"><table width="100%" cellpadding="0" cellspacing="0" border="0" style="font-size: 14px; color: #4B5563;"><tr><td style="padding: 6px 0; width: 50%;"><strong>員工姓名：</strong><span style="color: #111827;">${emp.name}</span></td><td style="padding: 6px 0; width: 50%;"><strong>員工代號：</strong><span style="color: #111827;">${emp.empNo || '-'}</span></td></tr><tr><td style="padding: 6px 0;"><strong>身分證字號：</strong><span style="color: #111827;">${emp.idNumber || '-'}</span></td><td style="padding: 6px 0;"><strong>E-mail：</strong><span style="color: #111827;">${emp.email || '尚未設定'}</span></td></tr></table></td></tr><tr><td style="padding: 30px 40px;"><p style="text-align: right; font-size: 12px; color: #9CA3AF; margin: 0 0 10px 0;">單位：新台幣 (元)</p><table width="100%" cellpadding="0" cellspacing="0" border="0" style="border: 1px solid #E5E7EB; border-radius: 8px; font-size: 14px; text-align: right; border-collapse: separate; border-spacing: 0;"><thead><tr style="background-color: #F9FAFB; color: #374151;"><th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">加項</th><th style="padding: 12px; border-bottom: 2px solid #E5E7EB; border-right: 1px dashed #D1D5DB; text-align: center; width: 25%;">金額</th><th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">減項</th><th style="padding: 12px; border-bottom: 2px solid #E5E7EB; text-align: center; width: 25%;">金額</th></tr></thead><tbody><tr><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">本薪</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${baseSalary.toLocaleString()}</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">病事假扣薪</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${leaveDeduction.toLocaleString()}</td></tr><tr><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">伙食費</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${foodAllowance.toLocaleString()}</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">遲到扣薪</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${lateDeduction.toLocaleString()}</td></tr><tr><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">加班費</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${totalOtPay.toLocaleString()}</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">勞保自負額</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${laborIns.toLocaleString()}</td></tr><tr><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">其他加項</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; border-right: 1px dashed #D1D5DB; color: #047857; font-weight: bold;">${otherAdditions.toLocaleString()}</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; text-align: center; color: #4B5563;">健保自負額</td><td style="padding: 12px; border-bottom: 1px dashed #E5E7EB; color: #B91C1C; font-weight: bold;">${healthIns.toLocaleString()}</td></tr><tr><td style="padding: 12px; text-align: center;"></td><td style="padding: 12px; border-right: 1px dashed #D1D5DB;"></td><td style="padding: 12px; text-align: center; color: #4B5563;">其他減項</td><td style="padding: 12px; color: #B91C1C; font-weight: bold;">${otherDeductions.toLocaleString()}</td></tr></tbody></table></td></tr><tr><td style="padding: 25px 40px; background-color: #F8FAFC; border-top: 1px solid #E5E7EB;"><table width="100%" cellpadding="0" cellspacing="0" border="0"><tr><td align="left" valign="top" style="width: 50%;"><p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.6;"><strong style="color: #111827;">其他備註：</strong><br/>${remarks || '無'}</p></td><td align="right" valign="bottom" style="width: 50%;"><span style="font-size: 16px; font-weight: bold; color: #374151;">實領金額：</span><span style="font-size: 28px; font-weight: 900; color: #15803D; border-bottom: 4px double #15803D; padding-bottom: 2px;">$ ${netPay.toLocaleString()}</span></td></tr></table></td></tr></table></td></tr></table></body></html>`;
-
-              // 將每一封信放進發送陣列
-              return addDoc(collection(db, 'mail'), {
-                  to: [emp.email],
-                  message: {
-                      subject: `${companyName} - ${selectedYear}年${selectedMonth}月 薪資明細表 (${emp.name})`,
-                      html: htmlContent
-                  }
-              });
-          });
-
-        // 4. 一次將所有信件交給 Firebase
-          await Promise.all(promises);
-          
-          // 把所有成功寄出的員工都標記為「已寄送」（本地 state）
-          setMonthlyData(prev => {
-              const newData = { ...prev };
-              validEmps.forEach(emp => {
-                  newData[emp.id] = { ...(newData[emp.id] || {}), isEmailSent: true };
-              });
-              return newData;
-          });
-
-          // 永久寫入 Firebase
-          const batchTargetMonth = `${selectedYear}-${selectedMonth}`;
-          const allSalaries = await TaskService.fetchMonthlySalaries();
-          validEmps.forEach(emp => {
-              const existingIdx = allSalaries.findIndex(r =>
-                  r.clientId === String(selectedClient?.id) &&
-                  r.employeeId === emp.id &&
-                  r.month === batchTargetMonth
-              );
-              if (existingIdx !== -1) {
-                  allSalaries[existingIdx] = { ...allSalaries[existingIdx], isEmailSent: true };
-              } else {
-                  allSalaries.push({
-                      id: Date.now().toString() + emp.id,
-                      clientId: String(selectedClient?.id),
-                      employeeId: emp.id,
-                      month: batchTargetMonth,
-                      isEmailSent: true,
-                      updatedAt: new Date().toISOString(),
-                  } as any);
-              }
-          });
-          await TaskService.saveMonthlySalaries(allSalaries);
-
-          alert(`✅ 大成功！已將 ${validEmps.length} 封薪資單交給系統發送。`);
-
-      } catch (error) {
-          console.error('一鍵寄信失敗:', error);
-          alert('寄信發生錯誤，請檢查網路連線或主控台資訊。');
-      } finally {
-          setIsSendingBatch(false); // 關閉轉圈圈
-      }
-  };
-  
+  const handleSendEmail = async()=>{await payroll.send();};
+  const handleBatchSendEmails = async()=>{setIsSendingBatch(true);try{await payroll.batch();}finally{setIsSendingBatch(false);}};
   const handleExportEmployerExcel = async () => {
       try {
           if (!selectedClient) return;
@@ -816,20 +174,11 @@ const htmlContent = `
 
           const workbook = new Workbook();
           await workbook.xlsx.load(bytes.buffer);
-          const ws = workbook.worksheets[0]; 
+          const ws = workbook.worksheets[0];
 
-          const currentMonthEmps = employees.filter(e => {
-              if (e.clientId !== String(selectedClient.id)) return false;
-              const targetMonthStr = `${selectedYear}-${selectedMonth}`;
-              const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
-              const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
-              
-              if (startMonthStr && targetMonthStr < startMonthStr) return false;
-              if (endMonthStr && targetMonthStr > endMonthStr) return false;
-              return true;
-          });
-
-          if (currentMonthEmps.length === 0) {
+          if(!payroll.ready){alert('薪資資料尚未載入完成');return;}
+          const currentMonthEmps = monthlyRows.filter(row=>!row.excluded&&(row.slip||row.legacyRecord));
+          if (currentMonthEmps.length === 0 && !payroll.legacy.some(r=>r.month===selectedYear+'-'+selectedMonth) && !payroll.slips.some(r=>r.month===selectedYear+'-'+selectedMonth)) {
               alert("本月無在職員工可匯出！");
               return;
           }
@@ -847,39 +196,17 @@ const htmlContent = `
           }
 
           currentMonthEmps.forEach((emp, index) => {
-              const R = 2 + index; 
+              const R = 2 + index;
               const row = ws.getRow(R);
               const rowData = monthlyData[emp.id] || {};
               const isFullTime = resolveIsFullTime(emp, selectedYear, selectedMonth);
-
-              const baseSalaryForCalc = rowData.baseSalary || 0;
-              const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
-              const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0));
-              const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2);
-              const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
-              const realLeaveDeduction = Math.round(realSickDeduction + realPersonalDeduction);
-
-              const foodAllowanceForCalc = isFullTime ? (emp.defaultFoodAllowance || 3000) : (rowData.foodAllowance || 0);
-              let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
-              if (isFullTime) {
-                  const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
-                  realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
-                  realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-                  realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
-              } else {
-                  const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
-                  realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
-                  realNormalPay = Math.round(partTimeHourlyWage * (rowData.normalOt || 0) * 1.3333);
-              }
-              const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
-
               const baseSalary = rowData.baseSalary || 0;
               const foodAllowance = rowData.foodAllowance || 0;
-              const otPay = (rowData.taxableOt || 0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
+              const otPay = (rowData.taxableOt || 0) + (rowData.taxFreeOt || 0);
               const otherAdd = (rowData.fullAttendance || 0) + (rowData.positionAllowance || 0) + (rowData.performanceBonus || 0);
 
-              const leaveDed = -(rowData.leaveDeduction ?? realLeaveDeduction);
-              const lateDed = -(rowData.lateDeduction ?? realLateDeduction);
+              const leaveDed = -(rowData.leaveDeduction || 0);
+              const lateDed = -(rowData.lateDeduction || 0);
               const laborIns = -(rowData.laborIns || 0);
               const healthIns = -(rowData.healthIns || 0);
               const otherDed = -((rowData.dailyShortage || 0) + (rowData.pensionSelf || 0) + (rowData.advancePay || 0) + (rowData.incomeTax || 0));
@@ -887,9 +214,9 @@ const htmlContent = `
               const netPay = baseSalary + foodAllowance + otPay + otherAdd + leaveDed + lateDed + laborIns + healthIns + otherDed;
 
               // ✨ 時光機：依該月找對應的勞健保設定
-              let insBracket = emp.insuranceBracket || 0;
-              let insHasLabor = emp.hasLaborIns ?? true;
-              let insHasHealth = emp.hasHealthIns ?? true;
+              let insBracket = emp.slip?.basis.insuranceBracket ?? emp.insuranceBracket ?? 0;
+              let insHasLabor = emp.slip?.basis.hasLaborIns ?? emp.hasLaborIns ?? true;
+              let insHasHealth = emp.slip?.basis.hasHealthIns ?? emp.hasHealthIns ?? true;
               if (emp.compensationHistory && emp.compensationHistory.length > 0) {
                   const targetDateStr = `${selectedYear}-${selectedMonth}-31`;
                   const sorted = [...emp.compensationHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
@@ -927,7 +254,7 @@ const htmlContent = `
               if (rowData.normalOt > 0) remarks.push(`日常加班${rowData.normalOt}小時`);
           }
           if (rowData.holidayOt > 0) remarks.push(`國定假日出勤${rowData.holidayOt}小時`);
-          
+
           const remarkStr = remarks.length > 0 ? remarks.join("，") + "。" : "";
 
               totals.base += baseSalary; totals.food += foodAllowance; totals.ot += otPay; totals.otherAdd += otherAdd;
@@ -938,7 +265,7 @@ const htmlContent = `
               row.getCell(2).value = emp.empNo || "";
               row.getCell(3).value = emp.name || "";
               row.getCell(4).value = insStr;
-              row.getCell(5).value = emp.idNumber || "";
+              row.getCell(5).value = emp.slip ? emp.slip.employee.idNumber || "" : emp.idNumber || "";
               row.getCell(6).value = emp.email || "";
               row.getCell(7).value = baseSalary || "";
               row.getCell(8).value = foodAllowance || "";
@@ -951,8 +278,8 @@ const htmlContent = `
               row.getCell(15).value = otherDed || "";
               row.getCell(16).value = netPay || 0;
               row.getCell(17).value = emp.bankAccount || "";
-              row.getCell(18).value = remarkStr;
-              row.commit(); 
+              row.getCell(18).value = [remarkStr,emp.slip ? emp.slip.periodStart+'～'+emp.slip.periodEnd+'／'+emp.slip.id+'／v'+emp.slip.revision : '舊制保存值，狀態未知'].join('；');
+              row.commit();
           });
 
           const totalR = 2 + currentMonthEmps.length;
@@ -969,6 +296,11 @@ const htmlContent = `
           totalRow.getCell(16).value = totals.net || 0;
           totalRow.commit();
 
+          const rawSheet=workbook.addWorksheet('舊紀錄核對');
+          rawSheet.addRow(['文件','員工','月份','核對說明',...amountFields.map(k=>labels[k])]);
+          payroll.legacy.filter(r=>r.month===selectedYear+'-'+selectedMonth).forEach(r=>rawSheet.addRow([r.id,r.employeeId,r.month,legacyIssues(r,payroll.legacy,payroll.employees).join('；')||'舊制保存值，狀態未知',...amountFields.map(k=>(r as any)[k]??'缺少')]));
+          const slipsSheet=workbook.addWorksheet('逐單狀態');slipsSheet.addRow(['單號','員工','計薪起日','計薪迄日','狀態','版本',...amountFields.map(k=>labels[k])]);
+          payroll.slips.filter(r=>r.month===selectedYear+'-'+selectedMonth).forEach(r=>slipsSheet.addRow([r.id,r.employee.name,r.periodStart,r.periodEnd,payrollStatus[r.status],r.revision,...amountFields.map(k=>r.amounts[k])]));
           const buffer = await workbook.xlsx.writeBuffer();
           const blob = new Blob([buffer], { type: "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet" });
           saveAs(blob, `${selectedClient.name}_薪資總表_${selectedYear}${selectedMonth}.xlsx`);
@@ -978,11 +310,12 @@ const htmlContent = `
           alert(`匯出失敗！請將此錯誤訊息告訴 AI：\n\n${error.message}`);
       }
   };
-  
+
   const handleRowClickMonthly = (emp: Employee) => {
+      if(payroll.busy)return;
       // 去找這個員工這個月的資料，看他之前有沒有寄過信
   const currentRecord = monthlyData[emp.id] || {};
-      setEmailSendStatus(currentRecord.isEmailSent ? 'success' : 'idle');
+      setEmailSendStatus('idle');
       setEditingMonthlyEmp(emp);
       setEditModalMonth(selectedMonth);
       setEditModalMode('monthly'); // ✨ 設定為每月模式
@@ -991,67 +324,13 @@ const htmlContent = `
       setIsMonthlyEditModalOpen(true);
   };
 
-  const handleMonthlyFormChange = (field: string, value: string) => {
-      const numValue = Number(value) || 0;
-      let updatedData = { ...monthlyFormData, [field]: numValue };
-      
-      const isFullTime = editingMonthlyEmp ? resolveIsFullTime(editingMonthlyEmp, selectedYear, editModalMonth) : false;
-      const ptHourlyWage = editingMonthlyEmp ? resolvePartTimeHourlyWage(editingMonthlyEmp, selectedYear, editModalMonth) : 0;
+  const handleMonthlyFormChange = (field:string,value:string)=>payroll.change(field,value);
 
-      if (field === 'workHours' && !isFullTime) {
-          updatedData.baseSalary = numValue * ptHourlyWage;
-      }
-
-      const currentBaseSalary = field === 'baseSalary' ? numValue : (updatedData.baseSalary || 0);
-
-      const hourlyWage = isFullTime
-          ? currentBaseSalary / 240
-          : ptHourlyWage;
-      const minuteWage = hourlyWage / 60;
-
-      const currentLate = field === 'lateHours' ? numValue : (updatedData.lateHours || 0);
-      const currentSick = field === 'sickLeave' ? numValue : (updatedData.sickLeave || 0);
-      const currentPersonal = field === 'personalLeave' ? numValue : (updatedData.personalLeave || 0);
-
-      updatedData.lateDeduction = Math.round(minuteWage * currentLate);
-      const sickDed = Math.round(hourlyWage * currentSick / 2);
-      const personalDed = Math.round(hourlyWage * currentPersonal);
-      updatedData.leaveDeduction = Math.round(sickDed + personalDed);
-
-      // 正職員工：依請假時數自動扣除伙食費，OT 計算用基本伙食費
-      const baseFoodAllowance = isFullTime ? (editingMonthlyEmp?.defaultFoodAllowance || 3000) : 0;
-      if (isFullTime && field !== 'foodAllowance') {
-          const totalLeaveHours = currentSick + currentPersonal;
-          const deductionDays = Math.floor(totalLeaveHours / 8);
-          updatedData.foodAllowance = baseFoodAllowance - deductionDays * Math.round(baseFoodAllowance / 30);
-      }
-
-      const currentAnnual = field === 'annualLeave' ? numValue : (updatedData.annualLeave || 0);
-      const currentHoliday = field === 'holidayOt' ? numValue : (updatedData.holidayOt || 0);
-      const currentNormal = field === 'normalOt' ? numValue : (updatedData.normalOt || 0);
-
-      let annualPay = 0, holidayPay = 0, normalPay = 0;
-
-      if (isFullTime) {
-          const otHourlyWage = (currentBaseSalary + baseFoodAllowance) / 240;
-          annualPay = Math.round(otHourlyWage * currentAnnual);
-          holidayPay = Math.round(otHourlyWage * currentHoliday);
-          normalPay = Math.round(otHourlyWage * currentNormal * 1.3333);
-      } else {
-          const partTimeHourlyWage = editingMonthlyEmp?.defaultBaseSalary || 0;
-          holidayPay = Math.round(partTimeHourlyWage * currentHoliday * 2);
-          normalPay = Math.round(partTimeHourlyWage * currentNormal * 1.3333);
-      }
-
-      updatedData.taxFreeOt = Math.round(annualPay + holidayPay + normalPay);
-      setMonthlyFormData(updatedData);
-  };
-  
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false);
   const [newClientSelectId, setNewClientSelectId] = useState('');
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
-  
+
   const [isEmpModalOpen, setIsEmpModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Partial<Employee> | null>(null);
   const [editingEmpEmployHistory, setEditingEmpEmployHistory] = useState<EmploymentRecord[]>([]);
@@ -1122,7 +401,7 @@ const htmlContent = `
       } catch (error) {
         alert('檔案讀取失敗，請確認是否為標準的 Excel 檔案。');
       }
-      
+
       if (empFileInputRef.current) empFileInputRef.current.value = '';
     };
     reader.readAsBinaryString(file);
@@ -1137,18 +416,6 @@ const htmlContent = `
     ];
     return () => unsubscribe.forEach(stopListening => stopListening());
   }, []);
-
-  useEffect(() => {
-    if (!selectedClient) {
-      setMonthlySalaries([]);
-      return;
-    }
-    return TaskService.subscribeMonthlySalariesForClient(
-      String(selectedClient.id),
-      setMonthlySalaries,
-      error => console.error('Monthly salary real-time sync failed:', error)
-    );
-  }, [selectedClient]);
 
   // --- Keyboard Shortcuts ---
   useEffect(() => {
@@ -1263,9 +530,7 @@ const htmlContent = `
     setClientsToDelete([]);
   };
 
-  if (selectedClient && activeInnerTab !== 'employees') {
-    return <PayrollLedger key={String(selectedClient.id)} client={selectedClient} employees={employees} legacy={monthlySalaries} initialMode={activeInnerTab} onEmployees={() => setActiveInnerTab('employees')} onBack={() => setSelectedClient(null)} />;
-  }
+
   if (selectedClient) {
     // ✨ Feature 1: 員工排序邏輯 (正職優先，再來依編號，離職墊底)
     const currentEmps = employees
@@ -1273,9 +538,9 @@ const htmlContent = `
         .sort((a, b) => {
             const aResigned = !!a.endDate;
             const bResigned = !!b.endDate;
-            if (aResigned && !bResigned) return 1; 
+            if (aResigned && !bResigned) return 1;
             if (!aResigned && bResigned) return -1;
-            
+
             if (a.employmentType === 'full_time' && b.employmentType !== 'full_time') return -1;
             if (a.employmentType !== 'full_time' && b.employmentType === 'full_time') return 1;
 
@@ -1284,14 +549,14 @@ const htmlContent = `
 
     return (
       <div className="h-full flex flex-col animate-fade-in bg-gray-50">
-        
+
         <div className="bg-white px-6 py-4 border-b border-gray-200 flex items-center justify-between shrink-0">
           <div className="flex items-center gap-4">
             <button onClick={() => setSelectedClient(null)} className="p-2 hover:bg-gray-100 rounded-full text-gray-500 transition-colors" title="返回客戶列表">
               <ReturnIcon className="w-6 h-6" />
             </button>
             <h2 className="text-xl sm:text-2xl font-black text-gray-800 leading-tight">{selectedClient.name} - 薪資明細</h2>
-            
+
             {(activeInnerTab === 'monthly' || activeInnerTab === 'yearly') && (
                 <div className="flex items-center gap-2 ml-4 animate-fade-in">
                   <select value={selectedYear} onChange={e => setSelectedYear(e.target.value)} className="border border-gray-200 rounded-xl px-3 py-2 text-sm font-bold text-gray-700 outline-none bg-gray-50 hover:bg-gray-100 cursor-pointer transition-colors focus:ring-2 focus:ring-blue-500">
@@ -1309,7 +574,7 @@ const htmlContent = `
                 </div>
             )}
           </div>
-          
+
           <div className="flex items-center gap-3">
               <div className="flex p-1 bg-gray-100 rounded-xl shadow-inner">
                   <button onClick={() => setActiveInnerTab('employees')} className={`px-4 py-2 text-sm font-black rounded-lg transition-colors ${activeInnerTab === 'employees' ? 'bg-white text-blue-600 shadow-sm' : 'text-gray-500 hover:text-gray-700'}`}>員工名單</button>
@@ -1335,10 +600,10 @@ const htmlContent = `
                 {activeInnerTab === 'monthly' && (
                       <div className="flex items-center gap-2 animate-fade-in">
                           {/* ✨ 新增：一鍵寄送按鈕 */}
-                          <button 
-                              onClick={handleBatchSendEmails} 
-                              disabled={isSendingBatch}
-                              title="一鍵寄送本月全體薪資單" 
+                          <button
+                              onClick={handleBatchSendEmails}
+                              disabled={isSendingBatch || payroll.busy || !payroll.ready}
+                              title="寄送本月已確認薪資單"
                               className={`p-2.5 font-bold rounded-xl shadow-md active:scale-95 transition-all flex items-center justify-center ${
                                   isSendingBatch ? 'bg-gray-400 cursor-not-allowed' : 'bg-blue-600 text-white hover:bg-blue-700'
                               }`}
@@ -1349,9 +614,9 @@ const htmlContent = `
                                   <SendMailIcon className="w-5 h-5" />
                               )}
                           </button>
-                          
+
                           {/* 匯出 Excel 按鈕 */}
-                          <button onClick={handleExportEmployerExcel} title="匯出薪資總表" className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
+                          <button disabled={!payroll.ready || payroll.busy} onClick={handleExportEmployerExcel} title="匯出薪資總表" className="p-2.5 bg-green-600 text-white font-bold rounded-xl shadow-md hover:bg-green-700 active:scale-95 transition-all flex items-center justify-center">
                               <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M12 15V3"/><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><path d="m7 10 5 5 5-5"/></svg>
                           </button>
                       </div>
@@ -1360,7 +625,7 @@ const htmlContent = `
                 {/* ✨ 新增：年度薪資帳冊專屬的「全螢幕放大」按鈕 */}
                   {activeInnerTab === 'yearly' && (
                       <div className="flex items-center gap-2 animate-fade-in">
-                          <button onClick={() => setIsFullscreen(true)} className="p-2.5 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl shadow-sm hover:bg-gray-50 active:scale-95 flex items-center justify-center transition-colors">
+                          <button title="全螢幕" onClick={() => setIsFullscreen(true)} className="p-2.5 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl shadow-sm hover:bg-gray-50 active:scale-95 flex items-center justify-center transition-colors">
                               <FullscreenIcon className="w-5 h-5" />
                           </button>
                       </div>
@@ -1370,7 +635,10 @@ const htmlContent = `
         </div>
 
         <div className="flex-1 overflow-hidden flex flex-col p-6">
-            
+            {activeInnerTab !== 'employees' && !payroll.ready && <p role="status" className="text-sm text-gray-500 mb-2">薪資資料尚未完整載入，暫不顯示合計或允許開單。</p>}
+            {activeInnerTab !== 'employees' && payroll.error && <p role="alert" className="text-sm text-red-600 mb-2">{payroll.error}</p>}
+            {activeInnerTab !== 'employees' && <div className="fixed bottom-3 right-5 z-40"><button type="button" onClick={()=>setShowPayrollHistory(true)} className="text-xs font-bold text-gray-500 hover:text-blue-600 bg-white/90 px-2 py-1 rounded-lg border border-gray-200">核對與歷史紀錄</button></div>}
+
             {/* 📍 標籤一：員工名單 */}
             {activeInnerTab === 'employees' && (
                 <div className="flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden">
@@ -1394,8 +662,8 @@ const htmlContent = `
                                         ? emp.employmentHistory.every(r => !!r.endDate)
                                         : !!emp.endDate;
                                     return (
-                                        <tr 
-                                            key={emp.id} 
+                                        <tr
+                                            key={emp.id}
                                             onClick={() => {
                                                 setEditingEmp(emp);
                                                 setEmployeeOriginal(emp); setEmployeeError('');
@@ -1419,16 +687,16 @@ const htmlContent = `
                                                 setIsEmpModalOpen(true);
                                             }}
                                             className={`cursor-pointer transition-colors group ${
-                                                isResigned 
-                                                ? 'bg-gray-100/50 opacity-75 hover:bg-gray-200/50' 
+                                                isResigned
+                                                ? 'bg-gray-100/50 opacity-75 hover:bg-gray-200/50'
                                                 : 'hover:bg-blue-50/50'
                                             }`}
                                         >
                                             <td className={`p-3 text-center font-mono ${isResigned ? 'text-gray-400' : 'text-gray-400'}`}>{emp.empNo || String(index + 1).padStart(3, '0')}</td>
                                             <td className="p-3 text-center">
                                                 <span className={`px-2 py-1 rounded-md text-[10px] font-bold ${
-                                                    isResigned 
-                                                    ? 'bg-gray-200 text-gray-500' 
+                                                    isResigned
+                                                    ? 'bg-gray-200 text-gray-500'
                                                     : (emp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700')
                                                 }`}>
                                                     {emp.employmentType === 'full_time' ? '正職' : '兼職'}
@@ -1441,7 +709,7 @@ const htmlContent = `
                                             <td className={`p-3 font-mono text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.idNumber || '-'}</td>
                                             <td className={`p-3 text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.bankBranch || '-'}</td>
                                             <td className={`p-3 font-mono text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.bankAccount || '-'}</td>
-                                            
+
                                             <td className={`p-3 text-sm whitespace-normal ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>
                                                 {emp.address || '-'}
                                             </td>
@@ -1485,7 +753,7 @@ const htmlContent = `
                                     <th className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-0 z-40 bg-white border-r border-gray-100">序號</th>
                                     <th className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center sticky left-[60px] z-40 bg-white border-r border-gray-100">職稱</th>
                                     <th className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-40 bg-white border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">姓名</th>
-                                    
+
                                     <th className="p-3 text-center w-20">出勤(時)</th>
                                     <th className="p-3 text-center w-20 text-red-400">遲到(分)</th>
                                     <th className="p-3 text-center w-20 text-red-400">病假</th>
@@ -1493,7 +761,7 @@ const htmlContent = `
                                     <th className="p-3 text-center w-20 text-blue-400">特休換薪</th>
                                     <th className="p-3 text-center w-20 text-blue-400">國定加班</th>
                                     <th className="p-3 text-center w-20 text-blue-400 border-r border-gray-200">日常加班</th>
-                                    
+
                                     {expandedGroups.additions ? (
                                         <>
                                             <th className="p-3 text-right bg-blue-50/20">本薪</th>
@@ -1536,18 +804,7 @@ const htmlContent = `
                             </thead>
                             <tbody>
                                 {(() => {
-                                    const currentMonthEmps = employees.filter(e => {
-                                        if (e.clientId !== String(selectedClient.id)) return false;
-                                        
-                                        const targetMonthStr = `${selectedYear}-${selectedMonth}`;
-                                        const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
-                                        const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
-                                        
-                                        if (startMonthStr && targetMonthStr < startMonthStr) return false;
-                                        if (endMonthStr && targetMonthStr > endMonthStr) return false;
-                                        
-                                        return true;
-                                    });
+                                    const currentMonthEmps = monthlyRows;
 
                                     const totals = {
                                         base: 0, fullAtt: 0, pos: 0, perf: 0, taxOt: 0, addTotal: 0,
@@ -1562,46 +819,27 @@ const htmlContent = `
                                         <>
                                             {currentMonthEmps.map((emp, index) => {
                                                 const rowData = monthlyData[emp.id] || {};
-                                                
-                                                const baseSalaryForCalc = rowData.baseSalary || 0;
+
                                                 const isFullTime = resolveIsFullTime(emp, selectedYear, selectedMonth);
-                                                const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
-
-                                                const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0));
-                                                const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2);
-                                                const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
-                                                const realLeaveDeduction = Math.round(realSickDeduction + realPersonalDeduction);
-                                                
-                                                const foodAllowanceForCalc = isFullTime ? (emp.defaultFoodAllowance || 3000) : (rowData.foodAllowance || 0);
-                                                let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
-
-                                                if (isFullTime) {
-                                                    const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
-                                                    realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
-                                                    realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-                                                    realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
-                                                } else {
-                                                    const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, selectedMonth);
-                                                    realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
-                                                    realNormalPay = Math.round(partTimeHourlyWage * (rowData.normalOt || 0) * 1.3333);
-                                                }
-                                                const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
-
+                                                const part=(key:string,out:string)=>emp.slip ? calculate(emp.slip.basis,{...emptyValues(attendanceFields),[key]:rowData[key]||0},emptyValues(amountFields))[out] : (emp.legacyRecord?'未保存分項':0);
+                                                const realLateDeduction=rowData.lateDeduction||0,realSickDeduction=part('sickLeave','leaveDeduction'),realPersonalDeduction=part('personalLeave','leaveDeduction'),realAnnualPay=part('annualLeave','taxFreeOt'),realHolidayPay=part('holidayOt','taxFreeOt'),realNormalPay=part('normalOt','taxFreeOt');
                                                 const totalAdditions = (rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.performanceBonus||0) + (rowData.taxableOt||0);
-                                                const totalDeductions = (rowData.leaveDeduction ?? realLeaveDeduction) + (rowData.dailyShortage||0) + (rowData.lateDeduction ?? realLateDeduction) + (rowData.pensionSelf||0);
-                                                const totalTaxFree = (rowData.foodAllowance||0) + ((rowData.taxFreeOt ?? realTaxFreeOt) || 0);
+                                                const totalDeductions = (rowData.leaveDeduction || 0) + (rowData.dailyShortage||0) + (rowData.lateDeduction || 0) + (rowData.pensionSelf||0);
+                                                const totalTaxFree = (rowData.foodAllowance||0) + (rowData.taxFreeOt || 0);
                                                 const totalWithholdings = (rowData.laborIns||0) + (rowData.healthIns||0) + (rowData.incomeTax||0) + (rowData.advancePay||0);
 
                                                 const taxableAmount = totalAdditions - totalDeductions;
                                                 const netPay = taxableAmount + totalTaxFree - totalWithholdings;
 
+                                                if (!emp.excluded) {
                                                 totals.base += (rowData.baseSalary||0); totals.fullAtt += (rowData.fullAttendance||0); totals.pos += (rowData.positionAllowance||0); totals.perf += (rowData.performanceBonus||0); totals.taxOt += (rowData.taxableOt||0); totals.addTotal += totalAdditions;
-                                                totals.leave += (rowData.leaveDeduction ?? realLeaveDeduction); totals.short += (rowData.dailyShortage||0); totals.late += (rowData.lateDeduction ?? realLateDeduction); totals.pension += (rowData.pensionSelf||0); totals.dedTotal += totalDeductions;
+                                                totals.leave += (rowData.leaveDeduction || 0); totals.short += (rowData.dailyShortage||0); totals.late += (rowData.lateDeduction || 0); totals.pension += (rowData.pensionSelf||0); totals.dedTotal += totalDeductions;
                                                 totals.taxable += taxableAmount;
-                                                totals.food += (rowData.foodAllowance||0); totals.freeOt += ((rowData.taxFreeOt ?? realTaxFreeOt) || 0); totals.freeTotal += totalTaxFree;
+                                                totals.food += (rowData.foodAllowance||0); totals.freeOt += (rowData.taxFreeOt || 0); totals.freeTotal += totalTaxFree;
                                                 totals.labor += (rowData.laborIns||0); totals.health += (rowData.healthIns||0); totals.tax += (rowData.incomeTax||0); totals.advance += (rowData.advancePay||0); totals.withTotal += totalWithholdings;
                                                 totals.net += netPay;
 
+                                                }
                                                 return (
                                                     <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
                                                         <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
@@ -1613,6 +851,7 @@ const htmlContent = `
                                                       <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                             <div className="flex flex-col">
                                                                 <span className="font-black text-gray-800 group-hover:text-blue-600 transition-colors">{emp.name}</span>
+                                                                {(emp.slip || emp.warning || emp.periodId) && <span className="text-[10px] font-bold text-gray-500" title={emp.warning || emp.slip?.id}>{emp.slip ? payrollStatus[emp.slip.status]+' '+emp.slip.periodStart.slice(5)+'～'+emp.slip.periodEnd.slice(5) : emp.warning ? '舊資料待核對' : '待建立 '+(emp.recommendedStart?.slice(5)||'')+'～'+(emp.recommendedEnd?.slice(5)||'')}</span>}
                                                                 {emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}` && (
                                                                     <span className="text-[10px] text-green-600 font-bold -mt-0.5 tracking-tighter">
                                                                         {emp.startDate.substring(5).replace('-', '/')} 到職
@@ -1625,7 +864,7 @@ const htmlContent = `
                                                                 )}
                                                             </div>
                                                         </td>
-                                                        
+
                                                         <td className="p-3 text-center font-bold text-gray-600">{isFullTime ? '-' : (rowData.workHours || 0)}</td>
                                                         <td className="p-3 group/cell relative text-center">
                                                             <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.lateHours || 0}</span>
@@ -1665,9 +904,9 @@ const htmlContent = `
 
                                                         {expandedGroups.deductions ? (
                                                             <>
-                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.leaveDeduction ?? realLeaveDeduction).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.leaveDeduction || 0).toLocaleString()}</td>
                                                                 <td className="p-3 text-right font-medium text-red-500">{(rowData.dailyShortage || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.lateDeduction ?? realLateDeduction).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.lateDeduction || 0).toLocaleString()}</td>
                                                                 <td className="p-3 text-right font-medium text-red-500 border-r border-gray-200">{(rowData.pensionSelf || 0).toLocaleString()}</td>
                                                             </>
                                                         ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">{totalDeductions.toLocaleString()}</td>}
@@ -1677,7 +916,7 @@ const htmlContent = `
                                                         {expandedGroups.taxFree ? (
                                                             <>
                                                                 <td className="p-3 text-right font-medium text-yellow-600">{(rowData.foodAllowance || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{((rowData.taxFreeOt ?? realTaxFreeOt) || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{(rowData.taxFreeOt || 0).toLocaleString()}</td>
                                                             </>
                                                         ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{totalTaxFree.toLocaleString()}</td>}
 
@@ -1699,8 +938,8 @@ const htmlContent = `
                                                 <tr className="bg-gray-100 hover:bg-gray-200 transition-colors cursor-default border-t-2 border-gray-300">
                                                     <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] sticky left-0 z-20 bg-gray-100 border-r border-gray-200"></td>
                                                     <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] sticky left-[60px] z-20 bg-gray-100 border-r border-gray-200"></td>
-                                                    <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] font-black text-gray-800 text-center sticky left-[120px] z-20 bg-gray-100 border-r-2 border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">本月總計</td>
-                                                    
+                                                    <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] font-black text-gray-800 text-center sticky left-[120px] z-20 bg-gray-100 border-r-2 border-gray-300 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.15)]">有效薪資小計</td>
+
                                                     <td className="p-3 text-center text-gray-400">-</td>
                                                     <td className="p-3 text-center text-gray-400">-</td>
                                                     <td className="p-3 text-center text-gray-400">-</td>
@@ -1760,108 +999,22 @@ const htmlContent = `
 
             {/* 📍 標籤三：年度薪資帳冊 (唯讀匯總版 + 互動式編輯) */}
             {activeInnerTab === 'yearly' && (() => {
-                const yearlyEmps = employees.filter(e => {
-                    if (e.clientId !== String(selectedClient.id)) return false;
-                    const startYear = e.startDate ? e.startDate.substring(0, 4) : '';
-                    const endYear = e.endDate ? e.endDate.substring(0, 4) : '';
-                    if (startYear && selectedYear < startYear) return false;
-                    if (endYear && selectedYear > endYear) return false;
-                    return true;
-                });
-
+                const yearlyEmps = payroll.ready ? payroll.employees.filter(e=>periods(e).some(p=>p.startDate<=selectedYear+'-12-31'&&(!p.endDate||p.endDate>=selectedYear+'-01-01'))||payroll.slips.some(s=>s.employeeId===e.id&&s.month.startsWith(selectedYear+'-'))||payroll.legacy.some(r=>r.employeeId===e.id&&r.month.startsWith(selectedYear+'-'))) : [];
                 const months = ['01','02','03','04','05','06','07','08','09','10','11','12'];
-
-                const grandTotals = {
-                    salary: Array(12).fill(0),
-                    food: Array(12).fill(0),
-                    taxFreeOt: Array(12).fill(0),
-                    bonus: Array(12).fill(0),
-                    totalSalary: 0, totalFood: 0, totalTaxFreeOt: 0, totalBonus: 0
-                };
-
-                const yearlyData = yearlyEmps.map(emp => {
-                    const empMonths = months.map((m, mIndex) => {
-                        const targetMonthStr = `${selectedYear}-${m}`;
-                        const record = yearlySalaries.find(r => r.employeeId === emp.id && r.month === targetMonthStr);
-                        
-                        const startMonthStr = emp.startDate ? emp.startDate.substring(0, 7) : '';
-                        const endMonthStr = emp.endDate ? emp.endDate.substring(0, 7) : '';
-                        
-                        let isActive = true;
-                        if (startMonthStr && targetMonthStr < startMonthStr) isActive = false;
-                        if (endMonthStr && targetMonthStr > endMonthStr) isActive = false;
-
-                        // ✨ 時光機：依該月找對應的勞健保設定
-                        let effectiveBracket = emp.insuranceBracket || 0;
-                        let effectiveHasLabor = emp.hasLaborIns ?? true;
-                        let effectiveHasHealth = emp.hasHealthIns ?? true;
-                        if (emp.compensationHistory && emp.compensationHistory.length > 0) {
-                            const targetDateStr = `${selectedYear}-${m}-31`;
-                            const sorted = [...emp.compensationHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-                            const matched = sorted.find(r => r.effectiveDate <= targetDateStr) || sorted[sorted.length - 1];
-                            effectiveBracket = matched.insuranceBracket ?? effectiveBracket;
-                            effectiveHasLabor = matched.hasLaborIns ?? effectiveHasLabor;
-                            effectiveHasHealth = matched.hasHealthIns ?? effectiveHasHealth;
-                        }
-                        let insurance: string | number = 0;
-                        if (isActive && effectiveBracket) {
-                            const types = [];
-                            if (effectiveHasLabor) types.push("勞");
-                            if (effectiveHasHealth) types.push("健");
-                            insurance = types.length > 0
-                                ? `${effectiveBracket.toLocaleString()} (${types.join("")})`
-                                : effectiveBracket.toLocaleString();
-                        }
-
-                        if (!isActive || !record) {
-                            return { salary: 0, food: 0, taxFreeOt: 0, bonus: 0, insurance, isActive };
-                        }
-
-                        const rowData = record;
-                        const isFullTime = resolveIsFullTime(emp, selectedYear, m);
-
-                        const baseSalaryForCalc = rowData.baseSalary || 0;
-                        const hourlyWageForCalc = isFullTime ? baseSalaryForCalc / 240 : resolvePartTimeHourlyWage(emp, selectedYear, m);
-                        const realLateDeduction = Math.round((hourlyWageForCalc / 60) * (rowData.lateHours || 0));
-                        const realSickDeduction = Math.round(hourlyWageForCalc * (rowData.sickLeave || 0) / 2);
-                        const realPersonalDeduction = Math.round(hourlyWageForCalc * (rowData.personalLeave || 0));
-                        const realLeaveDeduction = Math.round(realSickDeduction + realPersonalDeduction);
-
-                        const foodAllowanceForCalc = isFullTime ? (emp.defaultFoodAllowance || 3000) : (rowData.foodAllowance || 0);
-                        let realAnnualPay = 0, realHolidayPay = 0, realNormalPay = 0;
-                        if (isFullTime) {
-                            const otHourlyWage = (baseSalaryForCalc + foodAllowanceForCalc) / 240;
-                            realAnnualPay = Math.round(otHourlyWage * (rowData.annualLeave || 0));
-                            realHolidayPay = Math.round(otHourlyWage * (rowData.holidayOt || 0));
-                            realNormalPay = Math.round(otHourlyWage * (rowData.normalOt || 0) * 1.3333);
-                        } else {
-                            const partTimeHourlyWage = resolvePartTimeHourlyWage(emp, selectedYear, m);
-                            realHolidayPay = Math.round(partTimeHourlyWage * (rowData.holidayOt || 0) * 2);
-                            realNormalPay = Math.round(partTimeHourlyWage * (rowData.normalOt || 0) * 1.3333);
-                        }
-                        const realTaxFreeOt = Math.round(realAnnualPay + realHolidayPay + realNormalPay);
-
-                        const salary = (rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.taxableOt||0) 
-                                     - (rowData.leaveDeduction ?? realLeaveDeduction) - (rowData.dailyShortage||0) - (rowData.lateDeduction ?? realLateDeduction);
-                        const food = rowData.foodAllowance || 0;
-                        const taxFreeOt = (rowData.taxFreeOt ?? realTaxFreeOt) || 0;
-                        const bonus = rowData.performanceBonus || 0;
-
-                        grandTotals.salary[mIndex] += salary;
-                        grandTotals.food[mIndex] += food;
-                        grandTotals.taxFreeOt[mIndex] += taxFreeOt;
-                        grandTotals.bonus[mIndex] += bonus;
-
-                        grandTotals.totalSalary += salary;
-                        grandTotals.totalFood += food;
-                        grandTotals.totalTaxFreeOt += taxFreeOt;
-                        grandTotals.totalBonus += bonus;
-
-                        return { salary, food, taxFreeOt, bonus, insurance, isActive, month: m };
-                    });
-
-                    return { emp, empMonths };
-                });
+                const grandTotals={salary:Array(12).fill(0),food:Array(12).fill(0),taxFreeOt:Array(12).fill(0),bonus:Array(12).fill(0),totalSalary:0,totalFood:0,totalTaxFreeOt:0,totalBonus:0};
+                const yearlyData=yearlyEmps.map(emp=>({emp,empMonths:months.map((m,i)=>{
+                  const target=selectedYear+'-'+m;
+                  const ss=payroll.slips.filter(s=>s.employeeId===emp.id&&s.month===target&&s.status==='confirmed');
+                  const old=payroll.legacy.filter(r=>r.employeeId===emp.id&&r.month===target&&!legacyIssues(r,payroll.legacy,payroll.employees).length);
+                  const values=[...ss.map(s=>s.amounts),...old.map(r=>legacyAmounts(r))].map(annualMetrics);
+                  const salary=values.reduce((n,v)=>n+v['薪資總額'],0),food=values.reduce((n,v)=>n+v['伙食費'],0),taxFreeOt=values.reduce((n,v)=>n+v['免稅加班費'],0),bonus=values.reduce((n,v)=>n+v['獎金'],0);
+                  const isActive=periods(emp).some(p=>p.startDate<=target+'-31'&&(!p.endDate||p.endDate>=target+'-01'))||ss.length>0||old.length>0;
+                  const comp=[...(emp.compensationHistory||[])].sort((a,b)=>b.effectiveDate.localeCompare(a.effectiveDate)).find(c=>c.effectiveDate<=target+'-31');
+                  const insurance=ss.length ? ss.map(s=>s.periodStart.slice(5)+'～'+s.periodEnd.slice(5)+'：'+(s.basis.hasHealthIns?s.basis.insuranceBracket.toLocaleString()+' (健)':'未投保')).join('；') : isActive&&comp?.insuranceBracket ? comp.insuranceBracket.toLocaleString()+' ('+[comp.hasLaborIns?'勞':'',comp.hasHealthIns?'健':''].join('')+')' : 0;
+                  grandTotals.salary[i]+=salary;grandTotals.food[i]+=food;grandTotals.taxFreeOt[i]+=taxFreeOt;grandTotals.bonus[i]+=bonus;
+                  grandTotals.totalSalary+=salary;grandTotals.totalFood+=food;grandTotals.totalTaxFreeOt+=taxFreeOt;grandTotals.totalBonus+=bonus;
+                  return {salary,food,taxFreeOt,bonus,insurance,isActive,month:m};
+                })}));
 
                 const renderVal = (val: number, isActive: boolean) => {
                     if (!isActive) return <span className="text-transparent">-</span>;
@@ -1876,18 +1029,18 @@ const htmlContent = `
                 };
 
         return (
-                    <div className={isFullscreen 
-                        ? "fixed inset-0 z-[120] bg-gray-100 p-4 sm:p-6 flex flex-col animate-fade-in" 
+                    <div className={isFullscreen
+                        ? "fixed inset-0 z-[120] bg-gray-100 p-4 sm:p-6 flex flex-col animate-fade-in"
                         : "flex flex-col h-full bg-white rounded-3xl border border-gray-200 shadow-sm overflow-hidden animate-fade-in"
                     }>
-                        
+
                         {/* ✨ 全螢幕模式專屬的上方標題列與縮小按鈕 */}
                         {isFullscreen && (
                             <div className="flex items-center justify-between mb-4 bg-white p-4 rounded-2xl shadow-sm border border-gray-200 shrink-0">
                                 <h2 className="text-xl font-black text-gray-800 flex items-center gap-2">
                                     📖 {selectedClient.name} - {selectedYear}年度薪資帳冊
                                 </h2>
-                                <button onClick={() => setIsFullscreen(false)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
+                                <button title="離開全螢幕" onClick={() => setIsFullscreen(false)} className="p-2 bg-gray-100 hover:bg-gray-200 rounded-xl transition-colors">
                                     <ExitFullscreenIcon className="w-6 h-6 text-gray-600" />
                                 </button>
                             </div>
@@ -1927,7 +1080,7 @@ const htmlContent = `
                                               <tr className={`${bgBase} transition-colors group`}>
                                                     {/* 序號 - 點擊反白/取消反白整區 */}
                                                     <td rowSpan={5} onClick={() => setYearlyHighlightEmpId(yearlyHighlightEmpId === emp.id ? null : emp.id)} className={`p-3 text-center font-mono text-gray-500 border-r border-gray-100 border-b-2 border-b-gray-300 sticky left-0 z-20 cursor-pointer hover:bg-yellow-100 transition-colors ${stickyBg}`}>{emp.empNo || String(index + 1).padStart(3, '0')}</td>
-                                                    
+
                                                 {/* 姓名 - 點擊開啟編輯視窗 */}
                                                     <td rowSpan={5} onClick={() => {
                                                         setEditingMonthlyEmp(emp);
@@ -1978,7 +1131,7 @@ const htmlContent = `
                                             </React.Fragment>
                                         );
                                     })}
-                                    
+
                                     {yearlyData.length > 0 && (
                                         <>
                                             <tr className="bg-gray-100 border-t-4 border-gray-400">
@@ -2018,7 +1171,7 @@ const htmlContent = `
           {/* 🚀 薪資編輯小視窗 (整合月份切換器) */}
                     {isMonthlyEditModalOpen && (
                         <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={() => setIsMonthlyEditModalOpen(false)}>
-                          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>                                
+                          <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
                             {/* ✨ 視窗標題列 (在年度模式時移除底線，讓月份標籤無縫接軌) */}
                                 <div className={`p-5 ${(!isAddingNewMonthly && editModalMode === 'yearly') ? 'pb-3 border-none' : 'border-b'} bg-gray-50 flex justify-between items-center`}>
                                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
@@ -2032,7 +1185,7 @@ const htmlContent = `
                                     </h3>
                                     <button onClick={() => setIsMonthlyEditModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl font-black">✕</button>
                                 </div>
-                                
+
                                 {/* ✨ 月份切換器 (移除滾動條、縮小上距、優化底色視覺) */}
                                 {!isAddingNewMonthly && editModalMode === 'yearly' && (
                                     <div className="px-6 pt-0 pb-0 bg-gray-50 border-b flex gap-1 flex-wrap sm:flex-nowrap overflow-hidden shadow-sm z-10">
@@ -2040,6 +1193,7 @@ const htmlContent = `
                                             <button
                                                 key={m}
                                                 type="button"
+                                                disabled={payroll.busy}
                                                 onClick={() => handleModalMonthSwitch(m)}
                                                 className={`px-4 py-2.5 rounded-t-lg font-bold transition-colors border-b-2 whitespace-nowrap ${
                                                     editModalMonth === m
@@ -2052,13 +1206,30 @@ const htmlContent = `
                                         ))}
                                     </div>
                                 )}
-                                
+
                               <form onSubmit={handleSaveMonthlyData} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
-                                    
+{editingMonthlyEmp && <div className="flex items-center gap-2 text-sm"><label className="font-bold text-gray-600">本月薪資單</label><select aria-label="本月薪資單" disabled={payroll.busy} value={payroll.editing?.id || (payroll.oldEditing?'old:'+payroll.oldEditing.id:'')} onChange={e=>{const row=payroll.rowsFor(selectedYear+'-'+editModalMonth).find(r=>r.id===e.target.value);if(row)payroll.open(row,selectedYear+'-'+editModalMonth);}} className="border border-gray-200 p-2 rounded-xl bg-white"><option value={payroll.editing?.id || ''}>目前單據／新草稿</option>{payroll.rowsFor(selectedYear+'-'+editModalMonth).filter(r=>r.sourceEmployeeId===editingMonthlyEmp.id).map(r=><option key={r.id} value={r.id}>{r.slip?r.slip.periodStart+'～'+r.slip.periodEnd+' '+payrollStatus[r.slip.status]:r.legacyRecord?'舊薪資 '+r.legacyRecord.id:(r.recommendedStart||r.startDate)+'～'+(r.recommendedEnd||r.endDate||'在職')+' 新單'}</option>)}</select></div>}
+                                    {payroll.error && <p role="alert" className="text-sm text-red-600">{payroll.error}</p>}
+                                    {payroll.info && <p role="status" className="text-sm text-blue-600">{payroll.info}</p>}
+                                    {payroll.oldEditing && <p className="text-sm font-bold text-amber-700">舊制薪資原值唯讀保存；確認、付款及計薪區間未知。{legacyIssues(payroll.oldEditing,payroll.legacy,payroll.employees).join('；')}</p>}
+                                    {payroll.editing && <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm space-y-3">
+                                      <div className="flex flex-wrap gap-3 items-center"><span className="font-bold text-blue-800">{payrollStatus[payroll.editing.status]}／第 {payroll.editing.revision} 版</span>
+                                        <select aria-label="任職期間" disabled={payroll.busy||payroll.editing.revision>0||payroll.editing.status!=='draft'} value={payroll.editing.employmentId} onChange={e=>payroll.changePeriod(e.target.value)} className="border border-blue-200 p-2 rounded-xl bg-white">{periods(payroll.employees.find(e=>e.id===payroll.editing!.employeeId)!).filter(p=>p.startDate<=payroll.editing!.month+'-31'&&(!p.endDate||p.endDate>=payroll.editing!.month+'-01')).map(p=><option key={p.id} value={p.id}>{p.startDate}～{p.endDate||'在職'}（{p.type==='full_time'?'正職':'兼職'}）</option>)}</select>
+                                        <label>計薪起日 <input aria-label="計薪起日" type="date" disabled={payroll.busy||payroll.editing.revision>0||payroll.editing.status!=='draft'} value={payroll.editing.periodStart} onChange={e=>payroll.changePeriod(payroll.editing!.employmentId,e.target.value,payroll.editing!.periodEnd)} className="border border-blue-200 p-2 rounded-xl"/></label>
+                                        <label>計薪迄日 <input aria-label="計薪迄日" type="date" disabled={payroll.busy||payroll.editing.revision>0||payroll.editing.status!=='draft'} value={payroll.editing.periodEnd} onChange={e=>payroll.changePeriod(payroll.editing!.employmentId,payroll.editing!.periodStart,e.target.value)} className="border border-blue-200 p-2 rounded-xl"/></label>
+                                      </div><p className="text-xs text-gray-600">約定{payroll.editing.basis.employmentType==='full_time'?'月薪':'時薪'} {payroll.editing.basis.baseSalary.toLocaleString()}；約定伙食費 {payroll.editing.basis.foodAllowance.toLocaleString()}。不足月應付本薪與伙食費可人工調整，計算基準採約定待遇。</p>
+                                      {payroll.editing.status==='draft' && <><label className="flex items-center gap-2"><input type="checkbox" disabled={payroll.busy} checked={payroll.editing.reviewedMonth} onChange={e=>payroll.setEditing({...payroll.editing!,reviewedMonth:e.target.checked})}/>已核對本月其他薪資單的代扣與加給</label><div className="text-xs text-gray-600">{payroll.slips.filter(s=>s.id!==payroll.editing!.id&&s.employeeId===payroll.editing!.employeeId&&s.month===payroll.editing!.month&&s.status==='confirmed').map(s=><p key={s.id}>{s.periodStart}～{s.periodEnd}：勞保 {s.amounts.laborIns}、健保 {s.amounts.healthIns}、勞退 {s.amounts.pensionSelf}、全勤 {s.amounts.fullAttendance}</p>)}</div></>}
+                                      {(payroll.editing.replacesId||payroll.editing.kind==='supplement')&&<label className="block">更正／補發原因<input aria-label="更正或補發原因" disabled={payroll.busy||payroll.editing.status!=='draft'} value={payroll.editing.reason} onChange={e=>payroll.setEditing({...payroll.editing!,reason:e.target.value})} className="w-full border p-2 rounded-xl"/></label>}
+                                      <div className="flex gap-2 flex-wrap">{payroll.editing.status==='draft'&&payroll.editing.revision>0&&<button type="button" disabled={payroll.busy || payroll.dirty} onClick={()=>payroll.transition('confirm')} className="px-3 py-2 bg-blue-600 text-white font-bold rounded-xl">確認薪資</button>}{payroll.editing.status==='confirmed'&&<><button type="button" disabled={payroll.busy} onClick={()=>payroll.revise()} className="px-3 py-2 bg-white border border-blue-200 font-bold rounded-xl">建立更正</button><button type="button" disabled={payroll.busy} onClick={()=>payroll.revise('supplement')} className="px-3 py-2 bg-white border border-blue-200 font-bold rounded-xl">另開補發</button></>}{payroll.editing.revision>0&&['draft','confirmed'].includes(payroll.editing.status)&&<button type="button" disabled={payroll.busy} onClick={()=>payroll.transition('void')} className="px-3 py-2 bg-white border border-red-200 text-red-600 font-bold rounded-xl">作廢</button>}{payroll.editing.revision>0&&<button type="button" onClick={()=>payroll.versions()} className="px-3 py-2 bg-white border border-gray-200 font-bold rounded-xl">版本歷程</button>}{payroll.editing.status==='confirmed'&&<button type="button" disabled={payroll.busy} onClick={()=>payroll.checkMail()} className="px-3 py-2 bg-white border border-gray-200 font-bold rounded-xl">查詢寄送狀態</button>}{payroll.mailState==='ERROR'&&<button type="button" disabled={payroll.busy} onClick={()=>payroll.send(true)} className="px-3 py-2 bg-white border border-red-200 font-bold rounded-xl">失敗重寄</button>}</div>
+                                      <label className="block">備註<input aria-label="薪資備註" disabled={payroll.busy||payroll.editing.status!=='draft'} value={payroll.editing.note} onChange={e=>payroll.setEditing({...payroll.editing!,note:e.target.value})} className="w-full border border-blue-200 p-2 rounded-xl bg-white"/></label>
+                                      <p className="text-xs text-gray-500">{({NONE:'尚未寄送',PENDING:'已排程',PROCESSING:'處理中',SUCCESS:'寄送服務已完成',ERROR:'寄送失敗'} as Record<string,string>)[payroll.mailState]}；薪資確認不代表已付款。</p>
+                                      {payroll.history.filter(v=>v.id===payroll.editing!.id).map(v=><button type="button" key={v.revision} onClick={()=>setPreviewHtml(slipHtml(v))} className="mr-2 text-xs text-blue-600">第 {v.revision} 版／{payrollStatus[v.status]}</button>)}
+                                    </div>}
+
                                     {isAddingNewMonthly && (
                                         <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
                                             <label className="block text-sm font-bold text-blue-800 mb-2">請選擇要編輯的員工</label>
-                                            <select 
+                                            <select
                                                 required
                                                 onChange={(e) => {
                                                     const emp = employees.find(emp => emp.id === e.target.value);
@@ -2067,9 +1238,9 @@ const htmlContent = `
                                                         setEditModalMonth(selectedMonth);
                                                         loadFormDataForMonth(emp, selectedMonth);
                                                       const currentRecord = monthlyData[emp.id] || {};
-                                                      setEmailSendStatus(currentRecord.isEmailSent ? 'success' : 'idle');
+                                                      setEmailSendStatus('idle');
                                                     }
-                                                }} 
+                                                }}
                                                 className="w-full border border-blue-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white"
                                             >
                                               <option value="">-- 請選擇員工 --</option>
@@ -2090,7 +1261,7 @@ const htmlContent = `
 
                                     {editingMonthlyEmp && (
                                         <>
-                                            <div className="space-y-4">
+                                            <fieldset disabled={payroll.busy || !!payroll.oldEditing || !payroll.editing || payroll.editing.status!=='draft'} className="contents"><div className="space-y-4">
                                                 <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-gray-500 rounded-full"></div>出勤時數</h4>
                                                 <div className="grid grid-cols-4 gap-4">
                                                     <div>
@@ -2100,7 +1271,7 @@ const htmlContent = `
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">遲到 (分)</label><input type="number" value={monthlyFormData.lateHours || ''} onChange={e => handleMonthlyFormChange('lateHours', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">病假 (時)</label><input type="number" value={monthlyFormData.sickLeave || ''} onChange={e => handleMonthlyFormChange('sickLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">事假 (時)</label><input type="number" value={monthlyFormData.personalLeave || ''} onChange={e => handleMonthlyFormChange('personalLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600 bg-red-50/30" placeholder="0" /></div>
-                                                    
+
                                                     <div>
                                                         <label className="block text-xs font-bold text-blue-500 mb-1">特休換薪 (時)</label>
                                                         <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={editingMonthlyEmp.employmentType === 'part_time' ? '' : (monthlyFormData.annualLeave || '')} onChange={e => handleMonthlyFormChange('annualLeave', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-400 font-bold text-blue-600 bg-blue-50/30 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder={editingMonthlyEmp.employmentType === 'part_time' ? '兼職無' : '0'} />
@@ -2117,16 +1288,17 @@ const htmlContent = `
                                                 <h4 className="font-bold text-blue-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>應加與免稅金額</h4>
                                                 <div className="grid grid-cols-4 gap-4">
                                                     <div><label className="block text-xs font-bold text-gray-500 mb-1">免稅加班費</label><input type="text" disabled value={monthlyFormData.taxFreeOt || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
-                                                    
+
                                                     <div>
-                                                        <label className="block text-xs font-bold text-blue-500 mb-1">{editingMonthlyEmp.employmentType === 'full_time' ? '本薪' : '時薪'}</label>
-                                                        <input type="number" disabled={editingMonthlyEmp.employmentType === 'part_time'} value={monthlyFormData.baseSalary || ''} onChange={e => handleMonthlyFormChange('baseSalary', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-800 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder="0" />
-                                                        {editingMonthlyEmp.employmentType === 'part_time' && <span className="text-[10px] text-gray-400 mt-1">兼職由時數自動計算</span>}
+                                                        <label className="block text-xs font-bold text-blue-500 mb-1">{editingMonthlyEmp.employmentType === 'full_time' ? '本薪' : '應付薪資'}</label>
+                                                        <input type="number" value={monthlyFormData.baseSalary || ''} onChange={e => handleMonthlyFormChange('baseSalary', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold text-blue-800 disabled:bg-gray-100 disabled:cursor-not-allowed" placeholder="0" />
+                                                        {editingMonthlyEmp.employmentType === 'part_time' && <span className="text-[10px] text-gray-400 mt-1">依約定時薪帶算，可人工調整</span>}
                                                     </div>
                                                     <div><label className="block text-xs font-bold text-blue-500 mb-1">全勤獎金</label><input type="number" value={monthlyFormData.fullAttendance || ''} onChange={e => handleMonthlyFormChange('fullAttendance', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-blue-500 mb-1">職務津貼</label><input type="number" value={monthlyFormData.positionAllowance || ''} onChange={e => handleMonthlyFormChange('positionAllowance', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-blue-500 mb-1">業績獎金</label><input type="number" value={monthlyFormData.performanceBonus || ''} onChange={e => handleMonthlyFormChange('performanceBonus', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-yellow-600 mb-1">伙食費 (免稅)</label><input type="number" value={monthlyFormData.foodAllowance || ''} onChange={e => handleMonthlyFormChange('foodAllowance', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-yellow-500 font-bold" placeholder="0" /></div>
+                                                    <div><label className="block text-xs font-bold text-blue-500 mb-1">應稅加班費</label><input type="number" value={monthlyFormData.taxableOt || ''} onChange={e=>handleMonthlyFormChange('taxableOt',e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold" placeholder="0"/></div>
                                                 </div>
                                             </div>
 
@@ -2135,7 +1307,7 @@ const htmlContent = `
                                                 <div className="grid grid-cols-4 gap-4">
                                                     <div><label className="block text-xs font-bold text-gray-500 mb-1">請假扣款</label><input type="text" disabled value={monthlyFormData.leaveDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
                                                     <div><label className="block text-xs font-bold text-gray-500 mb-1">遲到扣款</label><input type="text" disabled value={monthlyFormData.lateDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
-                                                    
+
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">結帳差額扣款</label><input type="number" value={monthlyFormData.dailyShortage || ''} onChange={e => handleMonthlyFormChange('dailyShortage', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">勞退自提 (6%)</label><input type="number" value={monthlyFormData.pensionSelf || ''} onChange={e => handleMonthlyFormChange('pensionSelf', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-orange-500 mb-1">預支款扣回</label><input type="number" value={monthlyFormData.advancePay || ''} onChange={e => handleMonthlyFormChange('advancePay', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold text-orange-600" placeholder="0" /></div>
@@ -2144,29 +1316,29 @@ const htmlContent = `
                                                     <div><label className="block text-xs font-bold text-orange-500 mb-1">所得稅扣繳</label><input type="number" value={monthlyFormData.incomeTax || ''} onChange={e => handleMonthlyFormChange('incomeTax', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-400 font-bold" placeholder="0" /></div>
                                                 </div>
                                             </div>
-                                        </>
+                                        </fieldset></>
                                     )}
                                     <button type="submit" id="submitMonthlyForm" className="hidden"></button>
                                 </form>
-                                
+
                             <div className="p-4 border-t bg-gray-50 flex items-center justify-between">
                                     <div className="flex flex-col">
                                         <span className="text-xs font-bold text-gray-500 mb-0.5">預估實發金額 ({selectedYear}年{editModalMonth}月)</span>
                                         <span className="text-2xl font-black text-green-600">${
-                                            (((monthlyFormData.baseSalary||0) + (monthlyFormData.fullAttendance||0) + (monthlyFormData.positionAllowance||0) + (monthlyFormData.performanceBonus||0) + (monthlyFormData.taxableOt||0)) - 
-                                            ((monthlyFormData.leaveDeduction||0) + (monthlyFormData.dailyShortage||0) + (monthlyFormData.lateDeduction||0) + (monthlyFormData.pensionSelf||0)) + 
-                                            ((monthlyFormData.foodAllowance||0) + (monthlyFormData.taxFreeOt||0)) - 
+                                            (((monthlyFormData.baseSalary||0) + (monthlyFormData.fullAttendance||0) + (monthlyFormData.positionAllowance||0) + (monthlyFormData.performanceBonus||0) + (monthlyFormData.taxableOt||0)) -
+                                            ((monthlyFormData.leaveDeduction||0) + (monthlyFormData.dailyShortage||0) + (monthlyFormData.lateDeduction||0) + (monthlyFormData.pensionSelf||0)) +
+                                            ((monthlyFormData.foodAllowance||0) + (monthlyFormData.taxFreeOt||0)) -
                                             ((monthlyFormData.laborIns||0) + (monthlyFormData.healthIns||0) + (monthlyFormData.incomeTax||0) + (monthlyFormData.advancePay||0))).toLocaleString()
                                         }</span>
                                     </div>
                               <div className="flex gap-3 w-3/5 items-center">
                                 {/* 預覽與寄送按鈕 */}
                                 <button type="button" onClick={handlePreviewEmail} title="預覽薪資單" className="p-3 bg-white border border-blue-200 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors shadow-sm flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></button>
-                                <button type="button" onClick={handleSendEmail} title="寄送薪資單" className="p-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm flex items-center justify-center"><SendMailIcon className="w-5 h-5" /></button>
+                                <button type="button" disabled={payroll.busy || payroll.editing?.status!=='confirmed'} onClick={handleSendEmail} title="寄送薪資單" className="p-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm flex items-center justify-center"><SendMailIcon className="w-5 h-5" /></button>
                                 {/* ✨ 新增：寄信狀態方框 */}
-                                <div className="flex items-center justify-center min-w-[48px] h-12 rounded-xl bg-white shadow-sm border-2 transition-all duration-300 mx-1" 
+                                <div className="flex items-center justify-center min-w-[48px] h-12 rounded-xl bg-white shadow-sm border-2 transition-all duration-300 mx-1"
                                   style={{ borderColor: emailSendStatus === 'success' ? '#10B981' : emailSendStatus === 'error' ? '#EF4444' : '#E5E7EB' }}
-                                  title={emailSendStatus === 'success' ? '已成功發送' : emailSendStatus === 'error' ? '發送失敗' : '尚未發送'}
+                                  title={emailSendStatus === 'success' ? '寄送服務已完成' : emailSendStatus === 'error' ? '發送失敗' : '尚未完成寄送'}
                                   >
                                   {emailSendStatus === 'success' && (
                                     <svg className="w-7 h-7 text-green-500 animate-fade-in" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={3}>
@@ -2179,16 +1351,20 @@ const htmlContent = `
                                     </svg>
                                   )}
                                 </div>
-                                
+
                                 {/* 存檔與取消按鈕 */}
                                 <button type="button" onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
-                                <button onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">確認存檔</button>
+                                <button disabled={payroll.busy || !payroll.ready || !payroll.editing || payroll.editing.status!=='draft'} onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">保存草稿</button>
                               </div>
                             </div>
                           </div>
                         </div>
       )}
         </div>
+
+
+        {previewHtml && <div className="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden"><div className="p-4 bg-gray-50 border-b flex justify-between font-bold">薪資單預覽<button onClick={()=>setPreviewHtml('')}>關閉預覽</button></div><iframe id="salary-preview" title="薪資單預覽" srcDoc={previewHtml} className="flex-1 w-full border-0"/></div></div>}
+        {showPayrollHistory && <div className="fixed inset-0 bg-black/60 z-[130] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"><div className="p-5 bg-gray-50 border-b flex justify-between font-bold">核對與歷史紀錄<button onClick={()=>setShowPayrollHistory(false)}>關閉</button></div><div className="p-6 overflow-auto text-sm space-y-4"><p>表格有效小計包括新制已確認單與無異常的舊制保存值；草稿、作廢、被取代與待核對舊文件不計入。舊制確認及付款狀態未知，不能視為完整應付或已付款總額。</p>{payroll.legacy.filter(r=>activeInnerTab==='monthly'?r.month===selectedYear+'-'+selectedMonth:r.month.startsWith(selectedYear+'-')).map(r=><p key={r.id} className="p-3 bg-amber-50 rounded-xl">{r.month}／{payroll.employees.find(e=>e.id===r.employeeId)?.name||'員工主檔不存在'}／{r.id}：{legacyIssues(r,payroll.legacy,payroll.employees).join('；')||'舊制原值保存'}<br/>{amountFields.map(k=>labels[k]+': '+((r as any)[k]??'缺少')).join('；')}</p>)}{payroll.slips.filter(s=>activeInnerTab==='monthly'?s.month===selectedYear+'-'+selectedMonth:s.month.startsWith(selectedYear+'-')).map(s=><button key={s.id} className="block w-full text-left p-3 bg-gray-50 rounded-xl" onClick={()=>{const emp=payroll.employees.find(e=>e.id===s.employeeId);if(!emp)return;setEditingMonthlyEmp(emp);setEditModalMonth(s.month.slice(5));setEditModalMode(activeInnerTab==='yearly'?'yearly':'monthly');payroll.open({...emp,sourceEmployeeId:emp.id,slip:s} as PayrollRow,s.month);setIsAddingNewMonthly(false);setIsMonthlyEditModalOpen(true);setShowPayrollHistory(false);}}>{s.employee.name}／{s.periodStart}～{s.periodEnd}／{payrollStatus[s.status]}／第 {s.revision} 版</button>)}</div></div></div>}
 
         {/* 🚀 員工詳細資訊 (新增/編輯) Modal */}
         {isEmpModalOpen && editingEmp && (
@@ -2198,7 +1374,7 @@ const htmlContent = `
                         <h3 className="text-xl font-black text-gray-800">{editingEmp.id ? '編輯員工資料' : '新增員工'}</h3>
                         <button onClick={() => setIsEmpModalOpen(false)} className="text-gray-400 hover:text-gray-600 text-2xl font-black">✕</button>
                     </div>
-                    
+
                     <form onSubmit={handleSaveEmp} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
                         {employeeError && <p role="alert" className="bg-red-50 text-red-700 p-3">{employeeError}</p>}
                         <p className="p-3 text-sm text-gray-600">離職日為最後在職日。復職請新增任職，並確認相應待遇。舊薪資原值保留；有薪資引用的任職不可刪除。</p>
@@ -2322,7 +1498,7 @@ const htmlContent = `
 
                         <button type="submit" disabled={employeeSaving} id="submitEmpForm" className="hidden"></button>
                     </form>
-                    
+
                     <div className="p-4 border-t bg-gray-50 flex gap-3">
                         <span className="self-center text-sm text-gray-500">歷史資料保留</span>
                         <button onClick={() => setIsEmpModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
@@ -2352,9 +1528,9 @@ const htmlContent = `
 
       <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-4 lg:grid-cols-5 gap-6 overflow-y-auto pb-6">
           {displayClients.map(client => (
-            <div 
-              key={client.id} 
-              onClick={() => setSelectedClient(client)} 
+            <div
+              key={client.id}
+              onClick={() => setSelectedClient(client)}
               className="bg-white border border-gray-200 rounded-3xl p-4 shadow-sm hover:shadow-xl hover:border-blue-300 hover:-translate-y-1 transition-all cursor-pointer flex flex-col items-center justify-center text-center group aspect-square relative overflow-hidden"
             >
               <div className="absolute top-0 left-0 right-0 h-1.5 bg-gray-100 group-hover:bg-blue-500 transition-colors"></div>

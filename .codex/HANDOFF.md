@@ -1,6 +1,6 @@
 # 碩業工作平台交接
 
-更新日期：2026-10-06。開發基準 main / 6f25821；復職功能提交 77c5d8b 已推送 main，Firebase 後端、Rules 及 Vercel 前端均已正式發布。
+更新日期：2026-10-06。本次修正基準 main / 09f6021；原版面比對基準 6f25821。復職版本 77c5d8b 的後端、Rules 及 Vercel 已發布；本次恢復原版面，保留復職資料保護。
 
 ## 本次狀態
 
@@ -8,22 +8,22 @@
 
 ## 已實作
 
-- PayrollLedger 接管每月與年度薪資畫面。新薪資以 payrollSlips 保存，與 monthlySalaries 舊資料隔離；舊文件逐份唯讀列示原值，重複／員工遺失／任職不符／明細缺漏有警示，不自動重算或合併。新制已確認、草稿及舊制小計分開顯示，不宣稱完整應付總額。
+- PayrollView 已重新使用原有每月與年度頁面結構；usePayrollPresentation 將新薪資模型接回原 UI，PayrollLedger 不再接管正式頁面。新薪資以 payrollSlips 保存，與 monthlySalaries 舊資料隔離；原月表用同樣欄位呈現逐單／任職區間，舊文件逐份唯讀列示原值，重複／員工遺失／任職不符／明細缺漏有警示，不自動重算或合併。原表格的有效薪資小計納入新制已確認與無異常舊制保存值；草稿、作廢、被取代及異常舊紀錄不納入，小型「核對與歷史紀錄」入口說明範圍並保留原值。不得宣稱完整應付或已付款總額。
 - 員工新增任職／復職可帶入前待遇再更改正兼職、月薪／時薪、伙食费及投保條件；驗證任職不重疊，修正 null 離職日回退。待遇缺少約定伙食費或尚未生效時要求確認，不把目前待遇自動補入歷史。
 - 約定待遇與人工應付金額分開。請假／遲到／加班公式沿用，基準來自計薪期間待遇。人工本薪、伙食費不因其他欄位被覆蓋；兼職改工作時數時帶算本薪後仍可手動改。
 - 獨立薪資單有穩定 ID、任職與計薪區間、用途、待遇／員工／公司快照、版本及原因。草稿、確認、作廢、更正歷程保留。更正草稿確認前原單仍有效，確認時原單原子地改為已被取代。確認不代表付款。
 - 一般薪資區間不能重疊（包括草稿）；補發需連結已確認單及原因。同月其他單的代扣、加給可核對。已有舊薪資的員工月份會阻擋新開單，避免未核對前重複結薪；沒有舊薪資的月份可正常開新單。
-- 共用 payrollDomain 供前後端使用；預覽、寄信、Excel、年度分類帳冊使用同一份保存值。年度依員工／月份彙總，投保級距分段呈現，不把不同級距相加。
+- 共用 payrollDomain 供前後端使用；預覽／寄信恢复原有雙欄加減項 Table 樣式，Excel 恢復原格式模板（另附核對與單據狀態工作表），年度恢復原有五項分類與固定欄。所有金額取保存值，不以目前待遇重算舊單。年度依員工／月份彙總，投保級距分段呈現，不把不同級距相加。
 - payrollCommand callable 以最新 users 判斷權限，在交易中驗證和寫入員工／薪資／不可變版本／寄送請求。operationId receipt 讓不確定網路結果可重試；識別碼不能跨客戶覆寫。寄送只能用已確認版本，版本與郵件連結，重複排程沿用現有請求，僅明確失敗允許重寄。
 - Rules 禁止瀏覽器直接寫 employees、monthlySalaries、payrollSlips 及版本、mail；防舊分頁繼續寫舊薪資或偽造新單。後端用 Admin 寫入且自行驗證。舊資料没有遷移或刪除。員工實體刪除入口停用，改以離職保存。
 
 ## 驗證
 
-- 薪資 domain／實際 callable 的模擬交易測試 32 項通過；既有權限與打卡處理測試 22 項通過。
+- 薪資 domain／實際 callable 的模擬交易測試 34 項通過（含原薪資單樣式與保存輸出欄位）；既有權限與打卡处理測試 22 項通過，共 56 項。
 - 薪資 Rules 27、權限 Rules 13、打卡 Rules 16，均用模擬資料呼叫 Rules test API 通過。規則測試本身沒有部署 Rules，也沒有寫正式測試文件；正式發布結果見下節。
 - 無頭 Edge 隔離測試通過：同月兩段各自開單、待遇基準、不足月手填、回應中斷重試、確認、獨立預覽、Excel 逐欄金額及舊文件保留、年度顯示、員工復職表單。瀏覽器 Firebase 全部替換為測試服務，不能宣稱真實雲端整合已通過。
-- PayrollLedger 單獨型別檢查通過。包含 PayrollView/taskService 的檢查仍有既有 constants.ts 的 Client.id 字串／數字型別錯誤；未宣稱完整專案型別檢查通過。
-- 最後一次前端 build、Functions TypeScript build、PayrollLedger 單獨型別檢查及 git diff --check 均通過。測試方式見 tests/README.md。
+- PayrollView／usePayrollPresentation 的檢查仍會被既有 constants.ts 的 Client.id 字串／數字型別錯誤阻擋，沒有本次檔案新增的型別錯誤；未宣稱完整專案型別檢查通過。
+- 最後一次前端 build、Functions TypeScript build 及 git diff --check 均通過。新增 tests/payroll-layout.test.cjs：以相同合成資料比較 6f25821 與實際 PayrollView 的月表／年度表頁籤、欄寬／座標、展開分組，涵蓋 1280／1500／1920 寬度、年度全螢幕；並驗證舊單／已確認單唯讀、同月兩段獨立開單、手填本薪伙食費、儲存重試、修改須再保存才可確認、原格式預覽／Excel／年度金額、載入失敗。兩套隔離瀏覽器測試均通過，截圖與 geometry JSON 只在本機暫存。測試方式見 tests/README.md。
 
 ## 正式發布與剩餘驗證
 
@@ -40,6 +40,10 @@
 
 ## 文件及維護範圍
 
-主要變更：PayrollView.tsx、PayrollLedger.tsx、taskService.ts、types.ts、functions/src/payrollDomain.ts、functions/src/payroll.ts、functions/src/index.ts、firestore.rules，以及 tests/payroll-*。舊 monthly/yearly 內部程式尚留在 PayrollView 但新導向不再提供入口，避免本輪順便大幅清除無關 UI；舊直接寫入也被新 Rules 阻擋。
+本次排版修正：PayrollView.tsx、usePayrollPresentation.ts、functions/src/payrollDomain.ts、functions/src/payroll.ts 及 tests/payroll-*。原 direct-write 薪資／寄信處理已由 callable 取代，沒有重新開放舊資料或 mail 的瀏覽器寫入。新單保存可選填員工身分證／銀行帳戶快照，以支持原輸出欄位；既有單缺少時留白，不回填或改寫舊單。Rules 本次沒有修改。
 
 不要刪除或替換 firebase/firestore-send-email Extension；日曆維持平台單向同步。不得推送個資、OAuth 憑證、私人備份或正式診斷清單。完整討論與匿名資料診斷另存在本機專案工作目錄，非本儲存庫；所有 E/S 代號只屬當次診斷，不能當永久 ID。
+
+## 本次排版修正發布
+
+後端 payrollCommand 原輸出樣式已發布；另補強逐欄比較待遇及保存值，不依賴 Firestore 物件欄位順序，目前待重新發布。前端待此修正提交推送 main 後由 Vercel 發布。發布完成以本機完整交接與 GitHub／Vercel commit status 核對結果為準。舊資料維持原值；沒有執行資料遷移或薪資郵件測試。
