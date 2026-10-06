@@ -46,4 +46,8 @@
 
 ## 本次排版修正發布
 
-後端 payrollCommand 原輸出樣式已發布；另補強逐欄比較待遇及保存值，不依賴 Firestore 物件欄位順序，目前待重新發布。前端待此修正提交推送 main 後由 Vercel 發布。發布完成以本機完整交接與 GitHub／Vercel commit status 核對結果為準。舊資料維持原值；沒有執行資料遷移或薪資郵件測試。
+排版修正程式提交 800c57c 已推送 main，Vercel 狀態 success。正式網站的入口、Dashboard 及 PayrollView 資源已讀回核對，包含原月表／年度頁籤、固定欄、新薪資單選擇與 callable，且已移除替換版 Ledger 入口。不能以公開資源核對宣稱真實承辦人登入／實際開單已驗證。
+
+payrollCommand 已單獨更新成功，含原薪資單 HTML 樣式、必要身分與銀行帳戶快照，以及不依賴物件欄位順序的待遇確認；讀回 ACTIVE，2026-10-06T08:10:12Z 更新，未登入請求仍 401 / UNAUTHENTICATED。Rules 沒有修改，其他 Functions 與寄信 Extension 保留。
+
+發布後再次唯讀核對：employees 10 筆、monthlySalaries 48 筆的完整欄位及 updateTime 都與發布前备份一致，正式 Rules 與本機一致；没有遷移／刪除／重算舊資料，没有正式薪資測試文件或測試郵件。當前薪資 layout 對照基準仍為 6f25821，勿整體回退復職後端或 Rules。
