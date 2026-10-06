@@ -29,3 +29,22 @@ node tests/run-permission-rules.cjs
 ```
 
 Permission tests execute the actual handlers, service methods and profile synchronization helpers with mocked storage. They cover targeted writes, legacy list saves, color maintenance, revocation, stale events, disabled/deleted/rebound users, offline/failing submissions and role-specific tabs. The Rules tests use mocked documents only, including payroll grants/revocations, privileged role access, avatar updates and denial of self-escalation. They do not send mail, write production records or deploy rules.
+
+
+# Customer payroll / rehire regression checks
+
+Run from the repository root:
+
+```powershell
+node --test tests/payroll-regression.test.cjs tests/permission-regression.test.cjs tests/attendance-handlers.test.cjs
+node tests/run-payroll-rules.cjs
+node tests/run-permission-rules.cjs
+node tests/run-attendance-rules.cjs
+node tests/payroll-ui.test.cjs
+```
+
+The payroll suite executes the shared calculation module and actual callable handler with an in-memory transaction substitute. It checks employment gaps/overlap, same-month rehire, contract versus payable amounts, manual meal preservation, legacy ambiguity, versioning/corrections/voiding, source authorization, cross-client IDs, retries and version-bound email dispatch. No production data or mail is written.
+
+The 27 payroll Rules scenarios call the Rules test API with mocked documents. Legacy salaries, employee mutations, new slips, versions and mail creation cannot be written directly by the browser. Validated writes use payrollCommand.
+
+The browser suite uses esbuild and Playwright with synthetic employee and salary fixtures; Firebase imports are replaced at bundle time. It exercises the employee rehire form, two independent payslips in one month, manually adjusted pay, an interrupted save followed by retry, confirmation, previews and Excel reconciliation. Set PLAYWRIGHT_MODULE to a Playwright package path if it is not installed locally; PLAYWRIGHT_CHANNEL defaults to msedge. It uses an ephemeral localhost port and writes synthetic screenshots/exports under the OS temp directory. Production credentials are not used. Browser callable/storage are mocked; server transaction logic is covered separately, not by an actual deployed integration run.

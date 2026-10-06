@@ -362,6 +362,8 @@ export interface EmploymentRecord {
 }
 
 export interface CompensationRecord {
+  foodAllowance?: number; // 約定伙食費；舊資料缺少時須人工確認
+
   id: string;
   effectiveDate: string;      // 生效日期 (YYYY-MM-DD)
   baseSalary: number;         // 本薪 (或時薪)

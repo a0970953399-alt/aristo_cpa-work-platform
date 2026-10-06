@@ -817,3 +817,5 @@ export const syncPlatformEventToGoogle = onDocumentWritten(
     }
   },
 );
+
+export { payrollCommand } from './payroll.js';

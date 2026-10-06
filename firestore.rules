@@ -266,18 +266,32 @@ service cloud.firestore {
     }
 
     match /employees/{document} {
-      allow read, create, update: if hasPermission('payroll');
-      allow delete: if hasPermission('payroll') && canDeleteRecords();
+      allow read: if hasPermission('payroll');
+      // Validated callable preserves referenced employment periods and snapshots.
+      allow write: if false;
     }
 
     match /monthlySalaries/{document} {
-      allow read, create, update: if hasPermission('payroll');
-      allow delete: if hasPermission('payroll') && canDeleteRecords();
+      allow read: if hasPermission('payroll');
+      // Legacy originals remain immutable, including for an old browser tab.
+      allow write: if false;
+    }
+    match /payrollSlips/{document} {
+      allow read: if hasPermission('payroll');
+      allow write: if false;
+      match /versions/{version} {
+        allow read: if hasPermission('payroll');
+        allow write: if false;
+      }
+    }
+    match /payrollDispatch/{document} {
+      allow read: if hasPermission('payroll');
+      allow write: if false;
     }
 
     match /mail/{document} {
       // Firestore Email Extension delivery requests.
-      allow create: if hasPermission('payroll');
+      allow create: if false;
       allow read, update, delete: if false;
     }
 

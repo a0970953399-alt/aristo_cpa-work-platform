@@ -1,3 +1,5 @@
+import { httpsCallable } from 'firebase/functions';
+import { functions as payrollFunctions } from './firebase';
 import { TabCategory } from './types';
 import type {
   ClientTask, TaskStatusType, HistoryEntry, ClientProfile, User, CalendarEvent, Client,
@@ -84,6 +86,16 @@ const normalizeTask = (id: string, task: DocumentData): ClientTask => {
         completionDate: String(task.completionDate || ''),
         history: task.history || []
     } as ClientTask;
+};
+
+// Keep the request identity across uncertain network outcomes; never persist employee data locally.
+let pendingEmployeeWrite: {signature:string;operationId:string} | undefined;
+const savePayrollEmployee = async (employee: import('./types').Employee, expected: import('./types').Employee | null) => {
+  const body = JSON.parse(JSON.stringify({action:'saveEmployee',clientId:employee.clientId,employee,expected}));
+  const signature = JSON.stringify(body);
+  if (!pendingEmployeeWrite || pendingEmployeeWrite.signature !== signature) pendingEmployeeWrite = {signature,operationId:crypto.randomUUID()};
+  await httpsCallable(payrollFunctions, 'payrollCommand')({...body,operationId:pendingEmployeeWrite.operationId});
+  pendingEmployeeWrite = undefined;
 };
 
 export const TaskService = {
@@ -834,21 +846,17 @@ export const TaskService = {
   },
 
   async saveEmployees(employees: import('./types').Employee[]): Promise<void> {
-      for (const emp of employees) {
-          await setDoc(doc(db, "employees", String(emp.id)), emp);
-      }
+      throw new Error('批次覆寫員工已停用，請逐位確認後儲存');
   },
-
   async addEmployee(employee: import('./types').Employee): Promise<void> {
-      await setDoc(doc(db, "employees", String(employee.id)), employee);
+      await savePayrollEmployee(employee, null);
   },
-
-  async updateEmployee(updated: import('./types').Employee): Promise<void> {
-      await setDoc(doc(db, "employees", String(updated.id)), updated, { merge: true });
+  async updateEmployee(employee: import('./types').Employee, expected?: import('./types').Employee): Promise<void> {
+      if (!expected) throw new Error('請重新開啟員工資料後再儲存');
+      await savePayrollEmployee(employee, expected);
   },
-
-  async deleteEmployee(id: string): Promise<void> {
-      await deleteDoc(doc(db, "employees", String(id)));
+  async deleteEmployee(_id: string): Promise<void> {
+      throw new Error('員工資料保留不刪除；請填寫離職日以結束任職');
   },
 
   // ✨ 每月薪資結算 API (Monthly Salary)
