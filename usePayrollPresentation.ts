@@ -80,7 +80,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   function open(row:PayrollRow,m=month) {
     setError('');setInfo('');setHistory([]);setMailState('NONE');
     if(!ready) return;
-    if(row.legacyRecord){setEditing(null);setOldEditing(row.legacyRecord);return;}
+    if(row.legacyRecord){setEditing(null);setOldEditing(structuredClone(row.legacyRecord));setMailState(row.legacyRecord.legacySeptemberMailId?'PENDING':'NONE');return;}
     if(row.slip){setOldEditing(null);setEditing(structuredClone(row.slip));return;}
     try{
       const e=employees.find(e=>e.id===row.sourceEmployeeId||e.id===row.id);
@@ -102,6 +102,29 @@ export function usePayrollPresentation(client: Client | null, month: string) {
       setEditing({...editing,amounts,attendance});
     }catch(e:any){setError(e.message);}
   }
+  const oldSaved = oldEditing && legacy.find(r=>r.id===oldEditing.id);
+  const legacyEditable = !!oldEditing && oldEditing.month === '2026-09' && oldEditing.temporaryPayrollHidden !== true && !oldEditing.isEmailSent && !oldEditing.legacySeptemberMailId && legacy.filter(r=>r.employeeId===oldEditing.employeeId&&r.month===oldEditing.month).length===1;
+  const dirtyLegacy = !!oldEditing && !!oldSaved && [...amountFields,...attendanceFields].some(k=>(oldEditing as any)[k] !== (oldSaved as any)[k]);
+  function changeLegacy(k:string,value:string) {
+    if(!legacyEditable || busy || ![...amountFields,...attendanceFields].includes(k as any))return;
+    setOldEditing(prev=>prev?{...prev,[k]:Number(value)||0}:prev);
+  }
+  async function saveLegacy(reason:string) {
+    if(!legacyEditable || !oldEditing || !oldSaved || !dirtyLegacy)return;
+    const result=await run({action:'saveLegacySeptember',id:oldEditing.id,expectedRevision:oldSaved.legacySeptemberRevision||0,expected:oldSaved,amounts:Object.fromEntries(amountFields.map(k=>[k,(oldEditing as any)[k]])),attendance:Object.fromEntries(attendanceFields.map(k=>[k,(oldEditing as any)[k]])),reason});
+    if(result){setOldEditing(result.record);setInfo('9 月薪資更正已保存，原值保留。');}
+  }
+  async function sendLegacy(retry=false) {
+    if(!oldEditing || oldEditing.month!=='2026-09' || dirtyLegacy){setError('請先保存 9 月薪資修改，再寄送。');return;}
+    if(!retry && !window.confirm('確認這份 9 月薪資與收件資料已核對，並交由系統寄送？'))return;
+    const result=await run({action:'sendLegacySeptember',id:oldEditing.id,expectedRevision:oldEditing.legacySeptemberRevision||0,retry});
+    if(result){setOldEditing(prev=>prev?{...prev,legacySeptemberMailId:result.mailId}:prev);setMailState(result.state);setInfo('已交寄送服務排程；不代表收件匣已收到。');}
+  }
+  async function checkLegacyMail() {
+    if(!oldEditing)return;
+    const result=await run({action:'legacySeptemberMailStatus',id:oldEditing.id});
+    if(result)setMailState(result.state);
+  }
   function changePeriod(id:string,start?:string,end?:string) {
     if(!editing||editing.revision>0||editing.status!=='draft')return;
     try{const e=employees.find(e=>e.id===editing.employeeId)!;const p=periods(e).find(p=>p.id===id)!;
@@ -120,5 +143,5 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   async function checkMail(){if(!editing)return;const result=await run({action:'mailStatus',id:editing.id,expectedRevision:editing.revision});if(result)setMailState(result.state);}
   async function versions(){if(!editing)return;try{const docs=await getDocs(collection(db,'payrollSlips',editing.id,'versions'));setHistory(docs.docs.map(d=>d.data() as Slip).sort((a,b)=>b.revision-a.revision));}catch(e:any){setError(e.message);}}
   async function batch(){const ss=slips.filter(s=>s.month===month&&s.status==='confirmed');if(!ss.length){setError('本月沒有已確認的新薪資單可寄送。');return;}if(!window.confirm(`寄送本月 ${ss.length} 張已確認薪資單？`))return;for(const s of ss){const r=await run({action:'send',id:s.id,expectedRevision:s.revision,retry:false});if(!r)return;}setInfo('本月已確認單據已交寄送服務排程。');}
-  return {employees,legacy,slips,ready,error,info,busy,dirty,editing,setEditing,oldEditing,history,setHistory,mailState,rowsFor,flat,open,change,changePeriod,save,transition,revise,send,checkMail,versions,batch};
+  return {employees,legacy,slips,ready,error,info,busy,dirty,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,changePeriod,save,transition,revise,send,checkMail,versions,batch};
 }

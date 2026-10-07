@@ -140,8 +140,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     const rows=payroll.rowsFor(selectedYear+'-'+month).filter(row=>row.sourceEmployeeId===id);
     payroll.open((rows.find(r=>r.id===emp.id)||rows[0]||{...emp,sourceEmployeeId:id}) as PayrollRow,selectedYear+'-'+month);
   };
-  const handleModalMonthSwitch = (m:string)=>{if(!editingMonthlyEmp||payroll.busy)return;setEditModalMonth(m);loadFormDataForMonth(editingMonthlyEmp,m);};
-  const handleSaveMonthlyData = async(e:React.FormEvent)=>{e.preventDefault();await payroll.save();};
+  const handleModalMonthSwitch = (m:string)=>{if(!editingMonthlyEmp||payroll.busy)return;if(payroll.dirtyLegacy&&!window.confirm('9 月薪資修改尚未保存，確定切換月份？'))return;setEditModalMonth(m);loadFormDataForMonth(editingMonthlyEmp,m);};
+  const handleSaveMonthlyData = async(e:React.FormEvent)=>{e.preventDefault();if(payroll.oldEditing){const reason=window.prompt('請填寫這次 9 月薪資更正原因');if(reason?.trim())await payroll.saveLegacy(reason.trim());return;}await payroll.save();};
   // ✨ 新增：預覽 Email 薪資單
   const handlePreviewEmail = () => {
     if(payroll.editing){setPreviewHtml(slipHtml(payroll.editing));return;}
@@ -152,7 +152,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setPreviewHtml(slipHtml(old));
     }
   };
-  const handleSendEmail = async()=>{await payroll.send();};
+  const handleSendEmail = async()=>{if(payroll.oldEditing)await payroll.sendLegacy();else await payroll.send();};
   const handleBatchSendEmails = async()=>{setIsSendingBatch(true);try{await payroll.batch();}finally{setIsSendingBatch(false);}};
   const handleExportEmployerExcel = async () => {
       try {
@@ -324,7 +324,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       setIsMonthlyEditModalOpen(true);
   };
 
-  const handleMonthlyFormChange = (field:string,value:string)=>payroll.change(field,value);
+  const handleMonthlyFormChange = (field:string,value:string)=>{if(payroll.oldEditing)payroll.changeLegacy(field,value);else payroll.change(field,value);};
 
   const [isAddClientModalOpen, setIsAddClientModalOpen] = useState(false);
   const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false);
@@ -1211,7 +1211,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 {editingMonthlyEmp && <div className="flex items-center gap-2 text-sm"><label className="font-bold text-gray-600">本月薪資單</label><select aria-label="本月薪資單" disabled={payroll.busy} value={payroll.editing?.id || (payroll.oldEditing?'old:'+payroll.oldEditing.id:'')} onChange={e=>{const row=payroll.rowsFor(selectedYear+'-'+editModalMonth).find(r=>r.id===e.target.value);if(row)payroll.open(row,selectedYear+'-'+editModalMonth);}} className="border border-gray-200 p-2 rounded-xl bg-white"><option value={payroll.editing?.id || ''}>目前單據／新草稿</option>{payroll.rowsFor(selectedYear+'-'+editModalMonth).filter(r=>r.sourceEmployeeId===editingMonthlyEmp.id).map(r=><option key={r.id} value={r.id}>{r.slip?r.slip.periodStart+'～'+r.slip.periodEnd+' '+payrollStatus[r.slip.status]:r.legacyRecord?'舊薪資 '+r.legacyRecord.id:(r.recommendedStart||r.startDate)+'～'+(r.recommendedEnd||r.endDate||'在職')+' 新單'}</option>)}</select></div>}
                                     {payroll.error && <p role="alert" className="text-sm text-red-600">{payroll.error}</p>}
                                     {payroll.info && <p role="status" className="text-sm text-blue-600">{payroll.info}</p>}
-                                    {payroll.oldEditing && <p className="text-sm font-bold text-amber-700">舊制薪資原值唯讀保存；確認、付款及計薪區間未知。{legacyIssues(payroll.oldEditing,payroll.legacy,payroll.employees).join('；')}</p>}
+                                    {payroll.oldEditing && <p className="text-sm font-bold text-amber-700">{payroll.legacyEditable?'2026 年 9 月舊薪資可更正；請一併核對手填金額、出勤及收件資料。原值會保留。':'舊制薪資原值唯讀保存；確認、付款及計薪區間未知。'}{legacyIssues(payroll.oldEditing,payroll.legacy,payroll.employees).join('；')}{payroll.oldEditing.legacySeptemberMailId&&<button type="button" className="ml-2 text-blue-700 underline" onClick={()=>payroll.checkLegacyMail()}>查詢寄送狀態</button>}{payroll.mailState==='ERROR'&&<button type="button" className="ml-2 text-red-700 underline" onClick={()=>payroll.sendLegacy(true)}>失敗重寄</button>}</p>}
                                     {payroll.editing && <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm space-y-3">
                                       <div className="flex flex-wrap gap-3 items-center"><span className="font-bold text-blue-800">{payrollStatus[payroll.editing.status]}／第 {payroll.editing.revision} 版</span>
                                         <select aria-label="任職期間" disabled={payroll.busy||payroll.editing.revision>0||payroll.editing.status!=='draft'} value={payroll.editing.employmentId} onChange={e=>payroll.changePeriod(e.target.value)} className="border border-blue-200 p-2 rounded-xl bg-white">{periods(payroll.employees.find(e=>e.id===payroll.editing!.employeeId)!).filter(p=>p.startDate<=payroll.editing!.month+'-31'&&(!p.endDate||p.endDate>=payroll.editing!.month+'-01')).map(p=><option key={p.id} value={p.id}>{p.startDate}～{p.endDate||'在職'}（{p.type==='full_time'?'正職':'兼職'}）</option>)}</select>
@@ -1261,7 +1261,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
                                     {editingMonthlyEmp && (
                                         <>
-                                            <fieldset disabled={payroll.busy || !!payroll.oldEditing || !payroll.editing || payroll.editing.status!=='draft'} className="contents"><div className="space-y-4">
+                                            <fieldset disabled={payroll.busy || (payroll.oldEditing ? !payroll.legacyEditable : !payroll.editing || payroll.editing.status!=='draft')} className="contents"><div className="space-y-4">
                                                 <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-gray-500 rounded-full"></div>出勤時數</h4>
                                                 <div className="grid grid-cols-4 gap-4">
                                                     <div>
@@ -1287,7 +1287,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             <div className="space-y-4">
                                                 <h4 className="font-bold text-blue-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>應加與免稅金額</h4>
                                                 <div className="grid grid-cols-4 gap-4">
-                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">免稅加班費</label><input type="text" disabled value={monthlyFormData.taxFreeOt || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
+                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">免稅加班費</label><input type="number" disabled={!payroll.oldEditing} value={monthlyFormData.taxFreeOt ?? 0} onChange={e=>handleMonthlyFormChange('taxFreeOt',e.target.value)} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 disabled:cursor-not-allowed text-right" /></div>
 
                                                     <div>
                                                         <label className="block text-xs font-bold text-blue-500 mb-1">{editingMonthlyEmp.employmentType === 'full_time' ? '本薪' : '應付薪資'}</label>
@@ -1305,8 +1305,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             <div className="space-y-4">
                                                 <h4 className="font-bold text-orange-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>應扣與代扣款項</h4>
                                                 <div className="grid grid-cols-4 gap-4">
-                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">請假扣款</label><input type="text" disabled value={monthlyFormData.leaveDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
-                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">遲到扣款</label><input type="text" disabled value={monthlyFormData.lateDeduction || 0} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 cursor-not-allowed text-right" /></div>
+                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">請假扣款</label><input type="number" disabled={!payroll.oldEditing} value={monthlyFormData.leaveDeduction ?? 0} onChange={e=>handleMonthlyFormChange('leaveDeduction',e.target.value)} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 disabled:cursor-not-allowed text-right" /></div>
+                                                    <div><label className="block text-xs font-bold text-gray-500 mb-1">遲到扣款</label><input type="number" disabled={!payroll.oldEditing} value={monthlyFormData.lateDeduction ?? 0} onChange={e=>handleMonthlyFormChange('lateDeduction',e.target.value)} className="w-full border p-2.5 rounded-xl font-bold text-gray-500 bg-gray-100 disabled:cursor-not-allowed text-right" /></div>
 
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">結帳差額扣款</label><input type="number" value={monthlyFormData.dailyShortage || ''} onChange={e => handleMonthlyFormChange('dailyShortage', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
                                                     <div><label className="block text-xs font-bold text-red-500 mb-1">勞退自提 (6%)</label><input type="number" value={monthlyFormData.pensionSelf || ''} onChange={e => handleMonthlyFormChange('pensionSelf', e.target.value)} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-red-400 font-bold text-red-600" placeholder="0" /></div>
@@ -1334,7 +1334,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                               <div className="flex gap-3 w-3/5 items-center">
                                 {/* 預覽與寄送按鈕 */}
                                 <button type="button" onClick={handlePreviewEmail} title="預覽薪資單" className="p-3 bg-white border border-blue-200 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors shadow-sm flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></button>
-                                <button type="button" disabled={payroll.busy || payroll.editing?.status!=='confirmed'} onClick={handleSendEmail} title="寄送薪資單" className="p-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm flex items-center justify-center"><SendMailIcon className="w-5 h-5" /></button>
+                                <button type="button" disabled={payroll.busy || (payroll.oldEditing ? !payroll.legacyEditable || payroll.dirtyLegacy : payroll.editing?.status!=='confirmed')} onClick={handleSendEmail} title="寄送薪資單" className="p-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm flex items-center justify-center"><SendMailIcon className="w-5 h-5" /></button>
                                 {/* ✨ 新增：寄信狀態方框 */}
                                 <div className="flex items-center justify-center min-w-[48px] h-12 rounded-xl bg-white shadow-sm border-2 transition-all duration-300 mx-1"
                                   style={{ borderColor: emailSendStatus === 'success' ? '#10B981' : emailSendStatus === 'error' ? '#EF4444' : '#E5E7EB' }}
@@ -1354,7 +1354,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
                                 {/* 存檔與取消按鈕 */}
                                 <button type="button" onClick={() => setIsMonthlyEditModalOpen(false)} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">取消</button>
-                                <button disabled={payroll.busy || !payroll.ready || !payroll.editing || payroll.editing.status!=='draft'} onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">保存草稿</button>
+                                <button disabled={payroll.busy || !payroll.ready || (payroll.oldEditing ? !payroll.legacyEditable || !payroll.dirtyLegacy : !payroll.editing || payroll.editing.status!=='draft')} onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700">{payroll.legacyEditable?'保存更正':'保存草稿'}</button>
                               </div>
                             </div>
                           </div>

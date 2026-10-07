@@ -416,6 +416,8 @@ export interface MonthlySalaryRecord {
     employeeId: string;
     month: string; // 例如: '2026-03'
     temporaryPayrollHidden?: boolean;
+    legacySeptemberRevision?: number;
+    legacySeptemberMailId?: string;
     
     // 出勤變數
     workHours: number; lateHours: number; sickLeave: number; personalLeave: number;

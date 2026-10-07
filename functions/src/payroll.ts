@@ -37,7 +37,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
             assert(!enabled.empty, '客戶尚未開通薪資');
             const oldRecords = await tx.get(db.collection('monthlySalaries').where('clientId', '==', clientId));
             const slipsResult = await tx.get(db.collection('payrollSlips').where('clientId', '==', clientId));
-            const legacy = oldRecords.docs.map(d => ({ ...d.data(), id: d.id }));
+            const legacy: any[] = oldRecords.docs.map(d => ({ ...d.data(), id: d.id }));
             const slips = slipsResult.docs.map(d => ({ ...d.data(), id: d.id } as Slip));
             const now = new Date().toISOString();
             let result: any = {};
@@ -96,6 +96,68 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 // Preserve pre-existing fields. Never rewrite or delete any legacy salary.
                 tx.set(ref, emp, { merge: true });
                 result = { id };
+            }
+            else if (action === 'saveLegacySeptember' || action === 'sendLegacySeptember' || action === 'legacySeptemberMailStatus') {
+                assert(['boss', 'supervisor'].includes(u.role), '僅主管或老闆可處理舊薪資');
+                const id = key(data.id);
+                const old = legacy.find((x: any) => x.id === id);
+                assert(old && old.month === '2026-09' && old.clientId === clientId && old.temporaryPayrollHidden !== true, '找不到可處理的 2026 年 9 月薪資');
+                const record = old!;
+                const revision = record.legacySeptemberRevision || 0;
+                const ref = db.doc('monthlySalaries/' + id);
+                if (action === 'saveLegacySeptember') {
+                    assert(!record.isEmailSent && !record.legacySeptemberMailId, '已寄送或排程的舊薪資不能再修改');
+                    assert(legacy.filter((x: any) => x.employeeId === record.employeeId && x.month === record.month && x.temporaryPayrollHidden !== true).length === 1, '同員工同月仍有多筆可見薪資，請先核對');
+                    assert(!slips.some(s => s.employeeId === record.employeeId && s.month === record.month && s.status !== 'void' && s.status !== 'superseded'), '同月已有新薪資單，不能修改舊薪資');
+                    assert(revision === data.expectedRevision && canonical(record) === canonical(data.expected), '薪資資料已變更，請重新開啟');
+                    const employee = await tx.get(db.doc('employees/' + key(record.employeeId)));
+                    assert(employee.exists && employee.data()!.clientId === clientId, '員工主檔不存在或不屬於此客戶');
+                    const amounts = numbers(data.amounts, amountFields);
+                    const attendance = numbers(data.attendance, attendanceFields);
+                    const changes = { ...amounts, ...attendance };
+                    assert([...amountFields, ...attendanceFields].some(k => record[k] !== changes[k]), '薪資明細沒有變更');
+                    const reason = text(data.reason || '', 500).trim();
+                    assert(reason, '請填寫更正原因');
+                    const next = { ...record, ...changes, legacySeptemberRevision: revision + 1, updatedAt: now };
+                    tx.create(db.doc(`monthlySalaries/${id}/versions/${revision + 1}`), { before: record, after: next, reason, actor: uid, changedAt: now });
+                    tx.set(ref, next, { merge: true });
+                    result = { record: next };
+                }
+                else {
+                    const emp = await tx.get(db.doc('employees/' + key(record.employeeId)));
+                    assert(emp.exists && emp.data()!.clientId === clientId, '員工主檔不存在或不屬於此客戶');
+                    const employee = emp.data()!;
+                    if (action === 'legacySeptemberMailStatus') {
+                        const mailId = record.legacySeptemberMailId;
+                        if (!mailId) return { state: 'NONE' };
+                        const mail = await tx.get(db.doc('mail/' + key(mailId)));
+                        return { state: mail.data()?.delivery?.state || 'PENDING' };
+                    }
+                    assert(revision === data.expectedRevision, '薪資版本已變更，請重新開啟');
+                    assert(!record.isEmailSent, '這份舊薪資已有寄信標記，請先核對');
+                    assert(legacy.filter((x: any) => x.employeeId === record.employeeId && x.month === record.month && x.temporaryPayrollHidden !== true).length === 1, '同員工同月仍有多筆可見薪資，請先核對');
+                    assert(!slips.some(s => s.employeeId === record.employeeId && s.month === record.month && s.status !== 'void' && s.status !== 'superseded'), '同月已有新薪資單，不能重複寄送');
+                    const amounts = numbers(record, amountFields), attendance = numbers(record, attendanceFields);
+                    assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(employee.email || ''), '員工主檔沒有有效收件信箱');
+                    const dispatchRef = db.doc(`payrollDispatch/legacy_${id}_${revision}`);
+                    const dispatch = await tx.get(dispatchRef);
+                    assert(!record.legacySeptemberMailId || dispatch.exists && record.legacySeptemberMailId === dispatch.data()!.mailId, '寄送紀錄不一致，請先查明');
+                    let attempt = 1;
+                    if (dispatch.exists) {
+                        const previous = await tx.get(db.doc('mail/' + key(dispatch.data()!.mailId)));
+                        const state = previous.data()?.delivery?.state || 'PENDING';
+                        if (data.retry !== true) return { mailId: dispatch.data()!.mailId, state, alreadyQueued: true };
+                        assert(state === 'ERROR', '此版本已排程或寄送；只有明確失敗後可重試');
+                        attempt = dispatch.data()!.attempt + 1;
+                    }
+                    const mailId = `legacyPayroll_${id}_${revision}_${attempt}`;
+                    const c = company.data()!;
+                    const snapshot = { id, schemaVersion: 2, revision, month: record.month, periodStart: '2026-09-01', periodEnd: '2026-09-30', status: 'confirmed', amounts, attendance, employee: { name: employee.name, email: employee.email, empNo: employee.empNo || '', idNumber: employee.idNumber || '', bankAccount: employee.bankAccount || '' }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: '舊制 2026 年 9 月薪資，已核對後寄送', reason: '' } as Slip;
+                    tx.create(db.doc('mail/' + mailId), { to: employee.email, message: { subject: `${snapshot.company.name} 2026-09 薪資單`, html: slipHtml(snapshot) }, salaryId: id, salaryVersion: revision, clientId, createdAt: now });
+                    tx.set(dispatchRef, { clientId, slipId: id, revision, mailId, attempt, requestedAt: now, actor: uid });
+                    tx.set(ref, { legacySeptemberMailId: mailId }, { merge: true });
+                    result = { mailId, state: 'PENDING' };
+                }
             }
             else if (action === 'saveSlip') {
                 const raw = data.slip;

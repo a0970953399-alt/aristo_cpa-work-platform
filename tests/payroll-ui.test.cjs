@@ -15,6 +15,9 @@ export const onSnapshot=(q,cb,fail)=>{if(location.search.includes('loadFailure')
 export const getDocs=async()=>({docs:[]});
 export const httpsCallable=()=>async body=>{window.__fixture.calls.push(body);if(receipts.has(body.operationId))return {data:receipts.get(body.operationId)};let result;
 if(body.action==='saveSlip'){const raw=body.slip;const e=data.employees.find(x=>x.id===raw.employeeId);const p=periods(e).find(x=>x.id===raw.employmentId);const basis=basisAt(e,p,raw.periodStart,raw.periodEnd);const next={...raw,basis,amounts:calculate(basis,raw.attendance,raw.amounts),revision:raw.revision+1};data.payrollSlips=data.payrollSlips.filter(x=>x.id!==next.id).concat(next);result={slip:next};}
+else if(body.action==='saveLegacySeptember'){const old=data.monthlySalaries.find(x=>x.id===body.id);const next={...old,...body.amounts,...body.attendance,legacySeptemberRevision:(old.legacySeptemberRevision||0)+1};data.monthlySalaries=data.monthlySalaries.map(x=>x.id===body.id?next:x);result={record:next};}
+else if(body.action==='sendLegacySeptember'){result={state:'PENDING',mailId:'legacy-test-mail'};}
+else if(body.action==='legacySeptemberMailStatus'){result={state:'PENDING'};}
 else if(body.action==='confirm'){const s=data.payrollSlips.find(x=>x.id===body.id);s.status='confirmed';s.revision++;result={slip:{...s}};}
 else if(body.action==='send'){result={state:'PENDING'};} else result={state:'NONE'};
 receipts.set(body.operationId,result);for(const [name,cb] of listeners)cb(snapshot(name));if(body.action==='saveSlip'&&window.__fixture.failAfterSave){window.__fixture.failAfterSave=false;throw Error('模擬回應中斷，請重試');}return {data:result};};
