@@ -1,5 +1,5 @@
 import { usePayrollPresentation, PayrollRow, payrollStatus } from './usePayrollPresentation';
-import { validatePeriods, periods, Slip, amountFields, attendanceFields, legacyAmounts, legacyIssues, annualMetrics, labels, calculate, emptyValues, slipHtml } from './functions/src/payrollDomain';
+import { validatePeriods, periods, slipPeriod, Slip, amountFields, attendanceFields, legacyAmounts, legacyIssues, annualMetrics, labels, calculate, emptyValues, slipHtml } from './functions/src/payrollDomain';
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
@@ -125,6 +125,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
   const payroll = usePayrollPresentation(selectedClient, selectedYear+'-'+selectedMonth);
   const [previewHtml,setPreviewHtml] = useState('');
+  const previewSlip = (slip: Slip) => {
+    const employee = payroll.employees.find(e=>e.id===slip.employeeId);
+    setPreviewHtml(slipHtml(slip, employee ? slipPeriod(slip, employee) : undefined));
+  };
   const [showPayrollHistory,setShowPayrollHistory] = useState(false);
   const [showVersionHistory,setShowVersionHistory] = useState(false);
   const editorState = payroll.editing?.status==='draft'
@@ -149,12 +153,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const handleSaveMonthlyData = async(e:React.FormEvent)=>{e.preventDefault();if(payroll.oldEditing){const reason=window.prompt('請填寫這次 9 月薪資更正原因');if(reason?.trim())await payroll.saveLegacy(reason.trim());return;}await payroll.save();};
   // ✨ 新增：預覽 Email 薪資單
   const handlePreviewEmail = () => {
-    if(payroll.editing){setPreviewHtml(slipHtml(payroll.editing));return;}
+    if(payroll.editing){previewSlip(payroll.editing);return;}
     if(payroll.oldEditing&&editingMonthlyEmp&&selectedClient){
       const r=payroll.oldEditing;
       if(amountFields.some(k=>typeof (r as any)[k]!=='number'||!Number.isFinite((r as any)[k]))){alert('這份舊資料缺少金額明細，請在核對與歷史紀錄查看原始欄位，不能產生完整薪資單。');return;}
-      const old={id:r.id,schemaVersion:2,revision:0,month:r.month,periodStart:r.month+'-01',periodEnd:r.month+'（舊制未保存計薪區間）',status:'draft',amounts:legacyAmounts(r),attendance:Object.fromEntries(attendanceFields.map(k=>[k,(r as any)[k]||0])),employee:{name:editingMonthlyEmp.name,email:editingMonthlyEmp.email,empNo:editingMonthlyEmp.empNo,idNumber:editingMonthlyEmp.idNumber},company:{name:selectedClient.fullName||selectedClient.name,phone:selectedClient.phone||'',address:selectedClient.contactAddress||selectedClient.regAddress||''},note:'舊制保存值，確認及付款狀態未知',reason:legacyIssues(r,payroll.legacy,payroll.employees).join('；')} as Slip;
-      setPreviewHtml(slipHtml(old));
+      const old={id:r.id,schemaVersion:2,revision:0,employeeId:r.employeeId,month:r.month,periodStart:r.month+'-01',periodEnd:r.month+'（舊制未保存計薪區間）',status:'draft',amounts:legacyAmounts(r),attendance:Object.fromEntries(attendanceFields.map(k=>[k,(r as any)[k]||0])),employee:{name:editingMonthlyEmp.name,email:editingMonthlyEmp.email,empNo:editingMonthlyEmp.empNo,idNumber:editingMonthlyEmp.idNumber},company:{name:selectedClient.fullName||selectedClient.name,phone:selectedClient.phone||'',address:selectedClient.contactAddress||selectedClient.regAddress||''},note:'舊制保存值，確認及付款狀態未知',reason:legacyIssues(r,payroll.legacy,payroll.employees).join('；')} as Slip;
+      previewSlip(old);
     }
   };
   const handleSendEmail = async()=>{if(payroll.oldEditing)await payroll.sendLegacy();else await payroll.send();};
@@ -1235,7 +1239,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             const previous=payroll.history.find(p=>p.id===v.id&&p.revision===v.revision-1);
                                             const amount=annualMetrics(v.amounts)['實發'];
                                             const previousAmount=previous?annualMetrics(previous.amounts)['實發']:null;
-                                            return <button type="button" key={v.revision} onClick={()=>setPreviewHtml(slipHtml(v))} className="block w-full border-b border-blue-100 py-2 text-left text-blue-700 hover:bg-blue-50">
+                                            return <button type="button" key={v.revision} onClick={()=>previewSlip(v)} className="block w-full border-b border-blue-100 py-2 text-left text-blue-700 hover:bg-blue-50">
                                               <span className="block font-bold">{new Date(v.updatedAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false})} · {payroll.historyUsers[v.actor]||'操作人未記錄'} · {payrollStatus[v.status]}</span>
                                               <span className="block">{previousAmount===null||previousAmount===amount?`實發 ${amount.toLocaleString()} 元`:`實發 ${previousAmount.toLocaleString()} → ${amount.toLocaleString()} 元`}</span>
                                               {v.reason&&<span className="block">原因：{v.reason}</span>}

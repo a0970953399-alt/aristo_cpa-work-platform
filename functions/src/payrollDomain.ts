@@ -60,6 +60,12 @@ export const assert = (ok: unknown, message: string): void => { if (!ok)
 export function validDate(s: unknown): s is string { return typeof s === 'string' && /^\d{4}-\d{2}-\d{2}$/.test(s) && Number.isFinite(Date.parse(s)) && new Date(s).toISOString().slice(0, 10) === s; }
 export function monthEnd(month: string): string { assert(/^\d{4}-\d{2}$/.test(month) && validDate(month + '-01'), '月份格式不正確'); return new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)), 0)).toISOString().slice(0, 10); }
 export function periods(emp: any): Period[] { return emp.employmentHistory?.length ? emp.employmentHistory : [{ id: 'legacy-' + emp.id, type: emp.employmentType, startDate: emp.startDate, endDate: emp.endDate || null }]; }
+export function slipPeriod(s: Slip, emp: any): Period | undefined {
+    const history = periods(emp);
+    if (s.employmentId) return history.find(p => p.id === s.employmentId);
+    const matches = history.filter(p => p.startDate <= monthEnd(s.month) && (!p.endDate || p.endDate >= s.month + '-01'));
+    return matches.length === 1 ? matches[0] : undefined;
+}
 export function validatePeriods(items: Period[]) { assert(Array.isArray(items) && items.length > 0, '請至少建立一段任職期間'); const sorted = [...items].sort((a, b) => a.startDate.localeCompare(b.startDate)); const ids = new Set(); sorted.forEach((p, i) => { assert(typeof p.id === 'string' && p.id.length > 0 && !ids.has(p.id), '任職期間編號重複'); ids.add(p.id); assert(['full_time', 'part_time'].includes(p.type), '聘僱身分不正確'); assert(validDate(p.startDate) && (p.endDate === null || validDate(p.endDate) && p.endDate >= p.startDate), '任職日期不正確；離職日為最後在職日'); if (i)
     assert(sorted[i - 1].endDate !== null && sorted[i - 1].endDate! < p.startDate, '任職期間不能重疊，請先填寫前一段離職日'); }); }
 export function basisAt(emp: any, p: Period, start: string, end: string): Basis {
@@ -141,13 +147,17 @@ export function legacyIssues(r: any, all: any[], employees: any[]): string[] {
 }
 export function legacyAmounts(r: any): Values { return Object.fromEntries(amountFields.map(k => [k, typeof r[k] === 'number' && Number.isFinite(r[k]) ? r[k] : 0])); }
 export function escapeHtml(s: unknown): string { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)); }
-export function slipHtml(s: Slip): string {
+export function slipHtml(s: Slip, employment?: Period): string {
  const e=escapeHtml,a=s.amounts;
  const baseSalary=a.baseSalary,foodAllowance=a.foodAllowance,leaveDeduction=a.leaveDeduction,lateDeduction=a.lateDeduction,laborIns=a.laborIns,healthIns=a.healthIns;
  const totalOtPay=a.taxableOt+a.taxFreeOt,otherAdditions=a.fullAttendance+a.positionAllowance+a.performanceBonus,otherDeductions=a.dailyShortage+a.pensionSelf+a.incomeTax+a.advancePay;
  const netPay=totals(a).net,companyName=e(s.company.name),companyPhone=e(s.company.phone),companyAddress=e(s.company.address);
  const attendanceNames: Record<string, string> = { workHours: '工作時數', lateHours: '遲到', sickLeave: '病假', personalLeave: '事假', annualLeave: '特休折現', holidayOt: '國定假日加班', normalOt: '平日加班' };
- const attendanceSummary=e(attendanceFields.filter(k=>s.attendance[k]>0).map(k=>`${attendanceNames[k]}：${s.attendance[k]} ${k==='lateHours'?'分鐘':'小時'}`).join('；'));
+ const displayEnd=validDate(s.periodEnd)?s.periodEnd:monthEnd(s.month);
+ const withinSlip=(date:string)=>validDate(date)&&date>=s.periodStart&&date<=displayEnd;
+ const shortDate=(date:string)=>`${Number(date.slice(5,7))}/${Number(date.slice(8,10))}`;
+ const employmentNotes=[employment?.startDate&&withinSlip(employment.startDate)?`${shortDate(employment.startDate)}到職`:'',employment?.endDate&&withinSlip(employment.endDate)?`${shortDate(employment.endDate)}離職`:''].filter(Boolean);
+ const attendanceSummary=e([...employmentNotes,...attendanceFields.filter(k=>s.attendance[k]>0).map(k=>`${attendanceNames[k]}：${s.attendance[k]} ${k==='lateHours'?'分鐘':'小時'}`)].join('；'));
  return `
 <!DOCTYPE html>
 <html>
@@ -254,7 +264,7 @@ export function slipHtml(s: Slip): string {
                 <tr>
                   <td align="left" valign="top" style="width: 50%;">
                     <p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
-                      <strong style="color: #111827;">出勤與時數：</strong><br/>
+                      <strong style="color: #111827;">任職與出勤：</strong><br/>
                       ${attendanceSummary || '無'}
                     </p>
                   </td>

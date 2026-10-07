@@ -1,5 +1,11 @@
 # 碩業工作平台交接
 
+## 目前本機工作：薪資單任職日期註記
+
+基準提交 `91ebf71`。使用者希望薪資單再次註明當月到職或離職日期，位置沿用舊版左下角備註區。本機已在「任職與出勤」區域以 `9/12到職`、`9/30離職` 格式顯示，僅在日期落於該張薪資單計薪區間時顯示；同月離職又復職時依薪資單的任職期間編號選對應紀錄。舊制 9 月預覽與寄信在當月只有一段相符任職時也可顯示日期；無法唯一判定時不猜測。員工主檔只用於顯示來源，未改寫已保存薪資、計算、金額或正式資料。
+
+修改範圍：`functions/src/payrollDomain.ts` 的共用薪資單 HTML 與任職期間解析、`PayrollView.tsx` 的預覽、`functions/src/payroll.ts` 的寄信 HTML，以及 `tests/payroll-regression.test.cjs`。根目錄和 Functions 的 `npm.cmd run build`、37 項薪資回歸測試、兩套隔離 Edge 薪資測試及 `git diff --check` 均通過；測試全用模擬資料，沒有發送正式郵件。使用者已授權推送與部署；`payrollCommand` 已單獨部署成功且讀回 ACTIVE，原寄信 Extension 仍為 ACTIVE。網站前端尚待推送與 Vercel 發布核對。Firestore Rules、其他 Functions 和原寄信 Extension 未部署。仍須由承辦人用正式帳號核對實際預覽及後續寄出的新郵件，既有已寄郵件不追溯改變。
+
 ## 最新發布：薪資版次畫面簡化
 
 基準提交 `60cbda8`，功能提交 `19933ed` 已推送 `main`，Vercel 回報 success；正式站公開入口回應 HTTP 200，薪資模組資源已讀回「變更紀錄」「草稿已儲存」，不再含「版本歷程」。本次只修改 `PayrollView.tsx`、`usePayrollPresentation.ts` 與兩份薪資介面測試。薪資資料、後端版本與更正紀錄、計算、權限、寄送及 Firestore Rules 均未修改。Functions、Rules 及原寄信 Extension 沒有重新部署。
