@@ -412,7 +412,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     const unsubscribe = [
       TaskService.subscribePayrollClients(setPayrollClients, handleSyncError),
       TaskService.subscribePayrollRecords(setPayrollRecords, handleSyncError),
-      TaskService.subscribeEmployees(setEmployees, handleSyncError)
+      TaskService.subscribeEmployees(items => setEmployees(items.filter(e => e.temporaryPayrollHidden !== true)), handleSyncError)
     ];
     return () => unsubscribe.forEach(stopListening => stopListening());
   }, []);

@@ -28,8 +28,8 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     if (!clientId) return;
     const cleanups = ['employees','monthlySalaries','payrollSlips'].map(name => onSnapshot(query(collection(db,name),where('clientId','==',clientId)), snapshot => {
       const rows = snapshot.docs.map(d=>({...d.data(),id:d.id}));
-      if(name==='employees') setEmployees(rows as Employee[]);
-      if(name==='monthlySalaries') setLegacy(rows as MonthlySalaryRecord[]);
+      if(name==='employees') setEmployees((rows as Employee[]).filter(r=>r.temporaryPayrollHidden!==true));
+      if(name==='monthlySalaries') setLegacy((rows as MonthlySalaryRecord[]).filter(r=>r.temporaryPayrollHidden!==true));
       if(name==='payrollSlips') setSlips(rows as Slip[]);
       setLoaded(prev=>({...prev,[name]:true}));
     }, e=>{setError('薪資資料讀取失敗：'+e.message);setLoaded(prev=>({...prev,[name]:false}));}));

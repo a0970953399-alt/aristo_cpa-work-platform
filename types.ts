@@ -329,6 +329,7 @@ export type EmploymentType = 'full_time' | 'part_time';
 export interface Employee {
     id: string;
     clientId: string;        // 屬於哪位客戶
+    temporaryPayrollHidden?: boolean;
     empNo: string;           // 序號(流水編號)
     employmentType: EmploymentType; // 職稱(正職或兼職)
     name: string;            // 姓名
@@ -414,6 +415,7 @@ export interface MonthlySalaryRecord {
     clientId: string;
     employeeId: string;
     month: string; // 例如: '2026-03'
+    temporaryPayrollHidden?: boolean;
     
     // 出勤變數
     workHours: number; lateHours: number; sickLeave: number; personalLeave: number;
