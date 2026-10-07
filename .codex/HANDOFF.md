@@ -1,6 +1,12 @@
 # 碩業工作平台交接
 
-更新日期：2026-10-07。本次 9 月薪資更正與寄送功能提交 5f913d4 已推送 `main`，GitHub 的 Vercel 狀態為 success；正式網址讀回的薪資模組已包含更正、寄送及暫時隱藏判斷。原版面比對基準 6f25821。`payrollCommand` 已單獨部署並讀回 ACTIVE，原寄信 Extension 仍為 ACTIVE；Rules 與其他 Functions 未部署或修改。
+更新日期：2026-10-07。目前 Git 基準為 6f53c06；本次薪資單左下角內容調整待提交與推送。`payrollCommand` 已單獨更新成功並讀回 ACTIVE，原寄信 Extension 仍為 ACTIVE；前端待 Vercel 發布。先前的 9 月薪資更正與寄送功能提交 5f913d4 已推送 `main` 並由 Vercel 發布。原版面比對基準 6f25821。
+
+## 本次發布：薪資單出勤摘要
+
+`slipHtml` 左下角由「其他備註」改為「出勤與時數」，只列非零的工作時數、遲到分鐘、病／事假、特休折現與加班時數；無數值則顯示「無」。不再在寄給員工的薪資單中顯示內部備註、更正原因、計薪期間、單號、版本及草稿／付款狀態；編輯畫面的備註欄改標為內部備註。薪資金額、計算公式與其他欄位未改。此共用版型同時用於平台預覽與 `payrollCommand` 產生的寄信內容，因此日後發布需同時更新前端及該 Function，Rules 與寄信 Extension 不需修改。既有已寄出的郵件不會追溯變更；本次沒有寄送正式郵件或改動 Firestore 資料。
+
+驗證：根目錄與 Functions 的 `npm.cmd run build`、薪資交易回歸測試 36 項、兩套隔離 Edge 薪資流程測試及 `git diff --check` 通過。`payrollCommand` 已部署且讀回 ACTIVE，原寄信 Extension 仍為 ACTIVE；Rules 和其他 Functions 未部署。前端尚待 GitHub 推送與 Vercel 核對。測試未使用正式帳號與正式寄信服務；發布後仍需正式頁面預覽核對。
 
 ## 最新處理：2026 年 9 月薪資
 

@@ -146,7 +146,8 @@ export function slipHtml(s: Slip): string {
  const baseSalary=a.baseSalary,foodAllowance=a.foodAllowance,leaveDeduction=a.leaveDeduction,lateDeduction=a.lateDeduction,laborIns=a.laborIns,healthIns=a.healthIns;
  const totalOtPay=a.taxableOt+a.taxFreeOt,otherAdditions=a.fullAttendance+a.positionAllowance+a.performanceBonus,otherDeductions=a.dailyShortage+a.pensionSelf+a.incomeTax+a.advancePay;
  const netPay=totals(a).net,companyName=e(s.company.name),companyPhone=e(s.company.phone),companyAddress=e(s.company.address);
- const remarks=e([s.note,s.reason, ...attendanceFields.filter(k=>s.attendance[k]>0).map(k=>labels[k]+'：'+s.attendance[k]), '計薪期間 '+s.periodStart+'～'+s.periodEnd, '單號 '+s.id+'／第 '+s.revision+' 版／'+(s.status==='confirmed'?'已確認（不代表已付款）':'草稿或歷史版本')].filter(Boolean).join('；'));
+ const attendanceNames: Record<string, string> = { workHours: '工作時數', lateHours: '遲到', sickLeave: '病假', personalLeave: '事假', annualLeave: '特休折現', holidayOt: '國定假日加班', normalOt: '平日加班' };
+ const attendanceSummary=e(attendanceFields.filter(k=>s.attendance[k]>0).map(k=>`${attendanceNames[k]}：${s.attendance[k]} ${k==='lateHours'?'分鐘':'小時'}`).join('；'));
  return `
 <!DOCTYPE html>
 <html>
@@ -253,8 +254,8 @@ export function slipHtml(s: Slip): string {
                 <tr>
                   <td align="left" valign="top" style="width: 50%;">
                     <p style="margin: 0; font-size: 13px; color: #4B5563; line-height: 1.6;">
-                      <strong style="color: #111827;">其他備註：</strong><br/>
-                      ${remarks || '無'}
+                      <strong style="color: #111827;">出勤與時數：</strong><br/>
+                      ${attendanceSummary || '無'}
                     </p>
                   </td>
                   <td align="right" valign="bottom" style="width: 50%;">
