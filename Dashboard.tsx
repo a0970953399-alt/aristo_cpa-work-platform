@@ -1162,7 +1162,11 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
     }
 
     if (isSupervisor && isAccountingBossReviewColumn(activeTab, column)) {
-      alert("此欄位由老闆處理。");
+      if (task) {
+        alert("此欄位已有覆核紀錄，請由老闆處理。");
+        return;
+      }
+      setIsAssignModalOpen(true);
       return;
     }
 
@@ -1220,6 +1224,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const handleSaveProfile = (profile: ClientProfile) => { TaskService.saveClientProfile(profile); };
   const handleAssignSubmit = async (isNA: boolean = false) => {
     if (!selectedCell) return;
+    if (isSupervisor && isAccountingBossReviewColumn(activeTab, selectedCell.column) && (!isNA || selectedCell.task)) return;
     setIsLoading(true);
     const assignee = users.find(u => u.id === modalAssigneeId);
     if (!isNA && !modalAssigneeId) { alert("請選擇負責人"); setIsLoading(false); return; }
@@ -1305,7 +1310,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
 
   const handleRevertStatus = async () => {
     if (!selectedCell || !selectedCell.task) return;
-    if (isSupervisor && isAccountingBossReviewColumn(activeTab, selectedCell.column)) return;
+    if (isSupervisor && isAccountingBossReviewColumn(activeTab, selectedCell.column) && !selectedCell.task.isNA) return;
     if (isBoss && isSupervisorReviewColumn(activeTab, selectedCell.column)) return;
     setIsLoading(true);
     try {
@@ -1322,6 +1327,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
   const handleCompletionDateUpdate = async () => {
     if (!isSupervisor || !selectedCell?.task || selectedCell.task.isNA || !modalDateInput || !modalAssigneeId) return;
+    if (isAccountingBossReviewColumn(activeTab, selectedCell.column)) return;
 
     const [year, month, day] = modalDateInput.split('-').map(Number);
     const completedDate = new Date(year, month - 1, day, 12, 0, 0);
@@ -2114,13 +2120,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                               <span className="font-bold text-blue-700 bg-blue-100 px-2 py-0.5 rounded text-sm">{users.find(u => u.id === selectedCell.task?.assigneeId)?.name || selectedCell.task.assigneeName}</span>
                           </div>
                       )}
-                      <div>
+                      {!(isSupervisor && isAccountingBossReviewColumn(activeTab, selectedCell.column)) && <div>
                           <label className="block text-sm font-bold text-gray-700 mb-1">{selectedCell.task?.assigneeId ? '變更負責人' : '指派給'}</label>
                           <select value={modalAssigneeId} onChange={e => setModalAssigneeId(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base">
                               <option value="">請選擇...</option>
                               {activeAssignableUsers.map(u => <option key={u.id} value={u.id}>{u.name}</option>)}
                           </select>
-                      </div>
+                      </div>}
                       <div><label className="block text-sm font-bold text-gray-700 mb-1">備註 (選填)</label><input type="text" value={modalNote} onChange={e => setModalNote(e.target.value)} className="w-full p-2.5 border border-gray-300 rounded-xl focus:ring-2 focus:ring-blue-500 outline-none text-base" placeholder="例如：需特別注意..." /></div>
                       {selectedCell.task?.history && selectedCell.task.history.length > 0 && (
                           <div className="mt-4 pt-4 border-t border-gray-100">
@@ -2141,14 +2147,17 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                   </div>
 
                   <div className="p-6 border-t bg-white space-y-3">
-                      {selectedCell.task?.assigneeId && (
+                      {selectedCell.task?.assigneeId && !(isSupervisor && isAccountingBossReviewColumn(activeTab, selectedCell.column)) && (
                           <button onClick={handleRevokeAssignment} className="w-full bg-white border border-red-300 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-sm">撤銷派案</button>
                       )}
-                      <div className="grid grid-cols-3 gap-2">
+                      {isSupervisor && isAccountingBossReviewColumn(activeTab, selectedCell.column) ? <div className="flex gap-2">
+                          <button onClick={() => setIsAssignModalOpen(false)} disabled={isLoading} className="flex-1 bg-white border border-gray-200 text-gray-600 py-2.5 rounded-xl font-bold disabled:opacity-50">取消</button>
+                          <button onClick={() => handleAssignSubmit(true)} disabled={isLoading} className="flex-1 bg-gray-100 hover:bg-gray-200 text-gray-700 py-2.5 rounded-xl font-bold disabled:opacity-50">標記 N/A</button>
+                      </div> : <div className="grid grid-cols-3 gap-2">
                           <button onClick={() => handleAssignSubmit(true)} disabled={isLoading} className="bg-gray-100 hover:bg-gray-200 text-gray-600 py-2.5 px-2 rounded-xl font-bold transition-colors text-sm disabled:opacity-50">標記 N/A</button>
                           <button onClick={handleSupervisorDirectComplete} disabled={isLoading || !modalAssigneeId} className="bg-green-600 hover:bg-green-700 text-white py-2.5 px-2 rounded-xl font-bold transition-colors shadow-lg shadow-green-100 text-sm disabled:opacity-50 disabled:cursor-not-allowed">直接完成</button>
                           <button onClick={() => handleAssignSubmit(false)} disabled={isLoading || !modalAssigneeId} className="bg-blue-600 hover:bg-blue-700 text-white py-2.5 px-2 rounded-xl font-bold transition-colors shadow-lg shadow-blue-200 text-sm disabled:opacity-50 disabled:cursor-not-allowed">{selectedCell.task?.assigneeId ? '確認變更' : '確認派案'}</button>
-                      </div>
+                      </div>}
                   </div>
               </div>
           </div>
@@ -2211,7 +2220,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                           {!selectedCell.task?.isNA && !isSupervisor && selectedCell.task?.assigneeName && <div className="flex justify-between text-base"><span className="text-gray-500">負責人</span><span className="font-bold text-gray-800">{users.find(user => String(user.id) === String(selectedCell.task?.assigneeId))?.name || selectedCell.task.assigneeName}</span></div>}
                           {selectedCell.task?.note && <div className="pt-2 border-t border-gray-200 mt-2"><span className="text-xs text-gray-400 block mb-1">備註</span><p className="text-base text-gray-700">{selectedCell.task.note}</p></div>}
                       </div>
-                      {((isSupervisor && !isAccountingBossReviewColumn(activeTab, selectedCell.column)) || (isBoss && isBossAssignableColumn(activeTab, selectedCell.column))) && <button onClick={handleRevertStatus} className="w-full bg-white border border-red-200 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-base">{selectedCell.task?.isNA ? '取消 N/A (重置)' : '撤銷完成狀態'}</button>}
+                      {((isSupervisor && (!isAccountingBossReviewColumn(activeTab, selectedCell.column) || selectedCell.task?.isNA)) || (isBoss && isBossAssignableColumn(activeTab, selectedCell.column))) && <button onClick={handleRevertStatus} className="w-full bg-white border border-red-200 text-red-500 hover:bg-red-50 py-2.5 rounded-xl font-bold transition-colors text-base">{selectedCell.task?.isNA ? '取消 N/A (重置)' : '撤銷完成狀態'}</button>}
                       {selectedCell.task?.history && selectedCell.task.history.length > 0 && (
                           <div className="pt-4 border-t border-gray-100">
                               <h4 className="text-xs font-bold text-gray-400 uppercase tracking-widest mb-3 flex items-center gap-1"><ClockIcon className="w-3 h-3" /> 任務履歷紀錄</h4>

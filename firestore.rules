@@ -135,10 +135,22 @@ service cloud.firestore {
       return isActiveUser() && profile().role == 'supervisor';
     }
 
+    function isSupervisorReviewNA(task) {
+      return isSupervisor()
+        && task.category == '帳務處理'
+        && task.workItem.matches('.*-覆核$')
+        && task.get('isNA', false) == true
+        && task.status == 'done'
+        && task.get('assigneeId', '') == ''
+        && task.get('assigneeName', '') == ''
+        && task.get('completionDate', '') == ''
+        && !task.keys().hasAny(['completedAt', 'completedById', 'completedByName', 'completedByRole']);
+    }
+
     function canWriteTask(task) {
       return hasPermission('clientTasks')
         && (!(task.category == '帳務處理' && task.workItem.matches('.*-檢核$')) || isSupervisor())
-        && (!(task.category == '帳務處理' && task.workItem.matches('.*-覆核$')) || isBoss());
+        && (!(task.category == '帳務處理' && task.workItem.matches('.*-覆核$')) || isBoss() || isSupervisorReviewNA(task));
     }
 
     match /users/{userId} {

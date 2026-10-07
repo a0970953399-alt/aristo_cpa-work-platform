@@ -120,3 +120,25 @@ test('payroll tab follows explicit grant; other roles and tabs retain behavior',
 });
 
 test('legacy list save leaves every existing profile field untouched',async()=>{const s=serviceSetup();await s.service.saveUsers([{id:'employee',role:'intern',isActive:false,permissions:{payroll:true}}]);assert.equal(s.writes.length,0);});
+
+const reviewScript=extract('Dashboard.tsx',['handleCellClick','handleAssignSubmit','handleRevertStatus','isBossAssignableColumn','isSupervisorReviewColumn','isAccountingBossReviewColumn']);
+function reviewSetup(role){
+ const calls=[],alerts=[];
+ const context={dbConnected:true,activeTab:'帳務處理',currentYear:'115',currentUser:{id:role,name:role},activeUser:{id:role,name:role},users:[],modalAssigneeId:'',modalNote:'不適用',isSupervisor:role==='supervisor',isBoss:role==='boss',isPrivileged:role!=='intern',TabCategory:{ACCOUNTING:'帳務處理',TAX:'營業稅申報',INCOME_TAX:'所得扣繳',ANNUAL:'年度申報'},TaskService:{getMatrixTaskId:()=> 'review-task',saveMatrixTask:async(task,createOnly)=>calls.push({task,createOnly}),deleteTask:async id=>calls.push({deleted:id})},alert:message=>alerts.push(message),getCompletionDateInputValue:()=>'',setSelectedCell:x=>{context.selectedCell=x;},setModalNote:x=>{context.modalNote=x;},setModalAssigneeId:x=>{context.modalAssigneeId=x;},setModalDate:()=>{},setModalDateInput:()=>{},setIsDateModalOpen:x=>{context.dateOpen=x;},setIsAssignModalOpen:x=>{context.assignOpen=x;},setIsSelfCompleteModalOpen:x=>{context.selfOpen=x;},setIsLoading:()=>{},handleBossDirectComplete:()=>{context.bossCompleted=true;}};
+ vm.runInNewContext(reviewScript,context);
+ return {context,calls,alerts,...context.subject};
+}
+test('supervisor marks empty accounting review N/A without completing it',async()=>{
+ const s=reviewSetup('supervisor');s.handleCellClick({id:'client',name:'Test'},'10月-覆核');assert.equal(s.context.assignOpen,true);
+ await s.handleAssignSubmit(false);assert.equal(s.calls.length,0);
+ await s.handleAssignSubmit(true);assert.equal(s.calls.length,1);assert.equal(s.calls[0].task.isNA,true);assert.equal(s.calls[0].task.status,'done');assert.equal(s.calls[0].task.assigneeId,'');assert.equal(s.calls[0].createOnly,true);
+});
+test('supervisor can reset N/A but cannot change boss completed review',async()=>{
+ const s=reviewSetup('supervisor');const client={id:'client',name:'Test'};
+ s.handleCellClick(client,'10月-覆核',{id:'review-task',status:'done',isNA:true});assert.equal(s.context.dateOpen,true);await s.handleRevertStatus();assert.equal(s.calls[0].deleted,'review-task');
+ s.handleCellClick(client,'10月-覆核',{id:'boss-task',status:'done',isNA:false});await s.handleRevertStatus();assert.equal(s.calls.length,1);
+});
+test('boss accounting review remains direct completion and supervisor accounting check retains assignment',()=>{
+ const boss=reviewSetup('boss');boss.handleCellClick({id:'client',name:'Test'},'10月-覆核');assert.equal(boss.context.bossCompleted,true);assert.equal(boss.context.assignOpen,undefined);
+ const supervisor=reviewSetup('supervisor');supervisor.handleCellClick({id:'client',name:'Test'},'10月-檢核');assert.equal(supervisor.context.assignOpen,true);
+});
