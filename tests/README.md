@@ -52,3 +52,11 @@ The browser suite uses esbuild and Playwright with synthetic employee and salary
 ## Original payroll layout regression
 
 Run `node tests/payroll-layout.test.cjs` with the same Playwright environment variables. This tests the actual restored PayrollView against the pre-rehire `6f25821` component using identical synthetic data. It compares monthly/yearly header widths, positions, original tabs and expanded groups, additional desktop viewport sizes, and exercises independent periods, saved-value previews, the original formatted Excel workbook, draft edits before confirmation, readonly legacy/confirmed records, and loading failures. Screenshots and geometry JSON stay in the OS temporary directory. Firebase is mocked; no real salary or email is created. The older payroll-ui suite remains a calculation-editor fixture and employee rehire regression; PayrollLedger no longer replaces the production payroll screens.
+
+## Payroll display and unsaved-edit fixes (2026-10-12)
+
+Run `node --test tests/payroll-display.test.cjs` for Taiwan employment-date boundaries, insurance combinations and read-only snapshot behavior. It also compares the JSX element structure, CSS classes, inline styles, dimensions and table spans with the approved `19426ce` baseline, and verifies that the deferred import and legacy-concurrency write code is unchanged.
+
+Run `node tests/payroll-fixes-ui.test.cjs` with the same Playwright environment as the existing payroll suites. This exercises the actual PayrollView using synthetic Firebase substitutes: effective monthly settlement versus subtotal, repeated legacy selection, half-hour leave and fractional part-time pay saving, preview/table/Excel net consistency, annual insurance, future departure dates, untouched drafts and unsaved-change cancellation/confirmation for month, slip and modal navigation. It writes only synthetic screenshots and exports to the OS temporary directory. It sends no real mail and does not access production Firebase.
+
+The existing `payroll-layout.test.cjs` remains the geometry and original-workflow regression suite. A passing build or isolated browser test does not verify authenticated production behavior.
