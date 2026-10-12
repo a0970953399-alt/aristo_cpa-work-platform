@@ -1,6 +1,6 @@
 # 碩業工作平台交接
 
-更新日期：2026-10-12。基準提交 `19426ce`（Record review N/A deployment），工作分支 `main`。本次六項薪資前端修正已完成並再次驗證，使用者已授權推送及正式部署；本提交將觸發既有 Vercel 與 GitHub Pages 自動發布，正式結果尚待發布後核對。
+更新日期：2026-10-12。修正前基準 `19426ce`，功能提交 `806ae55`（Fix payroll settlement display and editing safeguards）已推送 `main`，Vercel 正式部署 success，公開入口及薪資模組已讀回新版修正。工作分支 `main`。
 
 ## 本次範圍與已確認決策
 
@@ -27,7 +27,7 @@
 
 ## 部署狀態與待辦
 
-本次只發布前端；使用者已要求推送與部署，將本次相關程式、測試與交接提交 main，由既有 Vercel／GitHub Pages 整合自動部署。發布前已 fetch 確認 HEAD 與 origin/main 同為 19426ce，68/68 測試、薪資修正隔離 Edge 測試、根目錄 build 與 diff 檢查再次通過。Functions、Rules 及原寄信 Extension 沒有差異，不需要部署；預覽腳本與模擬資料位於儲存庫外，不納入發布。部署成功與公開資源核對結果待後續交接提交記錄。
+本次只發布前端；使用者已要求推送與部署，將本次相關程式、測試與交接提交 main，由既有 Vercel／GitHub Pages 整合自動部署。發布前已 fetch 確認 HEAD 與 origin/main 同為 19426ce，68/68 測試、薪資修正隔離 Edge 測試、根目錄 build 與 diff 檢查再次通過。Functions、Rules 及原寄信 Extension 沒有差異，不需要部署；預覽腳本與模擬資料位於儲存庫外，不納入發布。功能提交 806ae55 的 Vercel 部署已 success（Production deployment 7005089661）。正式網址 https://aristo-cpa-work-platform.vercel.app/ 回應 HTTP 200，入口 index-CBfXZ7lM.js 實際引用 PayrollView-kydPDTu7.js，該薪資資源回應 200 並含新版未儲存確認文字、step:any 與投保顯示。雲端資源名稱可能與本機不同，未宣稱逐位元一致。既有 GitHub Pages 工作 38195286970 此次核對仍在建置，與 Vercel 正式部署分開；本交接文件推送也會觸發原有自動發布。公開資源核對不等於正式帳號操作驗收。
 
 正式站主管所見的客戶／月份尚未逐筆唯讀核對，修正發布後仍需正式帳號核對；合成測試與版面比對不代表正式帳號／實際收件驗證。不要把草稿、重複舊單或寄送排程當成已確認應付／已付款／已收到郵件。
 
