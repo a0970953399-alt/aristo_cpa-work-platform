@@ -163,7 +163,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                         const mail = await tx.get(db.doc('mail/' + key(mailId)));
                         return { state: mail.data()?.delivery?.state || 'PENDING' };
                     }
-                    assert(!legacyNeedsEnrollment(record, [{ ...employee, id: record.employeeId }], slips), '請先完成首次納入薪資');
+                    assert(!legacyNeedsEnrollment(record, [{ ...employee, id: record.employeeId }], slips, legacy), '請先完成首次納入薪資');
                     assert(revision === data.expectedRevision, '薪資版本已變更，請重新開啟');
                     assert(!record.isEmailSent, '這份舊薪資已有寄信標記，請先核對');
                     assert(legacy.filter((x: any) => x.employeeId === record.employeeId && x.month === record.month && x.temporaryPayrollHidden !== true).length === 1, '同員工同月仍有多筆可見薪資，請先核對');
@@ -217,11 +217,12 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 const c = company.data()!;
                 const s: Slip = { id, schemaVersion: 2, revision: (current?.revision || 0) + 1, clientId, employeeId, employmentId, month: text(raw.month, 7), periodStart: start, periodEnd: end, kind: raw.kind, relatedId: raw.relatedId ? key(raw.relatedId) : '', replacesId: raw.replacesId ? key(raw.replacesId) : '', status: 'draft', basis, amounts, attendance, employee: { name: text((emp as any).name, 500), email: text((emp as any).email || '', 500), empNo: text((emp as any).empNo || '', 500), idNumber: text((emp as any).idNumber || '', 50), bankAccount: text((emp as any).bankAccount || '', 100) }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: text(raw.note || ''), reason: text(raw.reason || '', 500), reviewedMonth: raw.reviewedMonth === true, createdAt: current?.createdAt || now, updatedAt: now, actor: uid };
                 validateSlip(s, emp, slips, legacy);
-                if (isPayrollEnrolled(emp, employmentId, slips)) s.status = 'confirmed';
+                if (isPayrollEnrolled(emp, employmentId, slips, legacy.filter(r => r.temporaryPayrollHidden !== true), s.month)) s.status = 'confirmed';
                 if (s.status === 'confirmed' && s.replacesId && slips.find(x => x.id === s.replacesId)?.status === 'confirmed') {
                     const previous = slips.find(x => x.id === s.replacesId)!;
                     writeSlip({ ...previous, status: 'superseded', revision: previous.revision + 1, updatedAt: now, actor: uid, reason: '由 ' + s.id + ' 更正取代' });
                 }
+                if (s.status === 'draft' && !(empDoc.data()?.payrollEnrollmentRequired || []).includes(employmentId)) tx.set(db.doc('employees/' + employeeId), { payrollEnrollmentRequired: [...(empDoc.data()?.payrollEnrollmentRequired || []), employmentId] }, { merge: true });
                 writeSlip(s);
                 result = { slip: s };
             }

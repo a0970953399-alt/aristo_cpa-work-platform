@@ -51,11 +51,11 @@ test('restored payslip style uses saved identity and amounts without internal fo
 test('confirmation compares historical basis values independently of Firestore map field order',async()=>{const reordered=Object.fromEntries(Object.entries(basis).reverse());const system=setup({'payrollSlips/s1':slip({revision:1,basis:reordered})});const r=await system.call({action:'confirm',id:'s1',expectedRevision:1});assert.equal(r.slip.status,'confirmed');assert.equal(d.sameBasis(basis,reordered),true);assert.equal(d.sameBasis(basis,{...reordered,baseSalary:1}),false);});
 
 const septemberOld=(extra={})=>({id:'old',clientId:'c1',employeeId:'e1',month:'2026-09',updatedAt:'2026-10-05',...d.emptyValues(d.amountFields),...d.emptyValues(d.attendanceFields),baseSalary:30000,foodAllowance:3000,laborIns:844,healthIns:516,holidayOt:8,taxFreeOt:1100,...extra});
-test('September legacy correction retains the original and locks after mailing',async()=>{const old=septemberOld();const s=setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'monthlySalaries/old':old,'monthlySalaries/aug':septemberOld({id:'aug',month:'2026-08'})});const amounts={...Object.fromEntries(d.amountFields.map(k=>[k,old[k]])),performanceBonus:500};const attendance=Object.fromEntries(d.attendanceFields.map(k=>[k,old[k]]));const changed=await s.call({action:'saveLegacySeptember',id:'old',expectedRevision:0,expected:old,amounts,attendance,reason:'核對獎金'});assert.equal(changed.record.legacySeptemberRevision,1);assert.equal(s.docs.get('monthlySalaries/old/versions/1').before.performanceBonus,0);assert.equal(s.docs.get('monthlySalaries/aug').legacySeptemberRevision,undefined);const sent=await s.call({action:'sendLegacySeptember',id:'old',expectedRevision:1});assert.equal(s.docs.get('mail/'+sent.mailId).salaryVersion,1);assert.equal((await s.call({action:'sendLegacySeptember',id:'old',expectedRevision:1})).alreadyQueued,true);assert.equal([...s.docs.keys()].filter(k=>k.startsWith('mail/')).length,1);assert.equal((await s.call({action:'legacySeptemberMailStatus',id:'old'})).state,'PENDING');await assert.rejects(()=>s.call({action:'saveLegacySeptember',id:'old',expectedRevision:1,expected:changed.record,amounts,attendance,reason:'再次修改'}),/已寄送或排程/);});
-test('September legacy correction rejects stale, hidden, duplicate and unauthorized writes',async()=>{const old=septemberOld();const amounts=Object.fromEntries(d.amountFields.map(k=>[k,old[k]]));amounts.performanceBonus=500;const attendance=Object.fromEntries(d.attendanceFields.map(k=>[k,old[k]]));const body={action:'saveLegacySeptember',id:'old',expectedRevision:0,expected:old,amounts,attendance,reason:'核對'};await assert.rejects(()=>setup({'users/u1':{role:'intern',isActive:true,googleUid:'auth',permissions:{payroll:false}},'monthlySalaries/old':old}).call(body),/權限/);await assert.rejects(()=>setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'monthlySalaries/old':{...old,temporaryPayrollHidden:true}}).call(body),/找不到可處理/);await assert.rejects(()=>setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'monthlySalaries/old':old}).call({...body,expected:{...old,baseSalary:1}}),/資料已變更/);const dup=setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'monthlySalaries/old':old,'monthlySalaries/other':septemberOld({id:'other'})});await assert.rejects(()=>dup.call({action:'sendLegacySeptember',id:'old',expectedRevision:0}),/多筆可見/);await assert.rejects(()=>setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'monthlySalaries/old':septemberOld({month:'2026-08'})}).call(body),/歷史薪資/);});
+test('September legacy correction retains the original and locks after mailing',async()=>{const old=septemberOld();const s=setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'employees/e1':{...emp,payrollAdmissions:['p2']},'monthlySalaries/old':old,'monthlySalaries/aug':septemberOld({id:'aug',month:'2026-08'})});const amounts={...Object.fromEntries(d.amountFields.map(k=>[k,old[k]])),performanceBonus:500};const attendance=Object.fromEntries(d.attendanceFields.map(k=>[k,old[k]]));const changed=await s.call({action:'saveLegacySeptember',id:'old',expectedRevision:0,expected:old,amounts,attendance,reason:'核對獎金'});assert.equal(changed.record.legacySeptemberRevision,1);assert.equal(s.docs.get('monthlySalaries/old/versions/1').before.performanceBonus,0);assert.equal(s.docs.get('monthlySalaries/aug').legacySeptemberRevision,undefined);const sent=await s.call({action:'sendLegacySeptember',id:'old',expectedRevision:1});assert.equal(s.docs.get('mail/'+sent.mailId).salaryVersion,1);assert.equal((await s.call({action:'sendLegacySeptember',id:'old',expectedRevision:1})).alreadyQueued,true);assert.equal([...s.docs.keys()].filter(k=>k.startsWith('mail/')).length,1);assert.equal((await s.call({action:'legacySeptemberMailStatus',id:'old'})).state,'PENDING');await assert.rejects(()=>s.call({action:'saveLegacySeptember',id:'old',expectedRevision:1,expected:changed.record,amounts,attendance,reason:'再次修改'}),/已寄送或排程/);});
+test('September legacy correction rejects stale, hidden, duplicate and unauthorized writes',async()=>{const old=septemberOld();const amounts=Object.fromEntries(d.amountFields.map(k=>[k,old[k]]));amounts.performanceBonus=500;const attendance=Object.fromEntries(d.attendanceFields.map(k=>[k,old[k]]));const body={action:'saveLegacySeptember',id:'old',expectedRevision:0,expected:old,amounts,attendance,reason:'核對'};await assert.rejects(()=>setup({'users/u1':{role:'intern',isActive:true,googleUid:'auth',permissions:{payroll:false}},'monthlySalaries/old':old}).call(body),/權限/);await assert.rejects(()=>setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'monthlySalaries/old':{...old,temporaryPayrollHidden:true}}).call(body),/找不到可處理/);await assert.rejects(()=>setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'employees/e1':{...emp,payrollAdmissions:['p2']},'monthlySalaries/old':old}).call({...body,expected:{...old,baseSalary:1}}),/資料已變更/);const dup=setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'employees/e1':{...emp,payrollAdmissions:['p2']},'monthlySalaries/old':old,'monthlySalaries/other':septemberOld({id:'other'})});await assert.rejects(()=>dup.call({action:'sendLegacySeptember',id:'old',expectedRevision:0}),/多筆可見/);await assert.rejects(()=>setup({'users/u1':{role:'supervisor',isActive:true,googleUid:'auth'},'monthlySalaries/old':septemberOld({month:'2026-08'})}).call(body),/歷史薪資/);});
 
 test('existing staff save directly into effective payroll without monthly confirmation',async()=>{
- const sys=setup({'employees/e1':{...emp,payrollEnrollmentRequired:[]}});
+ const sys=setup({'employees/e1':{...emp,payrollEnrollmentRequired:[],payrollAdmissions:['p1']}});
  const r=await sys.call({action:'saveSlip',slip:slip({reviewedMonth:false}),expectedRevision:0});
  assert.equal(r.slip.status,'confirmed');assert.equal(r.slip.amounts.foodAllowance,1500);
  assert.equal(sys.docs.get('payrollSlips/s1/versions/1').status,'confirmed');
@@ -74,7 +74,7 @@ test('new backdated employees cannot bypass enrollment or forge admission fields
 });
 test('October new hires without old enrollment flags still require first confirmation',()=>{
  const e={...emp,payrollEnrollmentRequired:[],employmentHistory:[{id:'oct',startDate:'2026-10-01',endDate:null,type:'full_time'}]};
- assert.equal(d.isPayrollEnrolled(e,'oct',[]),false);assert.equal(d.isPayrollEnrolled({...e,payrollAdmissions:['oct']},'oct',[]),true);
+ assert.equal(d.isPayrollEnrolled(e,'oct',[],[],'2026-10'),false);assert.equal(d.isPayrollEnrolled({...e,payrollAdmissions:['oct']},'oct',[],[],'2026-10'),true);
 });
 test('authorized non-manager can edit October legacy salary with original values and history retained',async()=>{
  const old=septemberOld({month:'2026-10'});const sys=setup({'employees/e1':{...emp,payrollEnrollmentRequired:[]},'monthlySalaries/old':old});
@@ -110,4 +110,46 @@ test('unsent correction can be edited again without rewriting the superseded sou
  const first=await sys.call({action:'saveSlip',slip:slip({id:'s2',replacesId:'s1',reason:'補正'}),expectedRevision:0});
  const second=await sys.call({action:'saveSlip',slip:{...first.slip,note:'再次調整'},expectedRevision:1});
  assert.equal(second.slip.status,'confirmed');assert.equal(sys.docs.get('payrollSlips/s1').revision,3);
+});
+
+test('established employee old draft is effective immediately without saving or confirming again',()=>{
+ const e={...emp,payrollEnrollmentRequired:[],employmentHistory:[{id:'p1',type:'full_time',startDate:'2025-01-01',endDate:null}],compensationHistory:[emp.compensationHistory[0]]};
+ const draft=slip({month:'2026-10',periodStart:'2026-10-01',periodEnd:'2026-10-31',status:'draft',revision:1});const before=JSON.stringify(draft);
+ assert.equal(d.isEffectivePayroll(draft,e,[draft],[]),true);assert.equal(JSON.stringify(draft),before);
+ assert.equal(d.isEffectivePayroll({...draft,amounts:{...draft.amounts,baseSalary:NaN}},e,[],[]),false);
+});
+test('next month fixed payroll is available without opening editor or writing any documents',()=>{
+ const e={...emp,payrollEnrollmentRequired:[],employmentHistory:[{id:'p1',type:'full_time',startDate:'2025-01-01',endDate:null}],compensationHistory:[emp.compensationHistory[0]]};
+ const before=JSON.stringify(e);const p=e.employmentHistory[0];
+ const oct=d.recurringPayroll(e,p,'2026-10',{name:'公司'},[],[]);const nov=d.recurringPayroll(e,p,'2026-11',{name:'公司'},[],[]);
+ assert.equal(oct.amounts.baseSalary,36000);assert.equal(nov.amounts.baseSalary,36000);assert.equal(nov.amounts.foodAllowance,3000);assert.equal(nov.revision,0);assert.equal(d.isEffectivePayroll(nov,e,[],[]),true);assert.equal(JSON.stringify(e),before);
+ assert.equal(nov.amounts.performanceBonus,0);assert.equal(nov.attendance.sickLeave,0);
+});
+test('no repeated enrollment for existing old-format pay and no arbitrary October cutoff',()=>{
+ const e={...emp,payrollEnrollmentRequired:[],employmentHistory:[{id:'p1',type:'full_time',startDate:'2027-03-01',endDate:null}]};
+ const old={...septemberOld(),month:'2027-03'};
+ assert.equal(d.isPayrollEnrolled(e,'p1',[],[old],'2027-04'),true);
+ assert.equal(d.legacyNeedsEnrollment({...old,month:'2027-04'},[e],[],[old]),false);
+});
+test('automatic payroll never duplicates existing, void, ambiguous or partial/hourly salaries',()=>{
+ const e={...emp,payrollAdmissions:['p1'],employmentHistory:[{id:'p1',type:'full_time',startDate:'2025-01-01',endDate:null}],compensationHistory:[emp.compensationHistory[0]]};const p=e.employmentHistory[0];
+ const existing=slip({month:'2026-10',status:'draft'});
+ for(const list of [[existing],[{...existing,status:'void'}]])assert.equal(d.recurringPayroll(e,p,'2026-10',{},list,[]),null);
+ assert.equal(d.recurringPayroll(e,p,'2026-10',[],[],[septemberOld({month:'2026-10'})]),null);
+ assert.equal(d.recurringPayroll(e,{...p,startDate:'2026-10-15'},'2026-10',{},[],[]),null);
+ assert.equal(d.recurringPayroll(e,{...p,type:'part_time'},'2026-10',{},[],[]),null);
+ assert.equal(d.recurringPayroll({...e,compensationHistory:[]},p,'2026-10',{},[],[]),null);
+});
+test('first-enrollment requirement survives later months and automatic monthly display',async()=>{
+ const e={...emp,payrollEnrollmentRequired:['p1'],employmentHistory:[{id:'p1',type:'full_time',startDate:'2026-10-01',endDate:null}],compensationHistory:[emp.compensationHistory[0]]};
+ assert.equal(d.isPayrollEnrolled(e,'p1',[],[],'2026-11'),false);
+ assert.equal(d.recurringPayroll(e,e.employmentHistory[0],'2026-11',{},[],[]),null);
+ assert.equal(d.isPayrollEnrolled({...e,payrollAdmissions:['p1']},'p1',[],[],'2026-11'),true);
+});
+
+test('automatic payroll rejects overlapping employment and a month needing multi-slip deductions review',()=>{
+ const p={id:'p1',type:'full_time',startDate:'2025-01-01',endDate:null};const e={...emp,payrollAdmissions:['p1'],employmentHistory:[p],compensationHistory:[emp.compensationHistory[0]]};
+ assert.equal(d.recurringPayroll({...e,employmentHistory:[p,{...p,id:'overlap'}]},p,'2026-10',{},[],[]),null);
+ const extra=slip({id:'extra',month:'2026-10',kind:'supplement',status:'confirmed'});
+ assert.equal(d.recurringPayroll(e,p,'2026-10',{},[extra],[]),null);
 });

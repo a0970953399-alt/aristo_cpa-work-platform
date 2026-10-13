@@ -93,24 +93,47 @@ export function calculate(b: Basis, t: Values, a: Values): Values {
 export function totals(a: Values) { const add = a.baseSalary + a.fullAttendance + a.positionAllowance + a.performanceBonus + a.taxableOt; const deduct = a.leaveDeduction + a.dailyShortage + a.lateDeduction + a.pensionSelf; const exempt = a.foodAllowance + a.taxFreeOt; const withholding = a.laborIns + a.healthIns + a.incomeTax + a.advancePay; return { add, deduct, exempt, withholding, net: Math.round((add - deduct + exempt - withholding) * 100) / 100 }; }
 export function sameBasis(a: Basis, b: Basis): boolean { return (['employmentType','baseSalary','foodAllowance','insuranceBracket','hasLaborIns','hasHealthIns','effectiveDate','compensationId'] as (keyof Basis)[]).every(k=>a[k]===b[k]); }
 export function annualMetrics(a: Values) { return { '薪資總額': a.baseSalary + a.fullAttendance + a.positionAllowance + a.taxableOt - a.leaveDeduction - a.dailyShortage - a.lateDeduction, '伙食費': a.foodAllowance, '免稅加班費': a.taxFreeOt, '獎金': a.performanceBonus, '實發': totals(a).net }; }
-// Existing employment before October 2026 is grandfathered into recurring payroll.
-// Newly created employment periods require enrollment, including backdated hires.
-export const enrollmentStartMonth = '2026-10';
-export function isPayrollEnrolled(emp: any, periodId: string, slips: Slip[]): boolean {
+// Enrollment belongs to an employment period, not an individual monthly slip.
+export function isPayrollEnrolled(emp: any, periodId: string, slips: Slip[], legacy: any[] = [], month = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit' }).format(new Date())): boolean {
     if (!emp) return false;
     const p = periods(emp).find(p => p.id === periodId);
     if (!p) return false;
     if ((emp.payrollAdmissions || []).includes(periodId)) return true;
     if (slips.some(s => s.employeeId === emp.id && s.employmentId === periodId && s.kind === 'regular' && ['confirmed', 'superseded'].includes(s.status))) return true;
     if ((emp.payrollEnrollmentRequired || []).includes(periodId)) return false;
-    return p.startDate.slice(0, 7) < enrollmentStartMonth;
+    // Recognize an unambiguous payroll from this same employment, including old format.
+    if (legacy.some(r => r.employeeId === emp.id && r.clientId === emp.clientId && r.temporaryPayrollHidden !== true
+        && r.month < month && legacyIssues(r, legacy.filter(x => x.temporaryPayrollHidden !== true), [emp]).length === 0
+        && periods(emp).filter(x => x.startDate <= monthEnd(r.month) && (!x.endDate || x.endDate >= r.month + '-01')).length === 1
+        && p.startDate <= monthEnd(r.month) && (!p.endDate || p.endDate >= r.month + '-01'))) return true;
+    // Compatibility for established employees without enrollment metadata.
+    // New/backdated hires created through the backend carry an explicit required flag.
+    return p.startDate < month + '-01';
 }
-export function legacyNeedsEnrollment(r: any, employees: any[], slips: Slip[]): boolean {
-    if (r.month < enrollmentStartMonth) return false;
+export function legacyNeedsEnrollment(r: any, employees: any[], slips: Slip[], legacy: any[] = []): boolean {
     const emp = employees.find(e => e.id === r.employeeId);
     if (!emp) return true;
     const ps = periods(emp).filter(p => p.startDate <= monthEnd(r.month) && (!p.endDate || p.endDate >= r.month + '-01'));
-    return ps.length !== 1 || !isPayrollEnrolled(emp, ps[0].id, slips);
+    return ps.length !== 1 || !isPayrollEnrolled(emp, ps[0].id, slips, legacy, r.month);
+}
+export function isEffectivePayroll(s: Slip, emp: any, slips: Slip[], legacy: any[]): boolean {
+    if (s.status === 'confirmed') return true;
+    if (s.status !== 'draft' || s.kind !== 'regular' || s.replacesId || !isPayrollEnrolled(emp, s.employmentId, slips, legacy, s.month)) return false;
+    try { validateSlip(s, emp, slips, legacy); return sameBasis(basisAt(emp, periods(emp).find(p=>p.id===s.employmentId)!, s.periodStart, s.periodEnd), s.basis); } catch { return false; }
+}
+export function recurringPayroll(emp: any, p: Period, month: string, company: any, slips: Slip[], legacy: any[]): Slip | null {
+    if (p.type !== 'full_time' || p.startDate > month + '-01' || p.endDate && p.endDate < monthEnd(month)) return null;
+    if (!isPayrollEnrolled(emp, p.id, slips, legacy, month)) return null;
+    if (legacy.some(r=>r.employeeId===emp.id&&r.month===month)) return null;
+    if (slips.some(s=>s.employeeId===emp.id&&s.month===month&&s.kind==='regular'&&s.status!=='superseded')) return null;
+    try {
+        validatePeriods(periods(emp));
+        const basis=basisAt(emp,p,month+'-01',monthEnd(month));
+        const amounts=emptyValues(amountFields);amounts.baseSalary=basis.baseSalary;amounts.foodAllowance=basis.foodAllowance;
+        const candidate: Slip = {id:'auto:'+emp.id+':'+p.id+':'+month,schemaVersion:2,revision:0,clientId:emp.clientId,employeeId:emp.id,employmentId:p.id,month,periodStart:month+'-01',periodEnd:monthEnd(month),kind:'regular',relatedId:'',replacesId:'',status:'draft',basis,amounts,attendance:emptyValues(attendanceFields),employee:{name:emp.name,email:emp.email||'',empNo:emp.empNo||'',idNumber:emp.idNumber||'',bankAccount:emp.bankAccount||''},company:{name:company.fullName||company.name||'',phone:company.phone||'',address:company.contactAddress||company.regAddress||''},note:'',reason:'',reviewedMonth:false,createdAt:'',updatedAt:'',actor:''};
+        validateSlip(candidate,emp,slips,legacy);
+        return candidate;
+    } catch { return null; }
 }
 export function legacyCanEdit(r: any, all: any[], employees: any[], slips: Slip[]): boolean {
     return r.month >= '2026-09' && r.temporaryPayrollHidden !== true && !r.isEmailSent && !r.legacySeptemberMailId
