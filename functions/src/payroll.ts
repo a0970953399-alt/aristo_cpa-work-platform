@@ -1,7 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
-import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml } from './payrollDomain.js';
+import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml, isPayrollEnrolled, legacyCanEdit, monthEnd, legacyNeedsEnrollment } from './payrollDomain.js';
 const key = (value: unknown) => { assert(typeof value === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(value), '識別碼不正確'); return value as string; };
 const text = (value: unknown, max = 2000) => { assert(typeof value === 'string' && value.length <= max, '文字欄位不正確'); return value as string; };
 const canonical = (v: any): string => JSON.stringify(v && typeof v === 'object' ? Array.isArray(v) ? v.map(x => JSON.parse(canonical(x))) : Object.fromEntries(Object.keys(v).sort().map(k => [k, JSON.parse(canonical(v[k]))])) : v);
@@ -57,6 +57,9 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 assert(!emp.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emp.email), '電子郵件格式不正確');
                 const ps = periods(raw);
                 validatePeriods(ps);
+                const previousPeriods = before ? periods({ ...before, id }) : [];
+                emp.payrollAdmissions = before?.payrollAdmissions || [];
+                emp.payrollEnrollmentRequired = [...new Set([...(before?.payrollEnrollmentRequired || []), ...ps.filter(p => !previousPeriods.some(old => old.id === p.id)).map(p => p.id)])];
                 emp.employmentHistory = ps.map(p => ({ id: key(p.id), type: p.type, startDate: p.startDate, endDate: p.endDate }));
                 const comps = raw.compensationHistory || [];
                 assert(Array.isArray(comps), '待遇資料不正確');
@@ -97,12 +100,38 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 tx.set(ref, emp, { merge: true });
                 result = { id };
             }
+            else if (action === 'confirmLegacyEnrollment') {
+                assert(['boss', 'supervisor'].includes(u.role) || u.permissions?.payroll === true, '沒有薪資操作權限');
+                const id = key(data.id);
+                const record = legacy.find(r => r.id === id);
+                assert(record && record.temporaryPayrollHidden !== true, '找不到薪資單');
+                const employeeRef = db.doc('employees/' + key(record.employeeId));
+                const employeeDoc = await tx.get(employeeRef);
+                const emp = { ...employeeDoc.data(), id: record.employeeId };
+                assert(employeeDoc.exists && employeeDoc.data()!.clientId === clientId, '員工不屬於此客戶');
+                assert(legacyCanEdit(record, legacy.filter(r => r.temporaryPayrollHidden !== true), [emp], slips), '請先核對薪資資料及寄送狀態');
+                assert(canonical(record) === canonical(data.expected), '薪資資料已變更，請重新開啟');
+                const ps = periods(emp).filter(p => p.startDate <= monthEnd(record.month) && (!p.endDate || p.endDate >= record.month + '-01'));
+                assert(ps.length === 1, '同月有多段任職，請先核對計薪區間');
+                const next = { ...record, legacySeptemberRevision: (record.legacySeptemberRevision || 0) + 1, updatedAt: now };
+                tx.set(employeeRef, { payrollAdmissions: [...new Set([...(employeeDoc.data()?.payrollAdmissions || []), ps[0].id])] }, { merge: true });
+                tx.create(db.doc('monthlySalaries/' + id + '/versions/' + next.legacySeptemberRevision), { before: record, after: next, reason: '首次納入薪資', actor: uid, changedAt: now });
+                tx.set(db.doc('monthlySalaries/' + id), next);
+                result = { record: next };
+            }
+            else if (action === 'legacyHistory') {
+                const id = key(data.id);
+                assert(legacy.some(r => r.id === id && r.temporaryPayrollHidden !== true), '找不到薪資單');
+                const versions = await tx.get(db.collection('monthlySalaries/' + id + '/versions'));
+                return { history: versions.docs.map(d => d.data()) };
+            }
             else if (action === 'saveLegacySeptember' || action === 'sendLegacySeptember' || action === 'legacySeptemberMailStatus') {
-                assert(['boss', 'supervisor'].includes(u.role), '僅主管或老闆可處理舊薪資');
+                if (action !== 'legacySeptemberMailStatus') assert(['boss', 'supervisor'].includes(u.role) || u.permissions?.payroll === true, '沒有薪資操作權限');
                 const id = key(data.id);
                 const old = legacy.find((x: any) => x.id === id);
-                assert(old && old.month === '2026-09' && old.clientId === clientId && old.temporaryPayrollHidden !== true, '找不到可處理的 2026 年 9 月薪資');
+                assert(old && old.clientId === clientId && old.temporaryPayrollHidden !== true, '找不到可處理的薪資');
                 const record = old!;
+                if (action !== 'legacySeptemberMailStatus') assert(record.month >= '2026-09', '歷史薪資僅供查閱');
                 const revision = record.legacySeptemberRevision || 0;
                 const ref = db.doc('monthlySalaries/' + id);
                 if (action === 'saveLegacySeptember') {
@@ -112,6 +141,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     assert(revision === data.expectedRevision && canonical(record) === canonical(data.expected), '薪資資料已變更，請重新開啟');
                     const employee = await tx.get(db.doc('employees/' + key(record.employeeId)));
                     assert(employee.exists && employee.data()!.clientId === clientId, '員工主檔不存在或不屬於此客戶');
+                    assert(legacyCanEdit(record, legacy.filter(r => r.temporaryPayrollHidden !== true), [{ ...employee.data(), id: record.employeeId }], slips), '資料不完整或任職期間不符，請先核對');
                     const amounts = numbers(data.amounts, amountFields);
                     const attendance = numbers(data.attendance, attendanceFields);
                     const changes = { ...amounts, ...attendance };
@@ -129,10 +159,11 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     const employee = emp.data()!;
                     if (action === 'legacySeptemberMailStatus') {
                         const mailId = record.legacySeptemberMailId;
-                        if (!mailId) return { state: 'NONE' };
+                        if (!mailId) return { state: record.isEmailSent ? 'UNTRACKED' : 'NONE' };
                         const mail = await tx.get(db.doc('mail/' + key(mailId)));
                         return { state: mail.data()?.delivery?.state || 'PENDING' };
                     }
+                    assert(!legacyNeedsEnrollment(record, [{ ...employee, id: record.employeeId }], slips), '請先完成首次納入薪資');
                     assert(revision === data.expectedRevision, '薪資版本已變更，請重新開啟');
                     assert(!record.isEmailSent, '這份舊薪資已有寄信標記，請先核對');
                     assert(legacy.filter((x: any) => x.employeeId === record.employeeId && x.month === record.month && x.temporaryPayrollHidden !== true).length === 1, '同員工同月仍有多筆可見薪資，請先核對');
@@ -152,8 +183,8 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     }
                     const mailId = `legacyPayroll_${id}_${revision}_${attempt}`;
                     const c = company.data()!;
-                    const snapshot = { id, schemaVersion: 2, revision, month: record.month, periodStart: '2026-09-01', periodEnd: '2026-09-30', status: 'confirmed', amounts, attendance, employee: { name: employee.name, email: employee.email, empNo: employee.empNo || '', idNumber: employee.idNumber || '', bankAccount: employee.bankAccount || '' }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: '舊制 2026 年 9 月薪資，已核對後寄送', reason: '' } as Slip;
-                    tx.create(db.doc('mail/' + mailId), { to: employee.email, message: { subject: `${snapshot.company.name} 2026-09 薪資單`, html: slipHtml(snapshot, slipPeriod(snapshot, { ...employee, id: record.employeeId })) }, salaryId: id, salaryVersion: revision, clientId, createdAt: now });
+                    const snapshot = { id, schemaVersion: 2, revision, month: record.month, periodStart: record.month + '-01', periodEnd: monthEnd(record.month), status: 'confirmed', amounts, attendance, employee: { name: employee.name, email: employee.email, empNo: employee.empNo || '', idNumber: employee.idNumber || '', bankAccount: employee.bankAccount || '' }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: '既有薪資，已核對後寄送', reason: '' } as Slip;
+                    tx.create(db.doc('mail/' + mailId), { to: employee.email, message: { subject: `${snapshot.company.name} ${record.month} 薪資單`, html: slipHtml(snapshot, slipPeriod(snapshot, { ...employee, id: record.employeeId })) }, salaryId: id, salaryVersion: revision, clientId, createdAt: now });
                     tx.set(dispatchRef, { clientId, slipId: id, revision, mailId, attempt, requestedAt: now, actor: uid });
                     tx.set(ref, { legacySeptemberMailId: mailId }, { merge: true });
                     result = { mailId, state: 'PENDING' };
@@ -165,7 +196,11 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 const target = await tx.get(db.doc('payrollSlips/' + id));
                 assert(!target.exists || target.data()!.clientId === clientId, '單據不屬於此客戶');
                 const current = slips.find(s => s.id === id);
-                assert(!current || current.status === 'draft', '已確認或已作廢薪資不能直接修改');
+                assert(!current || ['draft','confirmed'].includes(current.status), '已作廢或被取代薪資不能直接修改');
+                if (current?.status === 'confirmed') {
+                    const dispatch = await tx.get(db.doc('payrollDispatch/' + id + '_' + current.revision));
+                    assert(!dispatch.exists, '已排程或寄送的薪資不能直接修改，請建立更正');
+                }
                 assert((current?.revision || 0) === data.expectedRevision, '薪資版本已變更，請重新開啟');
                 const employeeId = key(raw.employeeId);
                 const empDoc = await tx.get(db.doc('employees/' + employeeId));
@@ -182,6 +217,11 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 const c = company.data()!;
                 const s: Slip = { id, schemaVersion: 2, revision: (current?.revision || 0) + 1, clientId, employeeId, employmentId, month: text(raw.month, 7), periodStart: start, periodEnd: end, kind: raw.kind, relatedId: raw.relatedId ? key(raw.relatedId) : '', replacesId: raw.replacesId ? key(raw.replacesId) : '', status: 'draft', basis, amounts, attendance, employee: { name: text((emp as any).name, 500), email: text((emp as any).email || '', 500), empNo: text((emp as any).empNo || '', 500), idNumber: text((emp as any).idNumber || '', 50), bankAccount: text((emp as any).bankAccount || '', 100) }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: text(raw.note || ''), reason: text(raw.reason || '', 500), reviewedMonth: raw.reviewedMonth === true, createdAt: current?.createdAt || now, updatedAt: now, actor: uid };
                 validateSlip(s, emp, slips, legacy);
+                if (isPayrollEnrolled(emp, employmentId, slips)) s.status = 'confirmed';
+                if (s.status === 'confirmed' && s.replacesId && slips.find(x => x.id === s.replacesId)?.status === 'confirmed') {
+                    const previous = slips.find(x => x.id === s.replacesId)!;
+                    writeSlip({ ...previous, status: 'superseded', revision: previous.revision + 1, updatedAt: now, actor: uid, reason: '由 ' + s.id + ' 更正取代' });
+                }
                 writeSlip(s);
                 result = { slip: s };
             }
@@ -202,6 +242,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     validateSlip(s, emp, slips, legacy);
                     const p = periods(emp).find(x => x.id === s.employmentId)!;
                     assert(sameBasis(basisAt(emp, p, s.periodStart, s.periodEnd), s.basis), '待遇已變更，請重新編輯並儲存草稿');
+                    tx.set(db.doc('employees/' + s.employeeId), { payrollAdmissions: [...new Set([...(empDoc.data()?.payrollAdmissions || []), s.employmentId])] }, { merge: true });
                     if (s.replacesId) {
                         const old = slips.find(x => x.id === s.replacesId)!;
                         writeSlip({ ...old, status: 'superseded', revision: old.revision + 1, updatedAt: now, actor: uid, reason: '由 ' + s.id + ' 更正取代' });

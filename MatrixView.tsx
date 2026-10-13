@@ -2,7 +2,7 @@
 import React from 'react';
 import { Client, ClientTask, TabCategory, User } from './types';
 import { COLUMN_CONFIG, ACCOUNTING_SUB_ITEMS, TAX_SUB_ITEMS } from './constants';
-import { SearchIcon, PlusIcon, MinusIcon, NoteIcon } from './Icons';
+import { SearchIcon, NoteIcon } from './Icons';
 
 interface MatrixViewProps {
     tasks: ClientTask[];
@@ -12,6 +12,7 @@ interface MatrixViewProps {
     setSearchQuery: (query: string) => void;
     collapsedColumns: Set<string>;
     toggleColumn: (col: string) => void;
+    toggleAllColumns: () => void;
     users: User[];
     onCellClick: (client: Client, column: string, task?: ClientTask) => void;
     onClientNameClick: (client: Client) => void;
@@ -20,7 +21,7 @@ interface MatrixViewProps {
 
 export const MatrixView: React.FC<MatrixViewProps> = ({ 
     tasks, activeTab, currentYear, searchQuery, setSearchQuery, 
-    collapsedColumns, toggleColumn, users, onCellClick, onClientNameClick, clients 
+    collapsedColumns, toggleColumn, toggleAllColumns, users, onCellClick, onClientNameClick, clients
 }) => {
 
     const columns = COLUMN_CONFIG[activeTab] || [];
@@ -28,6 +29,7 @@ export const MatrixView: React.FC<MatrixViewProps> = ({
     if (activeTab === TabCategory.ACCOUNTING) subItems = ACCOUNTING_SUB_ITEMS;
     else if (activeTab === TabCategory.TAX) subItems = TAX_SUB_ITEMS;
     const hasSubItems = subItems.length > 0;
+    const allExpanded = columns.every(col => !collapsedColumns.has(col));
 
     const filteredClients = React.useMemo(() => { 
         if (!searchQuery) return clients; 
@@ -105,7 +107,7 @@ const renderCell = (client: Client, col: string, task?: ClientTask) => {
                 <thead className="bg-gray-50 sticky top-0 z-20 shadow-sm">
                     <tr>
                         <th rowSpan={hasSubItems ? 2 : 1} className="sticky left-0 top-0 z-30 bg-gray-50 p-3 text-left text-base font-bold text-gray-500 border-b border-r w-[220px] min-w-[220px] max-w-[220px] shadow-[2px_0_5px_-2px_rgba(0,0,0,0.1)]">
-                            <div className="flex items-center gap-2">
+                            <div className="flex items-center gap-2 pr-6">
                                 <SearchIcon className="w-5 h-5" />
                                 <input 
                                     type="text" 
@@ -115,6 +117,9 @@ const renderCell = (client: Client, col: string, task?: ClientTask) => {
                                     onChange={(e) => setSearchQuery(e.target.value)}
                                 />
                             </div>
+                            {hasSubItems && <button type="button" onClick={toggleAllColumns} title={allExpanded ? '收合全部月份' : '展開全部月份'} aria-label={allExpanded ? '收合全部月份' : '展開全部月份'} aria-expanded={allExpanded} className="absolute bottom-1 right-1 w-7 h-7 flex items-center justify-center text-gray-500 hover:text-blue-600 focus-visible:outline focus-visible:outline-2 focus-visible:outline-blue-500 rounded">
+                                <svg width="16" height="16" viewBox="0 0 16 16" aria-hidden="true"><path fill="currentColor" d={allExpanded ? 'M 2 2 L 14 2 L 2 14 Z' : 'M 14 14 L 2 14 L 14 2 Z'} /></svg>
+                            </button>}
                         </th>
                         {columns.map(col => (
                             <th 
@@ -125,7 +130,6 @@ const renderCell = (client: Client, col: string, task?: ClientTask) => {
                             >
                                 <div className="flex items-center justify-center gap-1.5">
                                     {col}
-                                    {hasSubItems && (collapsedColumns.has(col) ? <PlusIcon className="w-4 h-4 text-blue-500" /> : <MinusIcon className="w-4 h-4 text-gray-400" />)}
                                 </div>
                             </th>
                         ))}

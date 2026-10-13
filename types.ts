@@ -327,6 +327,10 @@ export type EmploymentType = 'full_time' | 'part_time';
 
 // ✨ 新增：員工詳細資料結構
 export interface Employee {
+    /** Confirmed employment periods; subsequent monthly saves are effective immediately. */
+    payrollAdmissions?: string[];
+    /** New or rehired periods requiring first enrollment, including backdated entries. */
+    payrollEnrollmentRequired?: string[];
     id: string;
     clientId: string;        // 屬於哪位客戶
     temporaryPayrollHidden?: boolean;

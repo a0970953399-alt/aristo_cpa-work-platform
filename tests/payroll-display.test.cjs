@@ -30,10 +30,14 @@ const baseline=cp.execFileSync('git',['show','19426ce:PayrollView.tsx'],{cwd:rep
 const current=fs.readFileSync(path.join(repo,'PayrollView.tsx'),'utf8');
 function layout(source){const ast=ts.createSourceFile('PayrollView.tsx',source.replaceAll('\r\n','\n'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),nodes=[];
  function visit(n){if(ts.isJsxOpeningElement(n)||ts.isJsxSelfClosingElement(n)){const attrs={};for(const a of n.attributes.properties)if(ts.isJsxAttribute(a)&&['className','style','width','height','colSpan','rowSpan'].includes(a.name.text))attrs[a.name.text]=a.initializer?.getText(ast);nodes.push({tag:n.tagName.getText(ast),attrs});}ts.forEachChild(n,visit);}visit(ast);return nodes;}
-test('all JSX elements, CSS classes, inline styles, dimensions and table spans retain the approved baseline',()=>assert.deepEqual(layout(current),layout(baseline)));
+test('monthly and annual table layout retain the approved baseline while editor workflow changes',()=>{
+ const tables=s=>s.slice(s.indexOf('{/* 📍 標籤二'),s.indexOf('{/* 🚀 薪資編輯'));
+ assert(tables(current).length>10000);assert.deepEqual(layout(tables(current)),layout(tables(baseline)));
+});
 test('deferred Excel import and legacy concurrency write logic remain unchanged',()=>{
  const section=(s,a,b)=>s.slice(s.indexOf(a),s.indexOf(b,s.indexOf(a))).replaceAll('\r\n','\n');
  assert.equal(section(current,'  const handleImportEmpExcel','  useEffect(() => {'),section(baseline,'  const handleImportEmpExcel','  useEffect(() => {'));
  const oldHook=cp.execFileSync('git',['show','19426ce:usePayrollPresentation.ts'],{cwd:repo,encoding:'utf8'}),newHook=fs.readFileSync(path.join(repo,'usePayrollPresentation.ts'),'utf8');
- assert.equal(section(newHook,'  async function saveLegacy','  async function sendLegacy'),section(oldHook,'  async function saveLegacy','  async function sendLegacy'));
+ const logic=s=>section(s,'  async function saveLegacy','  async function sendLegacy').replace(/setInfo\('[^']*'\)/g,'setInfo(message)');
+ assert.equal(logic(newHook),logic(oldHook));
 });

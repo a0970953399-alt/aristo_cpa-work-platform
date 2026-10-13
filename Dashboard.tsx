@@ -163,6 +163,8 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   const [userToDelete, setUserToDelete] = useState<User | null>(null);
   const [editingUserId, setEditingUserId] = useState<string | null>(null);
   const [collapsedColumns, setCollapsedColumns] = useState<Set<string>>(new Set());
+  const manualColumnViews = useRef<Record<string, Set<string>>>({});
+  const previousColumnViewKey = useRef('');
   const [modalBossDate, setModalBossDate] = useState('');
   const [checkInRecords, setCheckInRecords] = useState<CheckInRecord[]>([]);
   const [messages, setMessages] = useState<Message[]>([]);
@@ -460,6 +462,12 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
         if (isColumnComplete) currentCompletedCols.add(col);
     });
 
+    const viewKey = activeTab + ':' + currentYear;
+    const changedView = previousColumnViewKey.current !== viewKey;
+    previousColumnViewKey.current = viewKey;
+    const savedView = manualColumnViews.current[viewKey];
+    if (savedView) { setCollapsedColumns(new Set(savedView)); prevCompletedColsRef.current = currentCompletedCols; return; }
+    if (changedView) { setCollapsedColumns(new Set(currentCompletedCols)); prevCompletedColsRef.current = currentCompletedCols; return; }
     const colsToAutoCollapse: string[] = [];
     currentCompletedCols.forEach(col => { if (!prevCompletedColsRef.current.has(col)) colsToAutoCollapse.push(col); });
     prevCompletedColsRef.current = currentCompletedCols;
@@ -1373,7 +1381,13 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
   };
   const handleConfirmDelete = async () => { if(!taskToDelete) return; setIsLoading(true); try { await TaskService.deleteTask(taskToDelete.id); setIsDeleteModalOpen(false); setTaskToDelete(null); } catch (e) { alert("失敗"); } finally { setIsLoading(false); } };
   
-  const toggleColumn = (col: string) => { const newSet = new Set(collapsedColumns); if (newSet.has(col)) newSet.delete(col); else newSet.add(col); setCollapsedColumns(newSet); };
+  const toggleColumn = (col: string) => { const newSet = new Set(collapsedColumns); if (newSet.has(col)) newSet.delete(col); else newSet.add(col); setCollapsedColumns(newSet); manualColumnViews.current[activeTab + ':' + currentYear] = newSet; };
+  const toggleAllColumns = () => {
+    const columns = COLUMN_CONFIG[activeTab] || [];
+    const next = new Set<string>(columns.every(col => !collapsedColumns.has(col)) ? columns : []);
+    manualColumnViews.current[activeTab + ':' + currentYear] = next;
+    setCollapsedColumns(next);
+  };
 
   // Boss 可以自我指派的欄位：帳務處理-覆核、營業稅申報-檢核、所得扣繳-鄧會確認、年度申報-鄧會確認
   const isBossAssignableColumn = (tab: string, column: string): boolean => {
@@ -1591,6 +1605,7 @@ const Dashboard: React.FC<DashboardProps> = ({ currentUser, onLogout, users, onU
                         setSearchQuery={setSearchQuery}
                         collapsedColumns={collapsedColumns}
                         toggleColumn={toggleColumn}
+                        toggleAllColumns={toggleAllColumns}
                         users={users}
                         onCellClick={handleCellClick}
                         onClientNameClick={handleClientNameClick}

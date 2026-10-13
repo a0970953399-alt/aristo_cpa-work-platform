@@ -93,6 +93,30 @@ export function calculate(b: Basis, t: Values, a: Values): Values {
 export function totals(a: Values) { const add = a.baseSalary + a.fullAttendance + a.positionAllowance + a.performanceBonus + a.taxableOt; const deduct = a.leaveDeduction + a.dailyShortage + a.lateDeduction + a.pensionSelf; const exempt = a.foodAllowance + a.taxFreeOt; const withholding = a.laborIns + a.healthIns + a.incomeTax + a.advancePay; return { add, deduct, exempt, withholding, net: Math.round((add - deduct + exempt - withholding) * 100) / 100 }; }
 export function sameBasis(a: Basis, b: Basis): boolean { return (['employmentType','baseSalary','foodAllowance','insuranceBracket','hasLaborIns','hasHealthIns','effectiveDate','compensationId'] as (keyof Basis)[]).every(k=>a[k]===b[k]); }
 export function annualMetrics(a: Values) { return { '薪資總額': a.baseSalary + a.fullAttendance + a.positionAllowance + a.taxableOt - a.leaveDeduction - a.dailyShortage - a.lateDeduction, '伙食費': a.foodAllowance, '免稅加班費': a.taxFreeOt, '獎金': a.performanceBonus, '實發': totals(a).net }; }
+// Existing employment before October 2026 is grandfathered into recurring payroll.
+// Newly created employment periods require enrollment, including backdated hires.
+export const enrollmentStartMonth = '2026-10';
+export function isPayrollEnrolled(emp: any, periodId: string, slips: Slip[]): boolean {
+    if (!emp) return false;
+    const p = periods(emp).find(p => p.id === periodId);
+    if (!p) return false;
+    if ((emp.payrollAdmissions || []).includes(periodId)) return true;
+    if (slips.some(s => s.employeeId === emp.id && s.employmentId === periodId && s.kind === 'regular' && ['confirmed', 'superseded'].includes(s.status))) return true;
+    if ((emp.payrollEnrollmentRequired || []).includes(periodId)) return false;
+    return p.startDate.slice(0, 7) < enrollmentStartMonth;
+}
+export function legacyNeedsEnrollment(r: any, employees: any[], slips: Slip[]): boolean {
+    if (r.month < enrollmentStartMonth) return false;
+    const emp = employees.find(e => e.id === r.employeeId);
+    if (!emp) return true;
+    const ps = periods(emp).filter(p => p.startDate <= monthEnd(r.month) && (!p.endDate || p.endDate >= r.month + '-01'));
+    return ps.length !== 1 || !isPayrollEnrolled(emp, ps[0].id, slips);
+}
+export function legacyCanEdit(r: any, all: any[], employees: any[], slips: Slip[]): boolean {
+    return r.month >= '2026-09' && r.temporaryPayrollHidden !== true && !r.isEmailSent && !r.legacySeptemberMailId
+        && legacyIssues(r, all, employees).length === 0
+        && !slips.some(s => s.employeeId === r.employeeId && s.month === r.month && !['void','superseded'].includes(s.status));
+}
 export function validateSlip(s: Slip, emp: any, others: Slip[], legacy: any[]) {
     assert(s.employeeId === emp.id && s.clientId === emp.clientId, '員工與客戶不符');
     assert(validDate(s.periodStart) && validDate(s.periodEnd) && s.periodStart <= s.periodEnd, '計薪日期不正確');
@@ -103,7 +127,8 @@ export function validateSlip(s: Slip, emp: any, others: Slip[], legacy: any[]) {
     assert(p, '找不到任職期間');
     assert(p && s.periodStart >= p.startDate && (!p.endDate || s.periodEnd <= p.endDate), '計薪期間超出任職範圍');
     assert(['regular', 'supplement'].includes(s.kind), '薪資用途不正確');
-    assert(s.reviewedMonth === true, '請核對同月其他薪資單及代扣項目');
+    const hasOtherPay = others.some(x => x.id !== s.id && x.id !== s.replacesId && x.employeeId === s.employeeId && x.month === s.month && x.status === 'confirmed');
+    assert(!hasOtherPay || s.reviewedMonth === true, '請核對同月其他薪資單及代扣項目');
     assert(s.note.length <= 2000 && s.reason.length <= 500, '備註或原因過長');
     assert(!legacy.some(x => x.employeeId === s.employeeId && x.month === s.month), '這位員工該月已有舊薪資，請先核對舊紀錄，避免重複結薪');
     const relevant = others.filter(x => x.id !== s.id && x.id !== s.replacesId && x.employeeId === s.employeeId && x.status !== 'void' && x.status !== 'superseded');
@@ -116,7 +141,8 @@ export function validateSlip(s: Slip, emp: any, others: Slip[], legacy: any[]) {
     }
     if (s.replacesId) {
         const old = others.find(x => x.id === s.replacesId);
-        assert(old && old.status === 'confirmed' && old.employeeId === s.employeeId && old.clientId === s.clientId && old.month === s.month && old.employmentId === s.employmentId, '被更正的單據已變更或不符合本單');
+        const existingReplacement = others.find(x => x.id === s.id && x.status === 'confirmed' && x.replacesId === s.replacesId);
+        assert(old && (old.status === 'confirmed' || old.status === 'superseded' && existingReplacement) && old.employeeId === s.employeeId && old.clientId === s.clientId && old.month === s.month && old.employmentId === s.employmentId, '被更正的單據已變更或不符合本單');
         assert(s.reason.trim(), '請填更正原因');
         assert(!relevant.some(x => x.replacesId === s.replacesId), '已有另一張更正草稿');
     }
