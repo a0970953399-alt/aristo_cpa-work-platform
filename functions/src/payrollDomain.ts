@@ -186,13 +186,22 @@ export function payrollSendIssues(p: { kind: string; month: string; email: strin
     }
     return issues;
 }
-export function legacySendIssues(r: any, emp: any, currentMonth = currentPayrollMonth()): string[] {
-    let basis: Basis | null = null;
-    if (emp) try {
+export function legacyBasis(r: any, emp: any): Basis | null {
+    if (!emp) return null;
+    try {
         const ps = periods(emp).filter(p => p.startDate <= monthEnd(r.month) && (!p.endDate || p.endDate >= r.month + '-01'));
-        if (ps.length === 1) basis = basisAt(emp, ps[0], r.month + '-01', monthEnd(r.month));
-    } catch { basis = null; }
-    return payrollSendIssues({ kind: 'regular', month: r.month, email: emp?.email || '', amounts: legacyAmounts(r), basis, hasOtherPay: false }, currentMonth);
+        return ps.length === 1 ? basisAt(emp, ps[0], r.month + '-01', monthEnd(r.month)) : null;
+    } catch { return null; }
+}
+export function legacySendIssues(r: any, emp: any, currentMonth = currentPayrollMonth()): string[] {
+    return payrollSendIssues({ kind: 'regular', month: r.month, email: emp?.email || '', amounts: legacyAmounts(r), basis: legacyBasis(r, emp), hasOtherPay: false }, currentMonth);
+}
+// Old amounts may be hand-set, so an attendance edit only recalculates the one amount it drives.
+export function legacyRecalculated(b: Basis, r: any, field: string): Values {
+    const attendance = legacyAttendance(r), amounts = legacyAmounts(r);
+    if (field === 'workHours') return b.employmentType === 'part_time' ? { baseSalary: attendance.workHours * b.baseSalary } : {};
+    const output = field === 'lateHours' ? 'lateDeduction' : field === 'sickLeave' || field === 'personalLeave' ? 'leaveDeduction' : ['annualLeave', 'holidayOt', 'normalOt'].includes(field) ? 'taxFreeOt' : '';
+    return output ? { [output]: calculate(b, attendance, amounts)[output] } : {};
 }
 export function recurringPayroll(emp: any, p: Period, month: string, company: any, slips: Slip[], legacy: any[], currentMonth = currentPayrollMonth()): Slip | null {
     if (month > currentMonth) return null;
@@ -277,6 +286,9 @@ export function legacyIssues(r: any, all: any[], employees: any[]): string[] {
 export function legacyAttendance(r: any): any { return Object.fromEntries(attendanceFields.map(k => [k, r[k] ?? 0])); }
 export function legacyAmounts(r: any): Values { return Object.fromEntries(amountFields.map(k => [k, typeof r[k] === 'number' && Number.isFinite(r[k]) ? r[k] : 0])); }
 export function escapeHtml(s: unknown): string { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)); }
+export function maskIdNumber(id: unknown): string { const s = String(id ?? '').trim(); return !s ? '' : s.length < 7 ? '****' : s.slice(0, 3) + '****' + s.slice(-3); }
+export function maskBankAccount(account: unknown): string { const s = String(account ?? '').trim(); return !s ? '' : s.length <= 4 ? '****' : '****' + s.slice(-4); }
+export function slipTitle(s: Pick<Slip, 'kind' | 'replacesId'>): string { return s.kind === 'supplement' ? '薪資單（補發）' : s.replacesId ? '薪資單（更正）' : '薪資單'; }
 export function slipHtml(s: Slip, employment?: Period): string {
  const e=escapeHtml,a=s.amounts;
  const baseSalary=a.baseSalary,foodAllowance=a.foodAllowance,leaveDeduction=a.leaveDeduction,lateDeduction=a.lateDeduction,laborIns=a.laborIns,healthIns=a.healthIns;
@@ -293,7 +305,7 @@ export function slipHtml(s: Slip, employment?: Period): string {
 <html>
 <head>
   <meta charset="utf-8">
-  <title>薪資單 - ${e(s.employee.name)}</title>
+  <title>${slipTitle(s)} - ${e(s.employee.name)}</title>
 </head>
 <body style="background-color: #e5e7eb; margin: 0; padding: 0; font-family: 'Helvetica Neue', Helvetica, Arial, 'PingFang TC', '微軟正黑體', sans-serif;">
 
@@ -308,7 +320,7 @@ export function slipHtml(s: Slip, employment?: Period): string {
               <table width="100%" cellpadding="0" cellspacing="0" border="0">
                 <tr>
                   <td align="left" valign="bottom">
-                    <h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">薪資單</h1>
+                    <h1 style="margin: 0 0 16px 0; color: #111827; font-size: 32px; font-weight: 900; letter-spacing: 4px;">${slipTitle(s)}</h1>
                     <h2 style="margin: 0 0 6px 0; color: #1F2937; font-size: 18px; font-weight: bold;">${companyName}</h2>
                     <div style="color: #4B5563; font-size: 13px; line-height: 1.6;">
                         <div>📞 ${companyPhone}</div>
@@ -332,7 +344,7 @@ export function slipHtml(s: Slip, employment?: Period): string {
                   <td style="padding: 6px 0; width: 50%;"><strong>員工代號：</strong><span style="color: #111827;">${e(s.employee.empNo || '-')}</span></td>
                 </tr>
                 <tr>
-                  <td style="padding: 6px 0;"><strong>身分證字號：</strong><span style="color: #111827;">${e(s.employee.idNumber || '-')}</span></td>
+                  <td style="padding: 6px 0;"><strong>身分證字號：</strong><span style="color: #111827;">${e(maskIdNumber(s.employee.idNumber) || '-')}</span></td>
                   <td style="padding: 6px 0;"><strong>E-mail：</strong><span style="color: #111827;">${e(s.employee.email || '尚未設定')}</span></td>
                 </tr>
               </table>

@@ -10,6 +10,16 @@ export function isEmployeeResigned(employee: Employee, today = taiwanToday()): b
   return started.length > 0 && started.every(p => !!p.endDate && p.endDate < today);
 }
 
+// Same order everywhere: employed first, then full-time, then employee number.
+export function sortEmployees<T extends Employee>(list: T[], today = taiwanToday()): T[] {
+  return [...list].sort((a, b) => {
+    const aResigned = isEmployeeResigned(a, today), bResigned = isEmployeeResigned(b, today);
+    if (aResigned !== bResigned) return aResigned ? 1 : -1;
+    if ((a.employmentType === 'full_time') !== (b.employmentType === 'full_time')) return a.employmentType === 'full_time' ? -1 : 1;
+    return (a.empNo || '').localeCompare(b.empNo || '');
+  });
+}
+
 const importDate = (value: any): string => {
   if (!value) return '';
   if (value instanceof Date) return new Date(value.getTime() - value.getTimezoneOffset() * 60000).toISOString().slice(0, 10);

@@ -1,7 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
-import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml, isPayrollEnrolled, legacyCanEdit, monthEnd, legacyNeedsEnrollment, payrollSendIssues, legacySendIssues, legacyAttendance } from './payrollDomain.js';
+import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml, isPayrollEnrolled, legacyCanEdit, monthEnd, legacyNeedsEnrollment, payrollSendIssues, legacySendIssues, legacyAttendance, slipTitle } from './payrollDomain.js';
 const key = (value: unknown) => { assert(typeof value === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(value), '識別碼不正確'); return value as string; };
 const text = (value: unknown, max = 2000) => { assert(typeof value === 'string' && value.length <= max, '文字欄位不正確'); return value as string; };
 const canonical = (v: any): string => JSON.stringify(v && typeof v === 'object' ? Array.isArray(v) ? v.map(x => JSON.parse(canonical(x))) : Object.fromEntries(Object.keys(v).sort().map(k => [k, JSON.parse(canonical(v[k]))])) : v);
@@ -158,7 +158,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     const reason = text(data.reason || '', 500).trim();
                     assert(reason, '請填寫更正原因');
                     // A sent record reopens for one corrected send; the prior state stays in its version history.
-                    const next = { ...record, ...changes, ...(alreadySent ? { isEmailSent: false, legacySeptemberMailId: '' } : {}), legacySeptemberRevision: revision + 1, updatedAt: now };
+                    const next = { ...record, ...changes, ...(alreadySent ? { isEmailSent: false, legacySeptemberMailId: '', legacyCorrected: true } : {}), legacySeptemberRevision: revision + 1, updatedAt: now };
                     tx.create(db.doc(`monthlySalaries/${id}/versions/${revision + 1}`), { before: record, after: next, reason, actor: uid, changedAt: now });
                     tx.set(ref, next, { merge: true });
                     result = { record: next };
@@ -195,8 +195,8 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     assert(!issues.length, issues.join('；'));
                     const mailId = `legacyPayroll_${id}_${revision}_${attempt}`;
                     const c = company.data()!;
-                    const snapshot = { id, schemaVersion: 2, revision, month: record.month, periodStart: record.month + '-01', periodEnd: monthEnd(record.month), status: 'confirmed', amounts, attendance, employee: { name: employee.name, email: employee.email, empNo: employee.empNo || '', idNumber: employee.idNumber || '', bankAccount: employee.bankAccount || '' }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: '既有薪資，已核對後寄送', reason: '' } as Slip;
-                    tx.create(db.doc('mail/' + mailId), { to: employee.email, message: { subject: `${snapshot.company.name} ${record.month} 薪資單`, html: slipHtml(snapshot, slipPeriod(snapshot, { ...employee, id: record.employeeId })) }, salaryId: id, salaryVersion: revision, clientId, createdAt: now });
+                    const snapshot = { id, schemaVersion: 2, revision, month: record.month, periodStart: record.month + '-01', periodEnd: monthEnd(record.month), status: 'confirmed', amounts, attendance, employee: { name: employee.name, email: employee.email, empNo: employee.empNo || '', idNumber: employee.idNumber || '', bankAccount: employee.bankAccount || '' }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: '既有薪資，已核對後寄送', reason: '', kind: 'regular', replacesId: record.legacyCorrected ? id : '' } as Slip;
+                    tx.create(db.doc('mail/' + mailId), { to: employee.email, message: { subject: `${snapshot.company.name} ${record.month} ${slipTitle(snapshot)}`, html: slipHtml(snapshot, slipPeriod(snapshot, { ...employee, id: record.employeeId })) }, salaryId: id, salaryVersion: revision, clientId, createdAt: now });
                     tx.set(dispatchRef, { clientId, slipId: id, revision, mailId, attempt, requestedAt: now, actor: uid });
                     tx.set(ref, { legacySeptemberMailId: mailId }, { merge: true });
                     result = { mailId, state: 'PENDING' };
@@ -292,7 +292,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 assert(!issues.length, issues.join('；'));
                 const mailId = `payroll_${id}_${s!.revision}_${attempt}`;
                 const employment = employee.exists ? slipPeriod(s!, { ...employee.data(), id: s!.employeeId }) : undefined;
-                tx.create(db.doc('mail/' + mailId), { to, message: { subject: `${s!.company.name} ${s!.month} 薪資單（${s!.periodStart}～${s!.periodEnd}）`, html: slipHtml({ ...s!, employee: { ...s!.employee, email: to } }, employment) }, salaryId: id, salaryVersion: s!.revision, clientId, createdAt: now });
+                tx.create(db.doc('mail/' + mailId), { to, message: { subject: `${s!.company.name} ${s!.month} ${slipTitle(s!)}（${s!.periodStart}～${s!.periodEnd}）`, html: slipHtml({ ...s!, employee: { ...s!.employee, email: to } }, employment) }, salaryId: id, salaryVersion: s!.revision, clientId, createdAt: now });
                 tx.set(dispatchRef, { clientId, slipId: id, revision: s!.revision, mailId, attempt, to, requestedAt: now, actor: uid });
                 result = { mailId, state: 'PENDING' };
             }
@@ -305,6 +305,20 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     return { state: 'NONE' };
                 const m = await tx.get(db.doc('mail/' + d.mailId));
                 return { state: m.data()?.delivery?.state || 'PENDING', attempt: d.attempt };
+            }
+            else if (action === 'monthMailStatus') {
+                const month = text(data.month, 7);
+                monthEnd(month);
+                const states: Record<string, string> = {};
+                for (const r of legacy.filter(x => x.month === month && x.temporaryPayrollHidden !== true)) {
+                    if (r.legacySeptemberMailId) states[r.id] = (await tx.get(db.doc('mail/' + key(r.legacySeptemberMailId)))).data()?.delivery?.state || 'PENDING';
+                    else if (r.isEmailSent) states[r.id] = 'UNTRACKED';
+                }
+                for (const s of slips.filter(x => x.month === month)) {
+                    const d = await latestDispatch(s.id);
+                    if (d) states[s.id] = (await tx.get(db.doc('mail/' + d.mailId))).data()?.delivery?.state || 'PENDING';
+                }
+                return { states };
             }
             else
                 throw new Error('不支援此操作');

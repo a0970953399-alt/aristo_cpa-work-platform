@@ -78,3 +78,7 @@ The workflow suite now checks payroll amounts before opening an editor or saving
 ## Stuck-workflow fixes (2026-11-05)
 
 `payroll-regression` covers the not-filled reasons, old records without attendance fields, correcting sent old records, void slips releasing employment dates, old-format employee saves and sending to the current address. `payroll-display` covers Excel import validation. `payroll-workflow-ui` adds hidden-record months, the editor reason, the fullscreen editor and the old-record correction flow.
+
+## Status overview and editing flow (2026-11-05)
+
+`payroll-regression` covers `monthMailStatus`, labelled and masked mail, and old-record recalculation. `payroll-display` covers employee ordering. `payroll-workflow-ui` adds per-row mail state, previous/next employee, yearly export and the fullscreen editor. Row mail state and the smaller insurance label are the approved table changes; `payroll-layout` still checks column geometry.
