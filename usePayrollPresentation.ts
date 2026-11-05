@@ -1,4 +1,4 @@
-import { useEffect, useRef, useState } from 'react';
+import { useEffect, useMemo, useRef, useState } from 'react';
 import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestore';
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
@@ -80,9 +80,13 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   function alias(e: Employee, id:string, type:string, start:string, end:string|null): PayrollRow {
     return {...e,id,sourceEmployeeId:e.id,employmentType:type as any,startDate:start,endDate:end||'',employmentHistory:[{id,type:type as any,startDate:start,endDate:end}]};
   }
+  // Rows only depend on this data, so typing in the editor must not recalculate them.
+  const rowsCache = useMemo(()=>new Map<string,PayrollRow[]>(),[client,ready,employees,legacy,slips,hiddenLegacy]);
   function rowsFor(m:string): PayrollRow[] {
     if(!ready) return [];
     const currentMonth=currentPayrollMonth();
+    const cached=rowsCache.get(m+'|'+currentMonth);
+    if(cached) return cached;
     const rows:PayrollRow[]=[];
     for(const e of sortEmployees(employees)) {
       const olds=legacy.filter(r=>r.employeeId===e.id&&r.month===m);
@@ -106,6 +110,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
         }
       }
     }
+    rowsCache.set(m+'|'+currentMonth,rows);
     return rows;
   }
   function flat(row:PayrollRow) {
@@ -235,6 +240,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     else if(editing && editing.revision>0){const docs=await getDocs(collection(db,'payrollSlips',editing.id,'versions'));setHistory(docs.docs.map(d=>d.data() as Slip).sort((a,b)=>b.revision-a.revision));}
     try{const users=await getDocs(collection(db,'users'));setHistoryUsers(Object.fromEntries(users.docs.map(d=>[d.id,String(d.data().name||'')])));}catch{setHistoryUsers({});}
   }catch(e:any){setError(e.message);}}
+  async function employeeHistory(id:string){const result=await command({clientId,operationId:crypto.randomUUID(),action:'employeeHistory',id});return (result.data.history||[]) as Array<{changes:Array<{label:string;from:string;to:string}>;actorName:string;changedAt:string}>;}
   function changedFromPrevious(e:Employee|undefined,periodId:string|undefined,m:string,a:Values){
     const p=e&&periods(e).find(p=>p.id===periodId);const previous=e&&p?previousPayroll(e,p,m,slips,legacy):null;
     if(!previous)return [];
@@ -289,5 +295,5 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     refreshMonthMail();
     setBatchNotice({text:'本次 '+completed+' 張薪資單已交寄送服務排程；不代表收件匣已收到。',failures});
   }
-  return {openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,confirmLegacyEnrollment,isLegacyIncluded,canEdit,needsEnrollment,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,changePeriod,save,transition,revise,send,checkMail,versions};
+  return {employeeHistory,openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,confirmLegacyEnrollment,isLegacyIncluded,canEdit,needsEnrollment,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,changePeriod,save,transition,revise,send,checkMail,versions};
 }

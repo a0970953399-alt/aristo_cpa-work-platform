@@ -94,18 +94,13 @@ export function totals(a: Values) { const add = a.baseSalary + a.fullAttendance 
 export function sameBasis(a: Basis, b: Basis): boolean { return (['employmentType','baseSalary','foodAllowance','insuranceBracket','hasLaborIns','hasHealthIns','effectiveDate','compensationId'] as (keyof Basis)[]).every(k=>a[k]===b[k]); }
 export function annualMetrics(a: Values) { return { '薪資總額': a.baseSalary + a.fullAttendance + a.positionAllowance + a.taxableOt - a.leaveDeduction - a.dailyShortage - a.lateDeduction, '伙食費': a.foodAllowance, '免稅加班費': a.taxFreeOt, '獎金': a.performanceBonus, '實發': totals(a).net }; }
 // Enrollment belongs to an employment period, not an individual monthly slip.
-export function isPayrollEnrolled(emp: any, periodId: string, slips: Slip[], legacy: any[] = [], month = new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit' }).format(new Date())): boolean {
+export function isPayrollEnrolled(emp: any, periodId: string, slips: Slip[], _legacy: any[] = [], month =new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit' }).format(new Date())): boolean {
     if (!emp) return false;
     const p = periods(emp).find(p => p.id === periodId);
     if (!p) return false;
     if ((emp.payrollAdmissions || []).includes(periodId)) return true;
     if (slips.some(s => s.employeeId === emp.id && s.employmentId === periodId && s.kind === 'regular' && ['confirmed', 'superseded'].includes(s.status))) return true;
     if ((emp.payrollEnrollmentRequired || []).includes(periodId)) return false;
-    // Recognize an unambiguous payroll from this same employment, including old format.
-    if (legacy.some(r => r.employeeId === emp.id && r.clientId === emp.clientId && r.temporaryPayrollHidden !== true
-        && r.month < month && legacyIssues(r, legacy.filter(x => x.temporaryPayrollHidden !== true), [emp]).length === 0
-        && periods(emp).filter(x => x.startDate <= monthEnd(r.month) && (!x.endDate || x.endDate >= r.month + '-01')).length === 1
-        && p.startDate <= monthEnd(r.month) && (!p.endDate || p.endDate >= r.month + '-01'))) return true;
     // Compatibility for established employees without enrollment metadata.
     // New/backdated hires created through the backend carry an explicit required flag.
     return p.startDate < month + '-01';
@@ -286,6 +281,30 @@ export function legacyIssues(r: any, all: any[], employees: any[]): string[] {
 export function legacyAttendance(r: any): any { return Object.fromEntries(attendanceFields.map(k => [k, r[k] ?? 0])); }
 export function legacyAmounts(r: any): Values { return Object.fromEntries(amountFields.map(k => [k, typeof r[k] === 'number' && Number.isFinite(r[k]) ? r[k] : 0])); }
 export function escapeHtml(s: unknown): string { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)); }
+export type EmployeeChange = { label: string; from: string; to: string };
+// Audit entries keep masked identity numbers, so the history never spreads the full values.
+export function employeeChanges(before: any, after: any): EmployeeChange[] {
+    if (!before) return [{ label: '新增員工', from: '—', to: String(after.name || '') }];
+    const blank = (v: unknown) => v === undefined || v === null || v === '' ? '未填' : typeof v === 'boolean' ? (v ? '是' : '否') : typeof v === 'number' ? v.toLocaleString() : String(v);
+    const changes: EmployeeChange[] = [];
+    const fields: Array<[string, string, ((v: unknown) => string)?]> = [['empNo', '序號'], ['name', '姓名'], ['email', '電子郵件'], ['idNumber', '身分證字號', maskIdNumber], ['bankBranch', '銀行分行'], ['bankAccount', '銀行帳號', maskBankAccount], ['address', '戶籍地址']];
+    for (const [key, label, mask] of fields) {
+        if ((before[key] ?? '') === (after[key] ?? '')) continue;
+        const from = blank(mask ? mask(before[key]) : before[key]), to = blank(mask ? mask(after[key]) : after[key]);
+        changes.push({ label, from, to: from === to ? to + '（已修改）' : to });
+    }
+    const compare = (title: (item: any) => string, older: any[], newer: any[], keys: Array<[string, string]>) => {
+        for (const item of newer) {
+            const old = older.find(x => x.id === item.id);
+            if (!old) { changes.push({ label: '新增' + title(item), from: '—', to: keys.map(([k, l]) => l + ' ' + blank(item[k])).join('、') }); continue; }
+            for (const [k, l] of keys) if ((old[k] ?? null) !== (item[k] ?? null)) changes.push({ label: title(item) + ' ' + l, from: blank(old[k]), to: blank(item[k]) });
+        }
+        for (const old of older) if (!newer.some(x => x.id === old.id)) changes.push({ label: '刪除' + title(old), from: keys.map(([k, l]) => l + ' ' + blank(old[k])).join('、'), to: '—' });
+    };
+    compare(p => '任職（' + p.startDate + '）', periods(before), periods(after), [['type', '身分'], ['startDate', '入職日'], ['endDate', '離職日']]);
+    compare(c => '待遇（' + c.effectiveDate + '）', before.compensationHistory || [], after.compensationHistory || [], [['effectiveDate', '生效日'], ['baseSalary', '月薪或時薪'], ['foodAllowance', '伙食費'], ['insuranceBracket', '投保級距'], ['hasLaborIns', '投保勞保'], ['hasHealthIns', '投保健保']]);
+    return changes;
+}
 export function maskIdNumber(id: unknown): string { const s = String(id ?? '').trim(); return !s ? '' : s.length < 7 ? '****' : s.slice(0, 3) + '****' + s.slice(-3); }
 export function maskBankAccount(account: unknown): string { const s = String(account ?? '').trim(); return !s ? '' : s.length <= 4 ? '****' : '****' + s.slice(-4); }
 export function slipTitle(s: Pick<Slip, 'kind' | 'replacesId'>): string { return s.kind === 'supplement' ? '薪資單（補發）' : s.replacesId ? '薪資單（更正）' : '薪資單'; }

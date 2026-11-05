@@ -1,11 +1,11 @@
-import { isEmployeeResigned, insuranceLabel, parseEmployeeImport, sortEmployees } from './payrollDisplay';
+import { isEmployeeResigned, insuranceLabel, parseEmployeeImport, sortEmployees, taiwanToday } from './payrollDisplay';
 import { usePayrollPresentation, PayrollRow, payrollStatus } from './usePayrollPresentation';
 import { validatePeriods, periods, slipPeriod, Slip, amountFields, attendanceFields, legacyAmounts, legacyIssues, annualMetrics, labels, calculate, emptyValues, slipHtml, totals as payrollTotals, maskIdNumber, maskBankAccount } from './functions/src/payrollDomain';
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
 import { saveAs } from 'file-saver';
-import { Client, PayrollClientConfig, PayrollRecord, Employee, EmploymentType, CompensationRecord, EmploymentRecord, MonthlySalaryRecord } from './types';
+import { Client, PayrollClientConfig, Employee, EmploymentType, CompensationRecord, EmploymentRecord, MonthlySalaryRecord } from './types';
 import { ReturnIcon, PlusIcon, TrashIcon } from './Icons';
 import { TaskService } from './taskService';
 
@@ -21,23 +21,11 @@ interface PayrollViewProps {
 const MAIL_ROW_LABELS: Record<string, string> = { PENDING: '已排程', PROCESSING: '處理中', SUCCESS: '已寄送', ERROR: '寄送失敗', UNTRACKED: '已寄送' };
 const MAIL_STATE_TEXT: Record<string, string> = { NONE: '尚未寄送', CHECKING: '查詢中…', UNKNOWN: '查詢失敗，請按「查詢寄送狀態」重試', UNTRACKED: '已有寄送標記，無可查詢紀錄', PENDING: '已排程', PROCESSING: '處理中', SUCCESS: '寄送服務已完成', ERROR: '寄送失敗' };
 
-const EditIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="m16.862 4.487 1.687-1.688a1.875 1.875 0 1 1 2.652 2.652L10.582 16.07a4.5 4.5 0 0 1-1.897 1.13L6 18l.8-2.685a4.5 4.5 0 0 1 1.13-1.897l8.932-8.931Zm0 0L19.5 7.125M18 14v4.75A2.25 2.25 0 0 1 15.75 21H5.25A2.25 2.25 0 0 1 3 18.75V8.25A2.25 2.25 0 0 1 5.25 6H10" />
-  </svg>
-);
-
 const ExcelFileIcon = ({ className }: { className?: string }) => (
   <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={2} stroke="currentColor" strokeLinecap="round" strokeLinejoin="round" className={className || "w-6 h-6"}>
     <path d="M20 20a2 2 0 0 0 2-2V8a2 2 0 0 0-2-2h-7.9a2 2 0 0 1-1.69-.9L9.6 3.9A2 2 0 0 0 7.93 3H4a2 2 0 0 0-2 2v13a2 2 0 0 0 2 2Z"/>
     <path d="M12 10v6"/>
     <path d="m9 13 3-3 3 3"/>
-  </svg>
-);
-
-const CloudDownloadIcon = ({ className }: { className?: string }) => (
-  <svg xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" strokeWidth={1.5} stroke="currentColor" className={className || "w-6 h-6"}>
-    <path strokeLinecap="round" strokeLinejoin="round" d="M12 16.5V9.75m0 0l3 3m-3-3l-3 3M6.75 19.5a4.5 4.5 0 01-1.41-8.775 5.25 5.25 0 0110.233-2.33 3 3 0 013.758 3.848A3.752 3.752 0 0118 19.5H6.75z" />
   </svg>
 );
 
@@ -74,21 +62,8 @@ const resolveIsFullTime = (emp: Employee, year: string, month: string): boolean 
     return emp.employmentType === 'full_time';
 };
 
-// ✨ 時光機 Helper：依月份解析員工當時的時薪/底薪（兼職用）
-const resolvePartTimeHourlyWage = (emp: Employee, year: string, month: string): number => {
-    if (emp.compensationHistory && emp.compensationHistory.length > 0) {
-        const targetDateStr = `${year}-${month}-31`;
-        const sorted = [...emp.compensationHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
-        const matched = sorted.find(r => r.effectiveDate <= targetDateStr) || sorted[sorted.length - 1];
-        return matched.baseSalary;
-    }
-    return emp.defaultBaseSalary || 0;
-};
-
 export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [payrollClients, setPayrollClients] = useState<PayrollClientConfig[]>([]);
-  const [payrollRecords, setPayrollRecords] = useState<PayrollRecord[]>([]);
-  const [employees, setEmployees] = useState<Employee[]>([]);
 
   const [selectedClient, setSelectedClient] = useState<Client | null>(null);
   const [activeInnerTab, setActiveInnerTab] = useState<'employees' | 'monthly' | 'yearly'>('employees');
@@ -97,8 +72,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       additions: false, deductions: false, taxFree: false, withholdings: false
   });
 
-  const currentSystemYear = new Date().getFullYear();
-  const currentSystemMonth = String(new Date().getMonth() + 1).padStart(2, '0');
+  const systemToday = taiwanToday();
+  const currentSystemYear = Number(systemToday.slice(0, 4));
+  const currentSystemMonth = systemToday.slice(5, 7);
 
   const availableYears = Array.from(
       { length: Math.max(currentSystemYear - 2025 + 2, 2) },
@@ -112,7 +88,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [isMonthlyEditModalOpen, setIsMonthlyEditModalOpen] = useState(false);
   const [editingMonthlyEmp, setEditingMonthlyEmp] = useState<Employee | null>(null);
 
-  const [isAddingNewMonthly, setIsAddingNewMonthly] = useState(false);
   const [editModalMode, setEditModalMode] = useState<'monthly' | 'yearly'>('monthly'); // ✨ 區分是從哪個頁面打開的
 
   const [isFullscreen, setIsFullscreen] = useState(false); // ✨ 控制年度表格全螢幕
@@ -128,6 +103,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [yearlyHighlightEmpId, setYearlyHighlightEmpId] = useState<string | null>(null);
 
   const payroll = usePayrollPresentation(selectedClient, selectedYear+'-'+selectedMonth);
+  const employees = payroll.employees;
   const monthlyFormData: any = payroll.editing ? {...payroll.editing.amounts,...payroll.editing.attendance} : payroll.oldEditing ? {...payroll.oldEditing,...legacyAmounts(payroll.oldEditing)} : {};
   const [previewHtml,setPreviewHtml] = useState('');
   const previewSlip = (slip: Slip) => {
@@ -137,6 +113,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [showPayrollHistory,setShowPayrollHistory] = useState(false);
   const [showVersionHistory,setShowVersionHistory] = useState(false);
   const editorState = payroll.editing ? payroll.dirty ? '有未儲存修改' : payroll.effectiveEditing ? payroll.editing.revision===0 ? '自動帶入（尚未保存或寄送）' : payroll.editing.status==='draft' ? '已保存' : payrollStatus[payroll.editing.status] : payroll.editing.status==='void'||payroll.editing.status==='superseded' ? payrollStatus[payroll.editing.status] : payroll.needsEnrollment ? '待首次納入' : '待填當月資料' : '';
+  // Enter, Ctrl+Enter and the save button share this one rule.
+  const canSaveMonthly = !payroll.busy && payroll.ready && !(payroll.oldEditing ? !payroll.legacyEditable || !payroll.dirtyLegacy : !payroll.canEdit || (payroll.editing && payroll.editing.revision>0 && !payroll.dirty && !(!payroll.needsEnrollment && payroll.editing.status==='draft')));
   const rowStatusLabel = (r: PayrollRow) => r.slip ? r.slip.revision===0 ? '自動帶入' : r.slip.status==='draft'&&!r.excluded ? '已保存' : payrollStatus[r.slip.status] : '';
   const sendBlockReason = payroll.busy ? '處理中' : payroll.sendIssues.length ? payroll.sendIssues.join('；') : payroll.oldEditing ? payroll.legacyCorrecting||payroll.dirtyLegacy ? '請先保存修改' : payroll.needsEnrollment ? '請先完成首次納入' : !payroll.legacyEditable ? '這份舊薪資目前不能寄送' : '' : payroll.editing ? payroll.dirty ? '請先保存修改' : !payroll.effectiveEditing ? payroll.needsEnrollment ? '請先完成首次納入' : '請先保存當月資料' : payroll.mailState==='CHECKING' ? '寄送狀態查詢中' : payroll.mailState==='UNKNOWN' ? '寄送狀態不明，請先查詢' : payroll.mailState==='ERROR' ? '請按「失敗重寄」' : payroll.mailState!=='NONE' ? '已排程或已寄送' : '' : '沒有可寄送的薪資單';
   useEffect(()=>setShowVersionHistory(false),[payroll.editing?.id,payroll.editing?.revision,payroll.oldEditing?.id,payroll.oldEditing?.legacySeptemberRevision]);
@@ -160,8 +138,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const monthlyEmployeeIds = [...new Set(monthlyRows.map(r=>r.sourceEmployeeId))];
   const editingEmployeeIndex = monthlyEmployeeIds.indexOf(String(editingEmployeeId));
   const goToMonthlyEmployee = (offset:number)=>{const row=monthlyRows.find(r=>r.sourceEmployeeId===monthlyEmployeeIds[editingEmployeeIndex+offset]);if(!row||!canLeaveMonthlyEditor())return;setEditingMonthlyEmp(row);setEditModalMonth(selectedMonth);loadFormDataForMonth(row,selectedMonth);};
-  const openYearlyEditor = (emp:Employee,month:string)=>{if(payroll.busy)return;setEditingMonthlyEmp(emp);setEditModalMode('yearly');setEditModalMonth(month);loadFormDataForMonth(emp,month);setIsAddingNewMonthly(false);setIsMonthlyEditModalOpen(true);};
-  const handleSaveMonthlyData = async(e:React.FormEvent)=>{e.preventDefault();if(payroll.oldEditing){const reason=window.prompt('請填寫這次薪資修改原因');if(reason?.trim())await payroll.saveLegacy(reason.trim());return;}await payroll.save();};
+  const openYearlyEditor = (emp:Employee,month:string)=>{if(payroll.busy)return;setEditingMonthlyEmp(emp);setEditModalMode('yearly');setEditModalMonth(month);loadFormDataForMonth(emp,month);setIsMonthlyEditModalOpen(true);};
+  const handleSaveMonthlyData = async(e:React.FormEvent)=>{e.preventDefault();if(!canSaveMonthly)return;if(payroll.oldEditing){const reason=window.prompt('請填寫這次薪資修改原因');if(reason?.trim())await payroll.saveLegacy(reason.trim());return;}await payroll.save();};
   // ✨ 新增：預覽 Email 薪資單
   const handlePreviewEmail = () => {
     if(payroll.editing){previewSlip(['NONE','ERROR'].includes(payroll.mailState)?{...payroll.editing,employee:{...payroll.editing.employee,email:payroll.recipientOf(payroll.editing)}}:payroll.editing);return;}
@@ -335,14 +313,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
   const handleRowClickMonthly = (emp: Employee) => {
       if(payroll.busy)return;
-      // 去找這個員工這個月的資料，看他之前有沒有寄過信
-  const currentRecord = monthlyData[emp.id] || {};
       setEmailSendStatus('idle');
       setEditingMonthlyEmp(emp);
       setEditModalMonth(selectedMonth);
       setEditModalMode('monthly'); // ✨ 設定為每月模式
       loadFormDataForMonth(emp, selectedMonth);
-      setIsAddingNewMonthly(false);
       setIsMonthlyEditModalOpen(true);
   };
 
@@ -352,6 +327,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [isDeleteClientModalOpen, setIsDeleteClientModalOpen] = useState(false);
   const [newClientSelectId, setNewClientSelectId] = useState('');
   const [clientsToDelete, setClientsToDelete] = useState<string[]>([]);
+  const [clientActionBusy, setClientActionBusy] = useState(false);
+  const [clientActionError, setClientActionError] = useState('');
 
   const [isEmpModalOpen, setIsEmpModalOpen] = useState(false);
   const [editingEmp, setEditingEmp] = useState<Partial<Employee> | null>(null);
@@ -362,8 +339,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const [employeeError, setEmployeeError] = useState('');
   const [employeeOriginal, setEmployeeOriginal] = useState<Employee | null>(null);
   const employeeSnapshot = useRef('');
+  const [employeeVersions, setEmployeeVersions] = useState<Array<{changes:Array<{label:string;from:string;to:string}>;actorName:string;changedAt:string}>|null>(null);
+  const [employeeVersionsError, setEmployeeVersionsError] = useState('');
   const employeeFormState = () => JSON.stringify([editingEmp, editingEmpEmployHistory, editingEmpCompHistory]);
-  useEffect(() => { if (isEmpModalOpen) employeeSnapshot.current = employeeFormState(); }, [isEmpModalOpen]);
+  useEffect(() => { if (isEmpModalOpen) { employeeSnapshot.current = employeeFormState(); setEmployeeVersions(null); setEmployeeVersionsError(''); } }, [isEmpModalOpen]);
   const closeEmployeeEditor = () => {
     if (employeeSaving) return;
     if (employeeFormState() !== employeeSnapshot.current && !window.confirm('員工資料尚未保存，確定放棄修改並離開？')) return;
@@ -409,8 +388,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     const handleSyncError = (error: Error) => console.error('Payroll real-time sync failed:', error);
     const unsubscribe = [
       TaskService.subscribePayrollClients(setPayrollClients, handleSyncError),
-      TaskService.subscribePayrollRecords(setPayrollRecords, handleSyncError),
-      TaskService.subscribeEmployees(items => setEmployees(items.filter(e => e.temporaryPayrollHidden !== true)), handleSyncError)
     ];
     return () => unsubscribe.forEach(stopListening => stopListening());
   }, []);
@@ -420,8 +397,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     const handleKeyDown = (e: KeyboardEvent) => {
       // Escape: close open modals
       if (e.key === 'Escape') {
+        if (previewHtml) { setPreviewHtml(''); return; }
+        if (payroll.batchReview) { payroll.setBatchReview(null); return; }
+        if (showPayrollHistory) { setShowPayrollHistory(false); return; }
         if (isMonthlyEditModalOpen) { e.preventDefault(); closeMonthlyEditor(); return; }
         if (isEmpModalOpen) { closeEmployeeEditor(); return; }
+        if (isFullscreen) { setIsFullscreen(false); return; }
         return;
       }
       // Ctrl+Enter: submit currently open form
@@ -440,7 +421,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     };
     document.addEventListener('keydown', handleKeyDown);
     return () => document.removeEventListener('keydown', handleKeyDown);
-  }, [isMonthlyEditModalOpen, isEmpModalOpen, payroll.busy, payroll.hasUnsavedChanges, payroll.dirtyLegacy, editingEmp, editingEmpEmployHistory, editingEmpCompHistory, employeeSaving]);
+  }, [isMonthlyEditModalOpen, isEmpModalOpen, payroll.busy, payroll.hasUnsavedChanges, payroll.dirtyLegacy, editingEmp, editingEmpEmployHistory, editingEmpCompHistory, employeeSaving, previewHtml, payroll.batchReview, showPayrollHistory, isFullscreen]);
 
   const handleOpenAddEmp = () => {
     setEmployeeOriginal(null);
@@ -515,19 +496,30 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const displayClients = clients.filter(c => enabledClientIds.includes(String(c.id)));
 
   const handleAddClient = async () => {
-    if (!newClientSelectId) return;
-    const newConfig: PayrollClientConfig = { id: Date.now().toString(), clientId: newClientSelectId, createdAt: new Date().toISOString() };
-    await TaskService.addPayrollClient(newConfig);
-    setIsAddClientModalOpen(false);
-    setNewClientSelectId('');
+    if (!newClientSelectId || clientActionBusy) return;
+    setClientActionBusy(true); setClientActionError('');
+    try {
+      const newConfig: PayrollClientConfig = { id: Date.now().toString(), clientId: newClientSelectId, createdAt: new Date().toISOString() };
+      await TaskService.addPayrollClient(newConfig);
+      setIsAddClientModalOpen(false);
+      setNewClientSelectId('');
+    } catch (error: any) {
+      setClientActionError('開通失敗：' + (error.message || '請稍後再試'));
+    } finally { setClientActionBusy(false); }
   };
 
   const handleConfirmDeleteClients = async () => {
+    if (clientActionBusy) return;
+    setClientActionBusy(true); setClientActionError('');
+    const failed: string[] = [], reasons: string[] = [];
     for (const clientId of clientsToDelete) {
-        await TaskService.deletePayrollClient(clientId);
+      try { await TaskService.deletePayrollClient(clientId); }
+      catch (error: any) { failed.push(clientId); reasons.push((clients.find(c => String(c.id) === clientId)?.name || clientId) + '：' + (error.message || '移除失敗')); }
     }
+    setClientActionBusy(false);
+    setClientsToDelete(failed);
+    if (failed.length) { setClientActionError('以下客戶未移除，其餘已完成。\n' + reasons.join('\n')); return; }
     setIsDeleteClientModalOpen(false);
-    setClientsToDelete([]);
   };
 
 
@@ -668,7 +660,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
         <div className="flex-1 overflow-hidden flex flex-col p-6">
             {activeInnerTab !== 'employees' && !payroll.ready && <p role="status" className="text-sm text-gray-500 mb-2">薪資資料尚未完整載入，暫不顯示合計或允許開單。</p>}
-            {activeInnerTab !== 'employees' && payroll.error && <p role="alert" className="text-sm text-red-600 mb-2">{payroll.error}</p>}
+            {payroll.error && <p role="alert" className="text-sm text-red-600 mb-2">{payroll.error}</p>}
             {activeInnerTab === 'monthly' && payroll.batchNotice && <div role="status" className="mb-2 p-3 bg-blue-50 border border-blue-200 rounded-xl text-sm text-blue-800 flex justify-between gap-4"><div><p className="font-bold">{payroll.batchNotice.text}</p>{payroll.batchNotice.failures.length>0&&<><p className="mt-1 font-bold text-amber-700">以下 {payroll.batchNotice.failures.length} 位未寄送：</p>{payroll.batchNotice.failures.map(f=><p key={f} className="text-amber-700">{f}</p>)}</>}</div><button type="button" aria-label="關閉通知" onClick={()=>payroll.setBatchNotice(null)} className="shrink-0 font-bold text-gray-500 hover:text-gray-700">關閉</button></div>}
             {activeInnerTab !== 'employees' && <div className="fixed bottom-3 right-5 z-40 flex gap-2">{activeInnerTab==='monthly'&&<button type="button" onClick={()=>payroll.refreshMonthMail()} className="text-xs font-bold text-gray-500 hover:text-blue-600 bg-white/90 px-2 py-1 rounded-lg border border-gray-200">重新整理寄送狀態</button>}<button type="button" onClick={()=>setShowPayrollHistory(true)} className="text-xs font-bold text-gray-500 hover:text-blue-600 bg-white/90 px-2 py-1 rounded-lg border border-gray-200">核對與歷史紀錄</button></div>}
 
@@ -705,7 +697,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                     setEditingEmpEmployHistory([{
                                                         id: 'legacy-' + emp.id,
                                                         type: emp.employmentType || 'full_time',
-                                                        startDate: emp.startDate || new Date().toISOString().split('T')[0],
+                                                        startDate: emp.startDate || taiwanToday(),
                                                         endDate: emp.endDate || null
                                                     }]);
                                                 }
@@ -748,7 +740,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     );
                                 })}
                                 {currentEmps.length === 0 && (
-                                    <tr><td colSpan={8} className="py-20 text-center text-gray-400 font-bold">目前尚無員工資料，請點擊右上角新增</td></tr>
+                                    <tr><td colSpan={8} className="py-20 text-center text-gray-400 font-bold">{payroll.ready ? '目前尚無員工資料，請點擊右上角新增' : '員工資料載入中…'}</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -1185,10 +1177,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                         <div className="fixed inset-0 bg-black/60 z-[125] flex items-center justify-center p-4 animate-fade-in" onClick={closeMonthlyEditor}>
                           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
                             {/* ✨ 視窗標題列 (在年度模式時移除底線，讓月份標籤無縫接軌) */}
-                                <div className={`p-5 ${(!isAddingNewMonthly && editModalMode === 'yearly') ? 'pb-3 border-none' : 'border-b'} bg-gray-50 flex justify-between items-center`}>
+                                <div className={`p-5 ${editModalMode === 'yearly' ? 'pb-3 border-none' : 'border-b'} bg-gray-50 flex justify-between items-center`}>
                                     <h3 className="text-xl font-black text-gray-800 flex items-center gap-2">
-                                        {isAddingNewMonthly ? '新增薪資紀錄' : `編輯薪資結算 - ${editingMonthlyEmp?.name}`}
-                                        {!isAddingNewMonthly && <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded text-sm">{selectedYear} 年 {editModalMode === 'monthly' ? `${selectedMonth} 月` : ''}</span>}
+                                        {`編輯薪資結算 - ${editingMonthlyEmp?.name}`}
+                                        <span className="text-blue-600 bg-blue-100 px-2 py-1 rounded text-sm">{selectedYear} 年 {editModalMode === 'monthly' ? `${selectedMonth} 月` : ''}</span>
                                         {editingMonthlyEmp && (
                                             <span className={`px-2 py-0.5 rounded-md text-[10px] font-bold ${editingMonthlyEmp.employmentType === 'full_time' ? 'bg-blue-100 text-blue-700' : 'bg-orange-100 text-orange-700'}`}>
                                                 {editingMonthlyEmp.employmentType === 'full_time' ? '正職' : '兼職'}
@@ -1205,7 +1197,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 </div>
 
                                 {/* ✨ 月份切換器 (移除滾動條、縮小上距、優化底色視覺) */}
-                                {!isAddingNewMonthly && editModalMode === 'yearly' && (
+                                {editModalMode === 'yearly' && (
                                     <div className="px-6 pt-0 pb-0 bg-gray-50 border-b flex gap-1 flex-wrap sm:flex-nowrap overflow-hidden shadow-sm z-10">
                                         {['01','02','03','04','05','06','07','08','09','10','11','12'].map(m => (
                                             <button
@@ -1257,39 +1249,6 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                         {payroll.legacyHistory.map((v,i)=><div key={i} className="border-b border-gray-200 py-2"><p className="font-bold">{new Date(v.changedAt).toLocaleString('zh-TW',{timeZone:'Asia/Taipei',hour12:false})} · {payroll.historyUsers[v.actor]||'操作人未記錄'}</p>{[...amountFields,...attendanceFields].filter(k=>v.before[k]!==v.after[k]).map(k=><p key={k}>{labels[k]}：{v.before[k]??'未保存'} → {v.after[k]}</p>)}<p>原因：{v.reason}</p></div>)}
                                       </div>}
                                     </div>
-
-                                    {isAddingNewMonthly && (
-                                        <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 mb-6">
-                                            <label className="block text-sm font-bold text-blue-800 mb-2">請選擇要編輯的員工</label>
-                                            <select
-                                                required
-                                                onChange={(e) => {
-                                                    const emp = employees.find(emp => emp.id === e.target.value);
-                                                    if (emp) {
-                                                        setEditingMonthlyEmp(emp);
-                                                        setEditModalMonth(selectedMonth);
-                                                        loadFormDataForMonth(emp, selectedMonth);
-                                                      const currentRecord = monthlyData[emp.id] || {};
-                                                      setEmailSendStatus('idle');
-                                                    }
-                                                }}
-                                                className="w-full border border-blue-200 p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-blue-500 font-bold bg-white"
-                                            >
-                                              <option value="">-- 請選擇員工 --</option>
-                                                {employees.filter(e => {
-                                                    if (e.clientId !== String(selectedClient?.id)) return false;
-                                                    const targetMonthStr = `${selectedYear}-${selectedMonth}`;
-                                                    const startMonthStr = e.startDate ? e.startDate.substring(0, 7) : '';
-                                                    const endMonthStr = e.endDate ? e.endDate.substring(0, 7) : '';
-                                                    if (startMonthStr && targetMonthStr < startMonthStr) return false;
-                                                    if (endMonthStr && targetMonthStr > endMonthStr) return false;
-                                                    return true;
-                                                }).map(emp => (
-                                                    <option key={emp.id} value={emp.id}>{emp.name} ({emp.empNo})</option>
-                                                ))}
-                                            </select>
-                                        </div>
-                                    )}
 
                                     {editingMonthlyEmp && (
                                         <>
@@ -1385,7 +1344,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 <button type="button" onClick={closeMonthlyEditor} className="flex-1 py-3 bg-white border border-gray-200 text-gray-600 font-bold rounded-xl hover:bg-gray-100 transition-colors">{payroll.hasUnsavedChanges||payroll.dirtyLegacy||payroll.legacyCorrecting||payroll.editing?.revision===0?'取消':'關閉'}</button>
                                 {payroll.oldEditing && payroll.needsEnrollment && <button type="button" disabled={payroll.busy||payroll.dirtyLegacy||!payroll.legacyEditable} onClick={()=>payroll.confirmLegacyEnrollment()} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">首次納入薪資</button>}
                                 {payroll.editing && payroll.editing.status==='draft' && payroll.needsEnrollment && payroll.editing.revision>0 && <button type="button" disabled={payroll.busy || payroll.dirty} onClick={()=>payroll.transition('confirm')} className="flex-1 py-3 bg-blue-600 text-white font-bold rounded-xl whitespace-nowrap disabled:opacity-40 disabled:cursor-not-allowed">首次納入薪資</button>}
-                                <button disabled={payroll.busy || !payroll.ready || (payroll.oldEditing ? !payroll.legacyEditable || !payroll.dirtyLegacy : !payroll.canEdit || (payroll.editing && payroll.editing.revision>0 && !payroll.dirty && !(!payroll.needsEnrollment && payroll.editing.status==='draft')))} onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">{payroll.legacyEditable?'保存修改':payroll.needsEnrollment?'保存待納入薪資':'保存薪資'}</button>
+                                <button disabled={!canSaveMonthly} onClick={() => document.getElementById('submitMonthlyForm')?.click()} className="flex-1 py-3 text-white font-bold rounded-xl shadow-md transition-all bg-blue-600 hover:bg-blue-700 disabled:opacity-40 disabled:cursor-not-allowed">{payroll.legacyEditable?'保存修改':payroll.needsEnrollment?'保存待納入薪資':'保存薪資'}</button>
                               </div>
                             </div>
                           </div>
@@ -1395,7 +1354,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
 
         {previewHtml && <div className="fixed inset-0 bg-black/60 z-[150] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl h-[90vh] flex flex-col overflow-hidden"><div className="p-4 bg-gray-50 border-b flex justify-between font-bold">薪資單預覽<button onClick={()=>setPreviewHtml('')}>關閉預覽</button></div><iframe id="salary-preview" title="薪資單預覽" srcDoc={previewHtml} className="flex-1 w-full border-0"/></div></div>}
-        {showPayrollHistory && <div className="fixed inset-0 bg-black/60 z-[130] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"><div className="p-5 bg-gray-50 border-b flex justify-between font-bold">核對與歷史紀錄<button onClick={()=>setShowPayrollHistory(false)}>關閉</button></div><div className="p-6 overflow-auto text-sm space-y-4"><p>表格有效小計包括自動帶入值（已納入員工、月份不晚於當月且上月有已保存的完整薪資）、有效保存單與無異常的舊制保存值；未首次納入、資料不完整、作廢、被取代與待核對舊文件不計入。自動帶入不代表已寄送或付款。舊制確認及付款狀態未知，不能視為完整應付或已付款總額。</p>{payroll.legacy.filter(r=>activeInnerTab==='monthly'?r.month===selectedYear+'-'+selectedMonth:r.month.startsWith(selectedYear+'-')).map(r=><p key={r.id} className="p-3 bg-amber-50 rounded-xl">{r.month}／{payroll.employees.find(e=>e.id===r.employeeId)?.name||'員工主檔不存在'}／{r.id}：{legacyIssues(r,payroll.legacy,payroll.employees).join('；')||'舊制原值保存'}<br/>{amountFields.map(k=>labels[k]+': '+((r as any)[k]??'缺少')).join('；')}</p>)}{payroll.slips.filter(s=>activeInnerTab==='monthly'?s.month===selectedYear+'-'+selectedMonth:s.month.startsWith(selectedYear+'-')).map(s=><button key={s.id} className="block w-full text-left p-3 bg-gray-50 rounded-xl" onClick={()=>{const emp=payroll.employees.find(e=>e.id===s.employeeId);if(!emp)return;setEditingMonthlyEmp(emp);setEditModalMonth(s.month.slice(5));setEditModalMode(activeInnerTab==='yearly'?'yearly':'monthly');payroll.open({...emp,sourceEmployeeId:emp.id,slip:s} as PayrollRow,s.month);setIsAddingNewMonthly(false);setIsMonthlyEditModalOpen(true);setShowPayrollHistory(false);}}>{s.employee.name}／{s.periodStart}～{s.periodEnd}／{payrollStatus[s.status]}</button>)}</div></div></div>}
+        {showPayrollHistory && <div className="fixed inset-0 bg-black/60 z-[130] flex items-center justify-center p-4"><div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden"><div className="p-5 bg-gray-50 border-b flex justify-between font-bold">核對與歷史紀錄<button onClick={()=>setShowPayrollHistory(false)}>關閉</button></div><div className="p-6 overflow-auto text-sm space-y-4"><p>表格有效小計包括自動帶入值（已納入員工、月份不晚於當月且上月有已保存的完整薪資）、有效保存單與無異常的舊制保存值；未首次納入、資料不完整、作廢、被取代與待核對舊文件不計入。自動帶入不代表已寄送或付款。舊制確認及付款狀態未知，不能視為完整應付或已付款總額。</p>{payroll.legacy.filter(r=>activeInnerTab==='monthly'?r.month===selectedYear+'-'+selectedMonth:r.month.startsWith(selectedYear+'-')).map(r=><p key={r.id} className="p-3 bg-amber-50 rounded-xl">{r.month}／{payroll.employees.find(e=>e.id===r.employeeId)?.name||'員工主檔不存在'}／{r.id}：{legacyIssues(r,payroll.legacy,payroll.employees).join('；')||'舊制原值保存'}<br/>{amountFields.map(k=>labels[k]+': '+((r as any)[k]??'缺少')).join('；')}</p>)}{payroll.slips.filter(s=>activeInnerTab==='monthly'?s.month===selectedYear+'-'+selectedMonth:s.month.startsWith(selectedYear+'-')).map(s=><button key={s.id} className="block w-full text-left p-3 bg-gray-50 rounded-xl" onClick={()=>{const emp=payroll.employees.find(e=>e.id===s.employeeId);if(!emp)return;setEditingMonthlyEmp(emp);setEditModalMonth(s.month.slice(5));setEditModalMode(activeInnerTab==='yearly'?'yearly':'monthly');payroll.open({...emp,sourceEmployeeId:emp.id,slip:s} as PayrollRow,s.month);setIsMonthlyEditModalOpen(true);setShowPayrollHistory(false);}}>{s.employee.name}／{s.periodStart}～{s.periodEnd}／{payrollStatus[s.status]}</button>)}</div></div></div>}
 
         {payroll.batchReview && <div className="fixed inset-0 bg-black/60 z-[130] flex items-center justify-center p-4"><div role="dialog" aria-label="核對本月薪資單" className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl max-h-[90vh] flex flex-col overflow-hidden">
           <div className="p-5 bg-gray-50 border-b font-black text-gray-800">核對 {selectedYear} 年 {selectedMonth} 月薪資單</div>
@@ -1419,6 +1378,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
                     <form onSubmit={handleSaveEmp} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
                         <p className="p-3 text-sm text-gray-600">離職日為最後在職日。復職請新增任職，並確認相應待遇。舊薪資原值保留；有薪資引用的任職不可刪除。</p>
+                        {employeeOriginal && <div className="text-xs">
+                            <button type="button" aria-expanded={!!employeeVersions} onClick={async () => { if (employeeVersions) { setEmployeeVersions(null); return; } setEmployeeVersionsError(''); try { setEmployeeVersions(await payroll.employeeHistory(employeeOriginal.id)); } catch (error: any) { setEmployeeVersionsError(error.message || '變更紀錄讀取失敗'); } }} className="font-bold text-gray-600 underline hover:text-blue-700">變更紀錄</button>
+                            {employeeVersionsError && <p role="alert" className="text-red-600 mt-1">{employeeVersionsError}</p>}
+                            {employeeVersions && <div className="mt-2 max-h-64 overflow-auto">
+                                {!employeeVersions.length && <p className="text-gray-500">尚無變更紀錄；只會記錄此功能上線之後的修改。</p>}
+                                {employeeVersions.map((version, index) => <div key={index} className="border-b border-gray-200 py-2"><p className="font-bold">{new Date(version.changedAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false })} · {version.actorName || '操作人未記錄'}</p>{version.changes.map((change, n) => <p key={n}>{change.label}：{change.from} → {change.to}</p>)}</div>)}
+                            </div>}
+                        </div>}
                         <div className="space-y-4">
                             <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>核心資料</h4>
                             <div className="grid grid-cols-3 gap-4">
@@ -1445,7 +1412,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 <button type="button" onClick={() => {
                                   const sorted = [...editingEmpEmployHistory].sort((a,b)=>b.startDate.localeCompare(a.startDate));
                                   if (sorted.some(p=>!p.endDate)) { setEmployeeError('請先填寫目前任職的離職日，再新增復職'); return; }
-                                  const date = window.prompt('請填復職／到職日期（YYYY-MM-DD）。原待遇會帶入供確認。', new Date().toISOString().slice(0,10));
+                                  const date = window.prompt('請填復職／到職日期（YYYY-MM-DD）。原待遇會帶入供確認。', taiwanToday());
                                   if (!date) return;
                                   const next = [...editingEmpEmployHistory,{id:crypto.randomUUID(),type:sorted[0]?.type || editingEmp.employmentType || 'full_time',startDate:date,endDate:null}];
                                   try { validatePeriods(next); } catch(e:any) {setEmployeeError(e.message);return;}
@@ -1489,7 +1456,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                         <div className="space-y-4 bg-orange-50 p-4 rounded-2xl border border-orange-100">
                             <div className="flex items-center justify-between">
                                 <h4 className="font-bold text-orange-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>待遇歷程</h4>
-                                <button type="button" onClick={() => setEditingEmpCompHistory(prev => [...prev, { id: Date.now().toString(), effectiveDate: (!prev.length && [...editingEmpEmployHistory].filter(p => p.startDate).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]?.startDate) || new Date().toISOString().split('T')[0], baseSalary: editingEmp.defaultBaseSalary ?? 0, foodAllowance: editingEmp.defaultFoodAllowance ?? 0, insuranceBracket: 0, hasLaborIns: true, hasHealthIns: true }])} className="text-xs font-bold text-orange-700 bg-white border border-orange-300 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-colors">+ 新增調薪紀錄</button>
+                                <button type="button" onClick={() => setEditingEmpCompHistory(prev => [...prev, { id: Date.now().toString(), effectiveDate: (!prev.length && [...editingEmpEmployHistory].filter(p => p.startDate).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]?.startDate) || taiwanToday(), baseSalary: editingEmp.defaultBaseSalary ?? 0, foodAllowance: editingEmp.defaultFoodAllowance ?? 0, insuranceBracket: 0, hasLaborIns: true, hasHealthIns: true }])} className="text-xs font-bold text-orange-700 bg-white border border-orange-300 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-colors">+ 新增調薪紀錄</button>
                             </div>
                             <p className="text-xs text-orange-600">新薪資單依計薪起日選取待遇；期間內待遇變更須分開開單。舊薪資原值不重算。</p>
                             {editingEmpCompHistory.length === 0 && (
@@ -1558,10 +1525,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
       <div className="flex items-center justify-between mb-6">
         <h2 className="text-2xl font-black text-gray-800 flex items-center gap-2">客戶薪資計算</h2>
         <div className="flex gap-2">
-          <button onClick={() => setIsAddClientModalOpen(true)} title="新增客戶" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center">
+          <button onClick={() => { setClientActionError(''); setIsAddClientModalOpen(true); }} title="新增客戶" className="p-2.5 bg-blue-600 text-white font-bold rounded-xl shadow-md hover:bg-blue-700 transition-colors flex items-center justify-center">
             <PlusIcon className="w-5 h-5" />
           </button>
-          <button onClick={() => { setClientsToDelete([]); setIsDeleteClientModalOpen(true); }} title="移除客戶" className="p-2.5 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center">
+          <button onClick={() => { setClientActionError(''); setClientsToDelete([]); setIsDeleteClientModalOpen(true); }} title="移除客戶" className="p-2.5 bg-white border border-red-200 text-red-500 font-bold rounded-xl hover:bg-red-50 transition-colors flex items-center justify-center">
             <TrashIcon className="w-5 h-5" />
           </button>
         </div>
@@ -1600,9 +1567,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             ) : (
               <p className="text-gray-500 mb-6 text-sm">所有客戶都已經開通了！</p>
             )}
+            {clientActionError && <p role="alert" className="text-sm text-red-600 mb-4 whitespace-pre-line">{clientActionError}</p>}
             <div className="flex gap-3">
-              <button onClick={() => setIsAddClientModalOpen(false)} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl text-gray-600">取消</button>
-              <button onClick={handleAddClient} disabled={!newClientSelectId} className="flex-1 py-3 bg-blue-600 font-bold rounded-xl text-white disabled:opacity-50">確認加入</button>
+              <button disabled={clientActionBusy} onClick={() => setIsAddClientModalOpen(false)} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl text-gray-600">取消</button>
+              <button onClick={handleAddClient} disabled={!newClientSelectId || clientActionBusy} className="flex-1 py-3 bg-blue-600 font-bold rounded-xl text-white disabled:opacity-50">確認加入</button>
             </div>
           </div>
         </div>
@@ -1622,9 +1590,10 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
               ))}
               {displayClients.length === 0 && <div className="text-center p-4 text-gray-400 text-sm font-bold">目前無已開通的客戶</div>}
             </div>
+            {clientActionError && <p role="alert" className="text-sm text-red-600 mb-4 whitespace-pre-line">{clientActionError}</p>}
             <div className="flex gap-3">
-              <button onClick={() => { setIsDeleteClientModalOpen(false); setClientsToDelete([]); }} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl text-gray-600">取消</button>
-              <button onClick={handleConfirmDeleteClients} disabled={clientsToDelete.length === 0} className="flex-1 py-3 bg-red-600 font-bold rounded-xl text-white disabled:opacity-50">確認移除 ({clientsToDelete.length})</button>
+              <button disabled={clientActionBusy} onClick={() => { setIsDeleteClientModalOpen(false); setClientsToDelete([]); }} className="flex-1 py-3 bg-gray-100 font-bold rounded-xl text-gray-600">取消</button>
+              <button onClick={handleConfirmDeleteClients} disabled={clientsToDelete.length === 0 || clientActionBusy} className="flex-1 py-3 bg-red-600 font-bold rounded-xl text-white disabled:opacity-50">確認移除 ({clientsToDelete.length})</button>
             </div>
           </div>
         </div>

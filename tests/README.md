@@ -82,3 +82,7 @@ The workflow suite now checks payroll amounts before opening an editor or saving
 ## Status overview and editing flow (2026-11-05)
 
 `payroll-regression` covers `monthMailStatus`, labelled and masked mail, and old-record recalculation. `payroll-display` covers employee ordering. `payroll-workflow-ui` adds per-row mail state, previous/next employee, yearly export and the fullscreen editor. Row mail state and the smaller insurance label are the approved table changes; `payroll-layout` still checks column geometry.
+
+## Keyboard, audit and data loading (2026-11-05)
+
+`payroll-regression` covers unchanged saves keeping their version and masked employee change history. `payroll-display` checks the page no longer subscribes to all employees. `payroll-workflow-ui` adds Enter saving through the shared save rule and Esc closing only the preview. The add/remove client failure messages have no browser test.

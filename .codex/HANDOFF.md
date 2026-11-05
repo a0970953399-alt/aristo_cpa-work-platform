@@ -1,6 +1,6 @@
 # 碩業工作平台交接
 
-更新日期：2026-11-05。工作分支 `main`。第一大類（`0478907`）、第二大類（`5cae73b`）與第三大類（其後的提交，見 Git 歷史）都已推送，`payrollCommand` 已部署，前端由既有整合部署；都尚未以正式帳號驗收。
+更新日期：2026-11-05。工作分支 `main`。第一大類（`0478907`）、第二大類（`5cae73b`）、第三大類（`61328cc`）與第四大類（其後的提交，見 Git 歷史）都已推送，`payrollCommand` 已部署，前端由既有整合部署；都尚未以正式帳號驗收。
 
 使用者表示 10/13 的 `fe34c17`、`4dc6a95` 已上線，並要求以最新程式碼為準；本文件未實際核對正式版本。
 
@@ -47,6 +47,18 @@
 
 部署：已先部署 `payrollCommand` 再推送，Rules 無差異。
 
+## 第四大類
+
+- 第 34 項：使用者決定保留 Enter 保存。Enter、Ctrl+Enter 與保存鍵共用同一判斷；後端對內容未變的已保存單不新增版本。
+- 第 35 項：Esc 只關最上層，順序為預覽、核對表、核對與歷史紀錄、編輯窗或員工資料、全螢幕。
+- 第 36 項：`saveEmployee` 把變更寫入 `employees/{id}/versions/{operationId}`，內容只存遮蔽後的身分證與帳號，由 `employeeHistory` 讀取；只記錄部署後的修改。
+- 第 37 項：移除全部員工與 `payrollRecords` 的訂閱，只載入選定客戶的員工。
+- 第 38 項：預設日期與目前年月改用台灣時間。
+- 第 39 項：開通與移除客戶失敗時留在視窗並顯示原因。此項未跑瀏覽器測試。
+- 第 40、41 項：移除無作用程式與 `isPayrollEnrolled` 的舊薪資判斷；月份資料未變時不重算。
+
+部署：已先部署 `payrollCommand` 再推送，Rules 無差異。本機部署指令前可設定 `FUNCTIONS_DISCOVERY_TIMEOUT=120`。
+
 ## 相關檔案
 
 `functions/src/payrollDomain.ts`、`functions/src/payroll.ts`、`usePayrollPresentation.ts`、`PayrollView.tsx`、`payrollDisplay.ts`、`tests/payroll-display.test.cjs`、`tests/payroll-regression.test.cjs`、`tests/payroll-workflow-ui.test.cjs`、`tests/payroll-fixes-ui.test.cjs`、`tests/payroll-layout.test.cjs`、`tests/README.md`。Firestore Rules 與既有資料未修改。
@@ -55,7 +67,7 @@
 
 全部使用模擬資料，未登入正式帳號、未寫入正式 Firestore、未實際寄信。
 
-- `tests/payroll-regression`、`payroll-display`、`permission-regression`、`attendance-handlers` 全數通過（第三大類後為 104 項）。Email 身分證、月表版面比對已依核准內容更新；`payroll-layout` 的欄寬比對仍通過。`payroll-display` 原本凍結 Excel 匯入與舊薪資保存邏輯的測試，因這兩處已納入範圍，改為只檢查舊薪資保存仍帶版本與原始資料。
+- `tests/payroll-regression`、`payroll-display`、`permission-regression`、`attendance-handlers` 全數通過（第四大類後為 108 項）。Email 身分證、月表版面比對已依核准內容更新；`payroll-layout` 的欄寬比對仍通過。`payroll-display` 原本凍結 Excel 匯入與舊薪資保存邏輯的測試，因這兩處已納入範圍，改為只檢查舊薪資保存仍帶版本與原始資料。
 - `tests/payroll-workflow-ui.test.cjs` 通過，並新增批次核對、略過、結果顯示、空白單與未來月份情境；另修正其測試替身依系統日期判斷首次納入的問題。
 - `tests/payroll-ui.test.cjs` 通過。
 - `tests/payroll-fixes-ui.test.cjs` 與 `tests/payroll-layout.test.cjs` 已更新並通過。兩者在 `def7210` 通過、自 `fe34c17` 起失敗，根因是測試仍依舊的「保存草稿／確認薪資」流程與舊規則，並非應用程式錯誤；本次改成目前流程，原本的檢查項目保留。例外：`payroll-layout` 的舊單唯讀檢查已改為未修改時不能保存，因舊單已可編輯；其欄寬比對的測試員工改為已首次納入，才能與舊版同樣顯示實發金額（未納入列顯示「—」、欄寬較窄是 `806ae55` 既有設計）。
@@ -77,7 +89,7 @@ Playwright 未安裝於專案；瀏覽器測試使用專案外的 `playwright-co
 ## 待辦
 
 - 以正式帳號驗收批次核對、寄送檢查與作廢更正單；驗收時注意不要寄出真實薪資單。
-- 掃描清單其餘項目依大類逐步處理：第四大類程式缺陷、第五大類事務所規則確認（兼職請假、平日加班倍率、免稅範圍）。
+- 掃描清單其餘項目：第五大類事務所規則確認（兼職請假、平日加班倍率、免稅範圍）。
 - 舊有待核對：「9 月舊薪資多人編輯覆蓋」保持原樣。
 - 待事務所確認：國定假日目前只有一個時數欄位，未區分 8 小時內出勤與超過 8 小時的加班；正職加給（本薪＋伙食費）÷240×時數×1，兼職時薪×時數×2，全部列免稅加班費。未確認前不要修改算法。
 - 欄位名稱統一（掃描第 30 項）：使用者決定先不改。

@@ -1,7 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
-import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml, isPayrollEnrolled, legacyCanEdit, monthEnd, legacyNeedsEnrollment, payrollSendIssues, legacySendIssues, legacyAttendance, slipTitle } from './payrollDomain.js';
+import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml, isPayrollEnrolled, legacyCanEdit, monthEnd, legacyNeedsEnrollment, payrollSendIssues, legacySendIssues, legacyAttendance, slipTitle, employeeChanges } from './payrollDomain.js';
 const key = (value: unknown) => { assert(typeof value === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(value), '識別碼不正確'); return value as string; };
 const text = (value: unknown, max = 2000) => { assert(typeof value === 'string' && value.length <= max, '文字欄位不正確'); return value as string; };
 const canonical = (v: any): string => JSON.stringify(v && typeof v === 'object' ? Array.isArray(v) ? v.map(x => JSON.parse(canonical(x))) : Object.fromEntries(Object.keys(v).sort().map(k => [k, JSON.parse(canonical(v[k]))])) : v);
@@ -101,7 +101,16 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     }
                 // Preserve pre-existing fields. Never rewrite or delete any legacy salary.
                 tx.set(ref, emp, { merge: true });
+                const changes = employeeChanges(before ? { ...before, id } : null, emp);
+                if (changes.length) tx.create(db.doc(`employees/${id}/versions/${op}`), { changes, actor: uid, actorName: String(u.name || ''), changedAt: now });
                 result = { id };
+            }
+            else if (action === 'employeeHistory') {
+                const id = key(data.id);
+                const target = await tx.get(db.doc('employees/' + id));
+                assert(target.exists && target.data()!.clientId === clientId, '員工不屬於此客戶');
+                const versions = await tx.get(db.collection('employees/' + id + '/versions'));
+                return { history: versions.docs.map(d => d.data()).sort((a, b) => String(b.changedAt).localeCompare(String(a.changedAt))) };
             }
             else if (action === 'confirmLegacyEnrollment') {
                 assert(['boss', 'supervisor'].includes(u.role) || u.permissions?.payroll === true, '沒有薪資操作權限');
@@ -234,8 +243,13 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     writeSlip({ ...previous, status: 'superseded', revision: previous.revision + 1, updatedAt: now, actor: uid, reason: '由 ' + s.id + ' 更正取代' });
                 }
                 if (s.status === 'draft' && !(empDoc.data()?.payrollEnrollmentRequired || []).includes(employmentId)) tx.set(db.doc('employees/' + employeeId), { payrollEnrollmentRequired: [...(empDoc.data()?.payrollEnrollmentRequired || []), employmentId] }, { merge: true });
-                writeSlip(s);
-                result = { slip: s };
+                const content = (x: Slip) => canonical([x.month, x.periodStart, x.periodEnd, x.kind, x.relatedId, x.replacesId, x.basis, x.amounts, x.attendance, x.employee, x.company, x.note, x.reason, x.reviewedMonth]);
+                // Saving an unchanged slip must not create a new version.
+                if (current?.status === 'confirmed' && s.status === 'confirmed' && content(current) === content(s)) result = { slip: current };
+                else {
+                    writeSlip(s);
+                    result = { slip: s };
+                }
             }
             else if (action === 'confirm' || action === 'void') {
                 const id = key(data.id);
