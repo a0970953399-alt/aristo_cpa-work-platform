@@ -173,7 +173,7 @@ export function payrollSendIssues(p: { kind: string; month: string; email: strin
     if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email || '')) issues.push('沒有有效收件信箱');
     if (p.month > currentMonth) issues.push('未來月份的薪資單還不能寄送');
     if (p.kind === 'regular') {
-        if (!(p.amounts.baseSalary > 0)) issues.push('本薪為 0');
+        if (!(p.amounts.baseSalary > 0)) issues.push('本薪尚未填寫');
         // Another saved slip in the month may legitimately hold the insurance deduction.
         if (p.basis && !p.hasOtherPay) {
             if (isInsured(p.basis.hasLaborIns) && !(p.amounts.laborIns > 0)) issues.push('應投保勞保但金額為 0');

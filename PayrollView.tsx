@@ -1,6 +1,6 @@
 import { isEmployeeResigned, insuranceLabel, parseEmployeeImport, sortEmployees, taiwanToday } from './payrollDisplay';
 import { usePayrollPresentation, PayrollRow, payrollStatus } from './usePayrollPresentation';
-import { validatePeriods, periods, slipPeriod, Slip, amountFields, attendanceFields, legacyAmounts, legacyIssues, annualMetrics, labels, calculate, emptyValues, slipHtml, totals as payrollTotals, maskIdNumber, maskBankAccount } from './functions/src/payrollDomain';
+import { validatePeriods, periods, slipPeriod, Slip, amountFields, attendanceFields, legacyAmounts, legacyIssues, annualMetrics, labels, calculate, emptyValues, slipHtml, totals as payrollTotals, maskIdNumber, maskBankAccount, isFullMonth } from './functions/src/payrollDomain';
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
 import * as ExcelJS from 'exceljs';
@@ -116,6 +116,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   // Enter, Ctrl+Enter and the save button share this one rule.
   const canSaveMonthly = !payroll.busy && payroll.ready && !(payroll.oldEditing ? !payroll.legacyEditable || !payroll.dirtyLegacy : !payroll.canEdit || (payroll.editing && payroll.editing.revision>0 && !payroll.dirty && !(!payroll.needsEnrollment && payroll.editing.status==='draft')));
   const rowStatusLabel = (r: PayrollRow) => r.slip ? r.slip.revision===0 ? '自動帶入' : r.slip.status==='draft'&&!r.excluded ? '已保存' : payrollStatus[r.slip.status] : '';
+  const partialFood = payroll.editing && payroll.canEdit && payroll.editing.kind==='regular' && !isFullMonth(payroll.editing.month,payroll.editing.periodStart,payroll.editing.periodEnd) && payroll.editing.basis.foodAllowance>0 && payroll.editing.amounts.foodAllowance===payroll.editing.basis.foodAllowance ? payroll.editing.basis.foodAllowance : 0;
+  const reviewNotes = [...(payroll.openReason && payroll.editing?.revision===0 && !payroll.openReason.startsWith('本月不足月') ? [payroll.openReason] : []), ...(partialFood ? ['本月不足月，伙食費目前是整月金額 '+partialFood.toLocaleString()+' 元，請確認是否要修改'] : [])];
   const sendBlockReason = payroll.busy ? '處理中' : payroll.sendIssues.length ? payroll.sendIssues.join('；') : payroll.oldEditing ? payroll.legacyCorrecting||payroll.dirtyLegacy ? '請先保存修改' : payroll.needsEnrollment ? '請先完成首次納入' : !payroll.legacyEditable ? '這份舊薪資目前不能寄送' : '' : payroll.editing ? payroll.dirty ? '請先保存修改' : !payroll.effectiveEditing ? payroll.needsEnrollment ? '請先完成首次納入' : '請先保存當月資料' : payroll.mailState==='CHECKING' ? '寄送狀態查詢中' : payroll.mailState==='UNKNOWN' ? '寄送狀態不明，請先查詢' : payroll.mailState==='ERROR' ? '請按「失敗重寄」' : payroll.mailState!=='NONE' ? '已排程或已寄送' : '' : '沒有可寄送的薪資單';
   useEffect(()=>setShowVersionHistory(false),[payroll.editing?.id,payroll.editing?.revision,payroll.oldEditing?.id,payroll.oldEditing?.legacySeptemberRevision]);
   const monthlyRows = payroll.rowsFor(selectedYear+'-'+selectedMonth);
@@ -1217,11 +1219,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     </div>
                                 )}
 
-                              {(payroll.error || payroll.info || (payroll.openReason && payroll.editing?.revision===0) || (payroll.sendIssues.length>0 && (payroll.oldEditing ? payroll.legacyEditable : payroll.canEdit))) && <div className="px-6 py-3 border-b bg-white space-y-1 shrink-0">
+                              {(payroll.error || payroll.info || reviewNotes.length>0 || (payroll.sendIssues.length>0 && (payroll.oldEditing ? payroll.legacyEditable : payroll.canEdit))) && <div className="px-6 py-3 border-b bg-white space-y-1 shrink-0">
                                     {payroll.error && <p role="alert" className="text-sm text-red-600">{payroll.error}</p>}
                                     {payroll.info && <p role="status" className="text-sm text-blue-600">{payroll.info}</p>}
-                                    {payroll.openReason && payroll.editing?.revision===0 && <p data-testid="payroll-open-reason" className="text-sm font-bold text-amber-700">未自動帶入的原因：{payroll.openReason}</p>}
-                                    {payroll.sendIssues.length>0 && (payroll.oldEditing ? payroll.legacyEditable : payroll.canEdit) && <p data-testid="payroll-send-issues" className="text-sm font-bold text-amber-700">目前不能寄送：{payroll.sendIssues.join('；')}</p>}
+                                    {payroll.sendIssues.length>0 && (payroll.oldEditing ? payroll.legacyEditable : payroll.canEdit) && <p data-testid="payroll-send-issues" className="text-sm font-bold text-red-700">不能寄送：{payroll.sendIssues.join('；')}</p>}
+                                    {reviewNotes.length>0 && <p data-testid="payroll-review-notes" className="text-sm font-bold text-amber-700">請留意：{reviewNotes.join('；')}</p>}
                               </div>}
                               <form onSubmit={handleSaveMonthlyData} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
 {(()=>{const currentId=payroll.editing?.id || (payroll.oldEditing?'old:'+payroll.oldEditing.id:'');const others=payroll.rowsFor(selectedYear+'-'+editModalMonth).filter(r=>r.sourceEmployeeId===editingEmployeeId&&r.id!==currentId&&r.id!==payroll.openedRowId);return editingMonthlyEmp&&others.length>0?<div className="flex items-center gap-2 text-sm"><label className="font-bold text-gray-600">本月薪資單</label><select aria-label="本月薪資單" disabled={payroll.busy} value={currentId} onChange={e=>{const row=others.find(r=>r.id===e.target.value);if(row && canLeaveMonthlyEditor())payroll.open(row,selectedYear+'-'+editModalMonth);}} className="border border-gray-200 p-2 rounded-xl bg-white"><option value={currentId}>{payroll.editing?'目前編輯：'+editorState:payroll.oldEditing?'舊薪資 '+payroll.oldEditing.id:'選擇薪資單'}</option>{others.map(r=><option key={r.id} value={r.id}>{r.slip?r.slip.periodStart+'～'+r.slip.periodEnd+' '+rowStatusLabel(r):r.legacyRecord?'舊薪資 '+r.legacyRecord.id:(r.recommendedStart||r.startDate)+'～'+(r.recommendedEnd||r.endDate||'在職')+' 新單'}</option>)}</select></div>:null;})()}
