@@ -130,23 +130,44 @@ export function defaultFoodAllowance(b: Basis, month: string, start: string, end
 // Insurance flags default to insured, matching the employee form.
 const isInsured = (flag: unknown) => flag !== false;
 export type PreviousPayroll = { amounts: Values; insurance: Pick<Basis, 'insuranceBracket' | 'hasLaborIns' | 'hasHealthIns'> };
-// The single saved full-month payroll directly before this month, or null when it cannot be carried safely.
-export function previousPayroll(emp: any, p: Period, month: string, slips: Slip[], legacy: any[]): PreviousPayroll | null {
+// The single saved full-month payroll directly before this month, or why it cannot be carried safely.
+function findPreviousPayroll(emp: any, p: Period, month: string, slips: Slip[], legacy: any[]): { previous?: PreviousPayroll; issue?: string } {
     const prev = previousMonth(month), start = prev + '-01', end = monthEnd(prev);
-    if (p.startDate > start || p.endDate && p.endDate < end) return null;
+    if (p.endDate && p.endDate < end) return { issue: '上月不是完整月份，請確認本月金額' };
     const visible = legacy.filter(r => r.temporaryPayrollHidden !== true);
     const olds = visible.filter(r => r.employeeId === emp.id && r.month === prev);
     const regular = slips.filter(s => s.employeeId === emp.id && s.month === prev && s.kind === 'regular' && s.revision > 0 && s.status !== 'void' && s.status !== 'superseded');
-    if (olds.length + regular.length !== 1) return null;
+    if (olds.length + regular.length === 0) return { issue: p.startDate > start ? '上月不是完整月份，請確認本月金額' : '上月沒有已保存的薪資' };
+    if (olds.length + regular.length > 1) return { issue: '上月有多張薪資單，請確認本月金額' };
+    if (p.startDate > start) return { issue: '上月不是完整月份，請確認本月金額' };
     try {
         if (olds.length) {
-            if (legacyIssues(olds[0], visible, [emp]).length || legacyNeedsEnrollment(olds[0], [emp], slips, visible)) return null;
-            return { amounts: legacyAmounts(olds[0]), insurance: basisAt(emp, p, start, end) };
+            if (legacyIssues(olds[0], visible, [emp]).length || legacyNeedsEnrollment(olds[0], [emp], slips, visible)) return { issue: '上月舊薪資待核對' };
+            return { previous: { amounts: legacyAmounts(olds[0]), insurance: basisAt(emp, p, start, end) } };
         }
         const s = regular[0];
-        if (s.employmentId !== p.id || !isFullMonth(prev, s.periodStart, s.periodEnd) || !isEffectivePayroll(s, emp, slips, visible)) return null;
-        return { amounts: s.amounts, insurance: s.basis };
-    } catch { return null; }
+        if (s.employmentId !== p.id || !isFullMonth(prev, s.periodStart, s.periodEnd)) return { issue: '上月不是完整月份，請確認本月金額' };
+        if (!isEffectivePayroll(s, emp, slips, visible)) return { issue: '上月沒有已保存的薪資' };
+        return { previous: { amounts: s.amounts, insurance: s.basis } };
+    } catch { return { issue: '上月舊薪資待核對' }; }
+}
+export function previousPayroll(emp: any, p: Period, month: string, slips: Slip[], legacy: any[]): PreviousPayroll | null { return findPreviousPayroll(emp, p, month, slips, legacy).previous || null; }
+const INSURANCE_KEYS = ['insuranceBracket', 'hasLaborIns', 'hasHealthIns'] as const;
+const hasMissingInsurance = (b: Basis, a: Values) => isInsured(b.hasLaborIns) && !(a.laborIns > 0) || isInsured(b.hasHealthIns) && !(a.healthIns > 0);
+// Explains a row that was not filled automatically, so the person knows what to check.
+export function automaticPayrollIssue(emp: any, p: Period, month: string, start: string, end: string, slips: Slip[], legacy: any[], currentMonth = currentPayrollMonth()): string {
+    if (p.type !== 'full_time') return '兼職請填寫工時';
+    if (!isFullMonth(month, start, end)) return (emp.compensationHistory || []).some((c: any) => c.effectiveDate > month + '-01' && c.effectiveDate <= monthEnd(month)) ? '本月有待遇變動，請分開開單' : '本月不足月，請手動填寫本薪和伙食費';
+    if (month > currentMonth) return '未來月份不會自動帶入';
+    if (!isPayrollEnrolled(emp, p.id, slips, legacy, month)) return '尚未首次納入';
+    if (slips.some(s => s.employeeId === emp.id && s.month === month && s.kind === 'regular' && s.status === 'void')) return '本月薪資單已作廢，請重新填寫';
+    let basis: Basis;
+    try { basis = basisAt(emp, p, start, end); } catch (e) { return e instanceof Error ? e.message : '待遇資料待確認'; }
+    const found = findPreviousPayroll(emp, p, month, slips, legacy);
+    if (!found.previous) return found.issue || '請填寫當月資料';
+    if (INSURANCE_KEYS.some(k => found.previous!.insurance[k] !== basis[k])) return '投保級距或加退保有變動，請確認勞健保';
+    if (hasMissingInsurance(basis, carriedAmounts(basis, found.previous))) return '應投保但上月金額為 0';
+    return '請填寫當月資料';
 }
 export function carriedAmounts(b: Basis, previous: PreviousPayroll): Values {
     return { laborIns: isInsured(b.hasLaborIns) ? previous.amounts.laborIns : 0, healthIns: isInsured(b.hasHealthIns) ? previous.amounts.healthIns : 0, pensionSelf: previous.amounts.pensionSelf, positionAllowance: previous.amounts.positionAllowance };
@@ -185,9 +206,9 @@ export function recurringPayroll(emp: any, p: Period, month: string, company: an
         const previous=previousPayroll(emp,p,month,slips,legacy);
         if (!previous) return null;
         // A changed bracket or enrollment needs a person to confirm the new deductions.
-        if ((['insuranceBracket','hasLaborIns','hasHealthIns'] as const).some(k=>previous.insurance[k]!==basis[k])) return null;
+        if (INSURANCE_KEYS.some(k=>previous.insurance[k]!==basis[k])) return null;
         const amounts: Values={...emptyValues(amountFields),...carriedAmounts(basis,previous),baseSalary:basis.baseSalary,foodAllowance:basis.foodAllowance};
-        if (isInsured(basis.hasLaborIns)&&!(amounts.laborIns>0) || isInsured(basis.hasHealthIns)&&!(amounts.healthIns>0)) return null;
+        if (hasMissingInsurance(basis,amounts)) return null;
         const candidate: Slip = {id:'auto:'+emp.id+':'+p.id+':'+month,schemaVersion:2,revision:0,clientId:emp.clientId,employeeId:emp.id,employmentId:p.id,month,periodStart:month+'-01',periodEnd:monthEnd(month),kind:'regular',relatedId:'',replacesId:'',status:'draft',basis,amounts,attendance:emptyValues(attendanceFields),employee:{name:emp.name,email:emp.email||'',empNo:emp.empNo||'',idNumber:emp.idNumber||'',bankAccount:emp.bankAccount||''},company:{name:company.fullName||company.name||'',phone:company.phone||'',address:company.contactAddress||company.regAddress||''},note:'',reason:'',reviewedMonth:false,createdAt:'',updatedAt:'',actor:''};
         validateSlip(candidate,emp,slips,legacy);
         return candidate;
@@ -252,6 +273,8 @@ export function legacyIssues(r: any, all: any[], employees: any[]): string[] {
         reasons.push('金額明細不完整');
     return reasons;
 }
+// Old records may have no attendance fields at all; only missing values default to zero.
+export function legacyAttendance(r: any): any { return Object.fromEntries(attendanceFields.map(k => [k, r[k] ?? 0])); }
 export function legacyAmounts(r: any): Values { return Object.fromEntries(amountFields.map(k => [k, typeof r[k] === 'number' && Number.isFinite(r[k]) ? r[k] : 0])); }
 export function escapeHtml(s: unknown): string { return String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]!)); }
 export function slipHtml(s: Slip, employment?: Period): string {

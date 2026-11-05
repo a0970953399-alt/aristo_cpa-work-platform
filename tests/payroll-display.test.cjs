@@ -34,10 +34,13 @@ test('monthly and annual table layout retain the approved baseline while editor 
  const tables=s=>s.slice(s.indexOf('{/* 📍 標籤二'),s.indexOf('{/* 🚀 薪資編輯'));
  assert(tables(current).length>10000);assert.deepEqual(layout(tables(current)),layout(tables(baseline)));
 });
-test('deferred Excel import and legacy concurrency write logic remain unchanged',()=>{
- const section=(s,a,b)=>s.slice(s.indexOf(a),s.indexOf(b,s.indexOf(a))).replaceAll('\r\n','\n');
- assert.equal(section(current,'  const handleImportEmpExcel','  useEffect(() => {'),section(baseline,'  const handleImportEmpExcel','  useEffect(() => {'));
- const oldHook=cp.execFileSync('git',['show','19426ce:usePayrollPresentation.ts'],{cwd:repo,encoding:'utf8'}),newHook=fs.readFileSync(path.join(repo,'usePayrollPresentation.ts'),'utf8');
- const logic=s=>section(s,'  async function saveLegacy','  async function sendLegacy').replace(/setInfo\('[^']*'\)/g,'setInfo(message)');
- assert.equal(logic(newHook),logic(oldHook));
+test('legacy saves still carry the revision and original record used to reject stale writes',()=>{
+ const newHook=fs.readFileSync(path.join(repo,'usePayrollPresentation.ts'),'utf8').replaceAll('\r\n','\n');
+ const logic=newHook.slice(newHook.indexOf('  async function saveLegacy'),newHook.indexOf('  async function sendLegacy'));
+ assert(logic.includes('expectedRevision:oldSaved.legacySeptemberRevision||0,expected:oldSaved'));
 });
+
+test('employee import validates rows, skips duplicates and supplies backend defaults',()=>{let n=0;const header=['序號','身分','姓名','信箱','到職日','離職日','身分證','分行','帳號','地址'];const existing=[{id:'x',clientId:'c1',name:'既有',startDate:'2026-01-01',idNumber:'A123456789'},{id:'y',clientId:'c2',name:'別家',startDate:'2026-01-01',idNumber:'B123456789'}];
+ const r=display.parseEmployeeImport([header,['1','正職','新人','a@b.co','2026/1/5','','C123456789','','',''],['2','兼職','工讀','','2026-02-01'],[],['','','',' '],['3','正職','','a@b.co','2026-01-01'],['4','正職','壞日期','bad','2026-13-01'],['5','正職','早離職','','2026-03-01','2026-02-01'],['6','正職','同證','','2026-04-01','','a123456789'],['7','正職','既有','','2026-01-01'],['8','正職','別家','','2026-05-01','','B123456789'],['9','正職','檔內重複','','2026-06-01','','C123456789']],existing,'c1',()=>'id'+(++n));
+ assert.deepEqual([...r.ready.map(e=>e.name)],['新人','工讀','別家']);assert.equal(r.duplicates.length,3);assert.equal(r.errors.length,3);assert.match(r.errors[0],/缺少姓名/);assert.match(r.errors[1],/到職日.*信箱/);assert.match(r.errors[2],/離職日/);
+ const first=r.ready[0];assert.equal(first.startDate,'2026-01-05');assert.equal(first.insuranceBracket,0);assert.equal(first.hasLaborIns,true);assert.equal(first.employmentHistory[0].endDate,null);assert.equal(r.ready[1].employmentType,'part_time');assert.equal(r.ready[1].employmentHistory[0].type,'part_time');assert.equal(first.compensationHistory.length,0);});

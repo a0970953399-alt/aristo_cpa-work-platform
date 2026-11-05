@@ -1,6 +1,6 @@
 # 碩業工作平台交接
 
-更新日期：2026-11-05。基準版本 `4dc6a95`（Complete recurring payroll enrollment continuity），工作分支 `main`。功能提交 `0478907` 已推送 `main`；Vercel Production 部署 success，`payrollCommand` 已於 2026-11-05 部署。尚未以正式帳號驗收。
+更新日期：2026-11-05。工作分支 `main`。第一大類（`0478907`）與第二大類第 9–16 項（基準 `f90c737` 之後的提交，見 Git 歷史）都已推送；`payrollCommand` 已部署，前端由既有整合部署，兩者都尚未以正式帳號驗收。
 
 使用者表示 10/13 的 `fe34c17`、`4dc6a95` 已上線，並要求以最新程式碼為準；本文件未實際核對正式版本。
 
@@ -20,15 +20,28 @@
 - 作廢已排程或已寄出的單會先警告，但仍允許作廢。
 - 勞健保每月由人工核對，因此不做費率表，也不做費率生效月提醒。
 
+## 第二大類
+
+- 第 9 項：編輯窗層級調到全螢幕年度帳冊之上。
+- 第 10 項：暫藏舊薪資後端仍擋，前端改為該月不自動帶入、不能開新單並顯示原因，不顯示金額；八筆紀錄未動。
+- 第 11 項：舊薪資缺出勤欄位視為 0，可保存與寄送；負數或格式錯誤仍拒絕。
+- 第 12 項：2026-09 之後已寄出的舊薪資可「建立更正」，需填原因，保存後重新寄送，前後內容留在變更紀錄；信件排程或處理中不能更正，2026-09 以前維持唯讀。
+- 第 13、14 項：只有未作廢的單鎖定任職期間；後端比對任職期間補上員工 ID。未改動到職、離職、復職流程。
+- 第 15 項：Excel 匯入補預設值，寫入前檢查並確認筆數，同客戶身分證或姓名加到職日重複會略過，逐筆回報結果；缺到職日視為錯誤。
+- 第 16 項：未寄出的單一律寄到員工目前信箱，失敗重寄亦同，實際收件信箱記在 `payrollDispatch.to`；已保存單內的信箱快照不改。
+- 「需處理」與編輯窗顯示未自動帶入的具體原因。
+
+部署：已先部署 `payrollCommand` 再推送，Rules 無差異。Excel 匯入的確認與結果視窗未實際操作過，首次使用建議先試一兩筆測試資料。
+
 ## 相關檔案
 
-`functions/src/payrollDomain.ts`、`functions/src/payroll.ts`、`usePayrollPresentation.ts`、`PayrollView.tsx`、`tests/payroll-regression.test.cjs`、`tests/payroll-workflow-ui.test.cjs`、`tests/payroll-fixes-ui.test.cjs`、`tests/payroll-layout.test.cjs`、`tests/README.md`。Firestore Rules 與既有資料未修改。
+`functions/src/payrollDomain.ts`、`functions/src/payroll.ts`、`usePayrollPresentation.ts`、`PayrollView.tsx`、`payrollDisplay.ts`、`tests/payroll-display.test.cjs`、`tests/payroll-regression.test.cjs`、`tests/payroll-workflow-ui.test.cjs`、`tests/payroll-fixes-ui.test.cjs`、`tests/payroll-layout.test.cjs`、`tests/README.md`。Firestore Rules 與既有資料未修改。
 
 ## 驗證結果
 
 全部使用模擬資料，未登入正式帳號、未寫入正式 Firestore、未實際寄信。
 
-- `tests/payroll-regression`、`payroll-display`、`permission-regression`、`attendance-handlers` 通過 93/93，其中 10 項為新增。
+- `tests/payroll-regression`、`payroll-display`、`permission-regression`、`attendance-handlers` 全數通過（第二大類後為 100 項）。`payroll-display` 原本凍結 Excel 匯入與舊薪資保存邏輯的測試，因這兩處已納入範圍，改為只檢查舊薪資保存仍帶版本與原始資料。
 - `tests/payroll-workflow-ui.test.cjs` 通過，並新增批次核對、略過、結果顯示、空白單與未來月份情境；另修正其測試替身依系統日期判斷首次納入的問題。
 - `tests/payroll-ui.test.cjs` 通過。
 - `tests/payroll-fixes-ui.test.cjs` 與 `tests/payroll-layout.test.cjs` 已更新並通過。兩者在 `def7210` 通過、自 `fe34c17` 起失敗，根因是測試仍依舊的「保存草稿／確認薪資」流程與舊規則，並非應用程式錯誤；本次改成目前流程，原本的檢查項目保留。例外：`payroll-layout` 的舊單唯讀檢查已改為未修改時不能保存，因舊單已可編輯；其欄寬比對的測試員工改為已首次納入，才能與舊版同樣顯示實發金額（未納入列顯示「—」、欄寬較窄是 `806ae55` 既有設計）。
@@ -50,8 +63,9 @@ Playwright 未安裝於專案；瀏覽器測試使用專案外的 `playwright-co
 ## 待辦
 
 - 以正式帳號驗收批次核對、寄送檢查與作廢更正單；驗收時注意不要寄出真實薪資單。
-- 掃描清單其餘項目依大類逐步處理：第二大類第 9–16 項，另加「需處理」清單要說明具體原因（目前投保變動的單只顯示「待填當月資料」）；第三大類操作體驗、第四大類程式缺陷、第五大類事務所規則確認（兼職請假、平日加班倍率、免稅範圍）。
+- 掃描清單其餘項目依大類逐步處理：第三大類操作體驗、第四大類程式缺陷、第五大類事務所規則確認（兼職請假、平日加班倍率、免稅範圍）。
 - 舊有待核對：「9 月舊薪資多人編輯覆蓋」保持原樣。
+- 重新建構薪資單系統：使用者認為目前到職、離職、復職的功能太複雜，需要先討論如何優化，討論前不要自行重構。
 
 ## 風險
 

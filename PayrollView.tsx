@@ -1,4 +1,4 @@
-import { isEmployeeResigned, insuranceLabel } from './payrollDisplay';
+import { isEmployeeResigned, insuranceLabel, parseEmployeeImport } from './payrollDisplay';
 import { usePayrollPresentation, PayrollRow, payrollStatus } from './usePayrollPresentation';
 import { validatePeriods, periods, slipPeriod, Slip, amountFields, attendanceFields, legacyAmounts, legacyIssues, annualMetrics, labels, calculate, emptyValues, slipHtml, totals as payrollTotals } from './functions/src/payrollDomain';
 import React, { useState, useEffect, useRef } from 'react';
@@ -155,7 +155,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const handleSaveMonthlyData = async(e:React.FormEvent)=>{e.preventDefault();if(payroll.oldEditing){const reason=window.prompt('請填寫這次薪資修改原因');if(reason?.trim())await payroll.saveLegacy(reason.trim());return;}await payroll.save();};
   // ✨ 新增：預覽 Email 薪資單
   const handlePreviewEmail = () => {
-    if(payroll.editing){previewSlip(payroll.editing);return;}
+    if(payroll.editing){previewSlip(['NONE','ERROR'].includes(payroll.mailState)?{...payroll.editing,employee:{...payroll.editing.employee,email:payroll.recipientOf(payroll.editing)}}:payroll.editing);return;}
     if(payroll.oldEditing&&editingMonthlyEmp&&selectedClient){
       const r=payroll.oldEditing;
       if(amountFields.some(k=>typeof (r as any)[k]!=='number'||!Number.isFinite((r as any)[k]))){alert('這份舊資料缺少金額明細，請在核對與歷史紀錄查看原始欄位，不能產生完整薪資單。');return;}
@@ -356,66 +356,34 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
   const empFileInputRef = useRef<HTMLInputElement>(null);
 
   const handleImportEmpExcel = async (e: React.ChangeEvent<HTMLInputElement>) => {
-    // 匯入邏輯保持不變
     const file = e.target.files?.[0];
     if (!file || !selectedClient) return;
 
     const reader = new FileReader();
     reader.onload = async (evt) => {
       try {
-        const bstr = evt.target?.result;
-        const wb = XLSX.read(bstr, { type: 'binary', cellDates: true });
-        const ws = wb.Sheets[wb.SheetNames[0]];
-        const data = XLSX.utils.sheet_to_json(ws, { header: 1 });
-
-        const newEmps: Employee[] = [];
-
-        for (let i = 1; i < data.length; i++) {
-          const row = data[i] as any[];
-          if (!row[2]) continue;
-
-          const empNo = String(row[0] || '').trim();
-          const typeStr = String(row[1] || '').trim();
-          const employmentType: EmploymentType = (typeStr.includes('兼職') || typeStr.toUpperCase() === 'PART_TIME') ? 'part_time' : 'full_time';
-          const name = String(row[2] || '').trim();
-          const email = String(row[3] || '').trim();
-
-          const formatDate = (val: any) => {
-              if (!val) return '';
-              if (val instanceof Date) return new Date(val.getTime() - (val.getTimezoneOffset() * 60000)).toISOString().split('T')[0];
-              return String(val).replace(/\//g, '-').trim();
-          };
-
-          const startDate = formatDate(row[4]) || new Date().toISOString().split('T')[0];
-          const endDate = formatDate(row[5]);
-          const idNumber = String(row[6] || '').trim().toUpperCase();
-          const bankBranch = String(row[7] || '').trim();
-          const bankAccount = String(row[8] || '').trim();
-          const address = String(row[9] || '').trim();
-
-          const newEmp: Employee = {
-              id: Date.now().toString() + Math.random().toString(36).substring(2, 7),
-              clientId: String(selectedClient.id),
-              empNo, employmentType, name, email, startDate, endDate, idNumber,
-              bankBranch, bankAccount, address, defaultBaseSalary: 0, defaultFoodAllowance: 0,
-              createdAt: new Date().toISOString()
-          };
-          newEmps.push(newEmp);
+        let parsed;
+        try {
+          const wb = XLSX.read(evt.target?.result, { type: 'binary', cellDates: true });
+          const rows = XLSX.utils.sheet_to_json(wb.Sheets[wb.SheetNames[0]], { header: 1 }) as any[][];
+          parsed = parseEmployeeImport(rows, employees, String(selectedClient.id), () => crypto.randomUUID());
+        } catch {
+          alert('檔案讀取失敗，請確認是否為標準的 Excel 檔案。');
+          return;
         }
-
-        if (newEmps.length > 0) {
-          for (const emp of newEmps) {
-              await TaskService.addEmployee(emp);
-          }
-          alert(`✅ 成功匯入 ${newEmps.length} 筆員工資料！`);
-        } else {
-          alert('沒有找到有效的員工紀錄，請確認 Excel 是否有填寫「姓名」。');
+        const summary = [`可匯入 ${parsed.ready.length} 筆，重複略過 ${parsed.duplicates.length} 筆，有錯誤 ${parsed.errors.length} 筆。`, ...parsed.duplicates.map(d => '重複：' + d), ...parsed.errors.map(d => '錯誤：' + d)].join('\n');
+        if (!parsed.ready.length) { alert(summary + '\n沒有可匯入的員工資料。'); return; }
+        if (!window.confirm(summary + '\n確定匯入可匯入的資料嗎？')) return;
+        const failures: string[] = [];
+        for (const emp of parsed.ready) {
+          try { await TaskService.addEmployee(emp); }
+          catch (error: any) { failures.push(emp.name + '：' + (error.message || '保存失敗')); }
         }
-      } catch (error) {
-        alert('檔案讀取失敗，請確認是否為標準的 Excel 檔案。');
+        const saved = parsed.ready.length - failures.length;
+        alert([`成功匯入 ${saved} 筆員工資料。`, ...(failures.length ? ['以下未匯入：', ...failures] : []), ...(saved ? ['匯入不含待遇資料，請到員工的待遇歷程補上後才能開薪資單。'] : [])].join('\n'));
+      } finally {
+        if (empFileInputRef.current) empFileInputRef.current.value = '';
       }
-
-      if (empFileInputRef.current) empFileInputRef.current.value = '';
     };
     reader.readAsBinaryString(file);
   };
@@ -863,7 +831,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                       <td className="p-3 w-[100px] min-w-[100px] max-w-[100px] sticky left-[120px] z-20 bg-white group-hover:bg-blue-50 border-r-2 border-gray-200 shadow-[2px_0_5px_-2px_rgba(0,0,0,0.05)]">
                                                             <div className="flex flex-col">
                                                                 <span className="font-black text-gray-800 group-hover:text-blue-600 transition-colors">{emp.name}</span>
-                                                                {(emp.slip || emp.warning || emp.periodId) && <span className="text-[10px] font-bold text-gray-500" title={emp.excluded ? (emp.warning || (emp.slip ? '尚未首次納入' : '薪資尚未建立'))+'；未納入有效薪資小計' : emp.slip?.id}>{emp.slip ? (emp.slip.revision===0?'自動帶入':emp.slip.status==='draft'&&!emp.excluded?'已納入計薪':payrollStatus[emp.slip.status])+' '+emp.slip.periodStart.slice(5)+'～'+emp.slip.periodEnd.slice(5) : emp.warning ? '舊資料待核對' : '待填當月資料 '+(emp.recommendedStart?.slice(5)||'')+'～'+(emp.recommendedEnd?.slice(5)||'')}</span>}
+                                                                {(emp.slip || emp.warning || emp.periodId) && <span className="text-[10px] font-bold text-gray-500" title={emp.excluded ? (emp.warning || emp.reason || (emp.slip ? '尚未首次納入' : '薪資尚未建立'))+'；未納入有效薪資小計' : emp.slip?.id}>{emp.slip ? (emp.slip.revision===0?'自動帶入':emp.slip.status==='draft'&&!emp.excluded?'已納入計薪':payrollStatus[emp.slip.status])+' '+emp.slip.periodStart.slice(5)+'～'+emp.slip.periodEnd.slice(5) : emp.warning ? '舊資料待核對' : '待填當月資料 '+(emp.recommendedStart?.slice(5)||'')+'～'+(emp.recommendedEnd?.slice(5)||'')}</span>}
                                                                 {emp.startDate && emp.startDate.substring(0, 7) === `${selectedYear}-${selectedMonth}` && (
                                                                     <span className="text-[10px] text-green-600 font-bold -mt-0.5 tracking-tighter">
                                                                         {emp.startDate.substring(5).replace('-', '/')} 到職
@@ -941,7 +909,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                             </>
                                                         ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-orange-600">{totalWithholdings.toLocaleString()}</td>}
 
-                                                        <td title={emp.excluded ? '未納入有效薪資小計；試算金額請開啟薪資明細查看' : undefined} className="p-3 text-right font-black text-lg text-green-700 bg-green-50/50">{emp.excluded ? '—' : netPay.toLocaleString()}</td>
+                                                        <td title={emp.excluded ? (emp.reason ? emp.reason+'；' : '')+'未納入有效薪資小計；試算金額請開啟薪資明細查看' : undefined} className="p-3 text-right font-black text-lg text-green-700 bg-green-50/50">{emp.excluded ? '—' : netPay.toLocaleString()}</td>
                                                     </tr>
                                                 );
                                             })}
@@ -1182,7 +1150,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 
           {/* 🚀 薪資編輯小視窗 (整合月份切換器) */}
                     {isMonthlyEditModalOpen && (
-                        <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={closeMonthlyEditor}>
+                        <div className="fixed inset-0 bg-black/60 z-[125] flex items-center justify-center p-4 animate-fade-in" onClick={closeMonthlyEditor}>
                           <div className="bg-white rounded-2xl shadow-2xl w-full max-w-5xl overflow-hidden flex flex-col max-h-[95vh]" onClick={e => e.stopPropagation()}>
                             {/* ✨ 視窗標題列 (在年度模式時移除底線，讓月份標籤無縫接軌) */}
                                 <div className={`p-5 ${(!isAddingNewMonthly && editModalMode === 'yearly') ? 'pb-3 border-none' : 'border-b'} bg-gray-50 flex justify-between items-center`}>
@@ -1223,8 +1191,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
 {editingMonthlyEmp && <div className="flex items-center gap-2 text-sm"><label className="font-bold text-gray-600">本月薪資單</label><select aria-label="本月薪資單" disabled={payroll.busy} value={payroll.editing?.id || (payroll.oldEditing?'old:'+payroll.oldEditing.id:'')} onChange={e=>{const row=payroll.rowsFor(selectedYear+'-'+editModalMonth).find(r=>r.id===e.target.value);if(row && row.id!==(payroll.editing?.id || (payroll.oldEditing?'old:'+payroll.oldEditing.id:'')) && canLeaveMonthlyEditor())payroll.open(row,selectedYear+'-'+editModalMonth);}} className="border border-gray-200 p-2 rounded-xl bg-white"><option value={payroll.editing?.id || (payroll.oldEditing?'old:'+payroll.oldEditing.id:'')}>{payroll.editing?'目前編輯：'+editorState:payroll.oldEditing?'舊薪資 '+payroll.oldEditing.id:'選擇薪資單'}</option>{payroll.rowsFor(selectedYear+'-'+editModalMonth).filter(r=>r.sourceEmployeeId===editingEmployeeId&&r.id!==(payroll.editing?.id || (payroll.oldEditing?'old:'+payroll.oldEditing.id:''))).map(r=><option key={r.id} value={r.id}>{r.slip?r.slip.periodStart+'～'+r.slip.periodEnd+' '+payrollStatus[r.slip.status]:r.legacyRecord?'舊薪資 '+r.legacyRecord.id:(r.recommendedStart||r.startDate)+'～'+(r.recommendedEnd||r.endDate||'在職')+' 新單'}</option>)}</select></div>}
                                     {payroll.error && <p role="alert" className="text-sm text-red-600">{payroll.error}</p>}
                                     {payroll.info && <p role="status" className="text-sm text-blue-600">{payroll.info}</p>}
+                                    {payroll.openReason && payroll.editing?.revision===0 && <p data-testid="payroll-open-reason" className="text-sm font-bold text-amber-700">未自動帶入的原因：{payroll.openReason}</p>}
                                     {payroll.sendIssues.length>0 && (payroll.oldEditing ? payroll.legacyEditable : payroll.canEdit) && <p data-testid="payroll-send-issues" className="text-sm font-bold text-amber-700">目前不能寄送：{payroll.sendIssues.join('；')}</p>}
-                                    {payroll.oldEditing && <p className="text-sm font-bold text-amber-700">{payroll.legacyEditable?'既有薪資可修改；保存時保留原值與變更紀錄。':'既有薪資目前唯讀；請核對寄送狀態、資料完整性及是否有重複單據。'}{legacyIssues(payroll.oldEditing,payroll.legacy,payroll.employees).join('；')}{<button type="button" className="ml-2 text-blue-700 underline" onClick={()=>payroll.checkLegacyMail()}>查詢寄送狀態</button>}{payroll.mailState==='ERROR'&&<button type="button" className="ml-2 text-red-700 underline" onClick={()=>payroll.sendLegacy(true)}>失敗重寄</button>}</p>}
+                                    {payroll.oldEditing && <p className="text-sm font-bold text-amber-700">{payroll.legacyEditable?'既有薪資可修改；保存時保留原值與變更紀錄。':'既有薪資目前唯讀；請核對寄送狀態、資料完整性及是否有重複單據。'}{legacyIssues(payroll.oldEditing,payroll.legacy,payroll.employees).join('；')}{<button type="button" className="ml-2 text-blue-700 underline" onClick={()=>payroll.checkLegacyMail()}>查詢寄送狀態</button>}{payroll.mailState==='ERROR'&&<button type="button" className="ml-2 text-red-700 underline" onClick={()=>payroll.sendLegacy(true)}>失敗重寄</button>}{payroll.legacyCanCorrect&&!payroll.legacyCorrecting&&<button type="button" className="ml-2 text-blue-700 underline" onClick={()=>payroll.setLegacyCorrecting(true)}>建立更正</button>}{payroll.legacyCorrecting&&<span className="ml-2 text-amber-700">更正中：保存時需填原因，保存後請重新寄送。</span>}</p>}
                                     {payroll.oldEditing && payroll.needsEnrollment && <button type="button" disabled={payroll.busy||payroll.dirtyLegacy||!payroll.legacyEditable} onClick={()=>payroll.confirmLegacyEnrollment()} className="px-3 py-2 bg-blue-600 text-white font-bold rounded-xl">首次納入薪資</button>}
                                     {payroll.editing && <div className="bg-blue-50 p-4 rounded-xl border border-blue-100 text-sm space-y-3">
                                       <div className="flex flex-wrap gap-3 items-center"><span data-testid="payroll-editor-state" className="font-bold text-blue-800">{editorState}</span>
@@ -1355,7 +1324,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                               <div className="flex gap-3 w-3/5 items-center">
                                 {/* 預覽與寄送按鈕 */}
                                 <button type="button" onClick={handlePreviewEmail} title="預覽薪資單" className="p-3 bg-white border border-blue-200 text-blue-600 font-bold rounded-xl hover:bg-blue-50 transition-colors shadow-sm flex items-center justify-center"><svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M2.062 12.348a1 1 0 0 1 0-.696 10.75 10.75 0 0 1 19.876 0 1 1 0 0 1 0 .696 10.75 10.75 0 0 1-19.876 0"/><circle cx="12" cy="12" r="3"/></svg></button>
-                                <button type="button" disabled={payroll.busy || payroll.sendIssues.length>0 || (payroll.oldEditing ? !payroll.legacyEditable || payroll.dirtyLegacy || payroll.needsEnrollment : !payroll.effectiveEditing || payroll.dirty)} onClick={handleSendEmail} title="寄送薪資單" className="p-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"><SendMailIcon className="w-5 h-5" /></button>
+                                <button type="button" disabled={payroll.busy || payroll.sendIssues.length>0 || (payroll.oldEditing ? !payroll.legacyEditable || payroll.dirtyLegacy || payroll.legacyCorrecting || payroll.needsEnrollment : !payroll.effectiveEditing || payroll.dirty)} onClick={handleSendEmail} title="寄送薪資單" className="p-3 bg-blue-50 border border-blue-200 text-blue-700 font-bold rounded-xl hover:bg-blue-100 transition-colors shadow-sm flex items-center justify-center disabled:opacity-40 disabled:cursor-not-allowed"><SendMailIcon className="w-5 h-5" /></button>
                                 {/* ✨ 新增：寄信狀態方框 */}
                                 <div className="flex items-center justify-center min-w-[48px] h-12 rounded-xl bg-white shadow-sm border-2 transition-all duration-300 mx-1"
                                   style={{ borderColor: emailSendStatus === 'success' ? '#10B981' : emailSendStatus === 'error' ? '#EF4444' : '#E5E7EB' }}

@@ -74,3 +74,7 @@ The workflow suite now checks payroll amounts before opening an editor or saving
 ## Carry-over and send safeguards (2026-11-05)
 
 `payroll-regression` covers fixed-deduction carry-over, the month limit, cases that require review, labor-only employees, zero-base partial months, send blockers, restoring an original after voiding its correction, and delivery state across revisions. `payroll-workflow-ui` adds the `?batch` scenario: review table with changed amounts, skipped employees, result notice, blank new slips and future months. `payroll-fixes-ui` and `payroll-layout` were updated from the former monthly-confirmation workflow to the current one; the layout geometry fixture is an enrolled employee so its net amount renders like the baseline.
+
+## Stuck-workflow fixes (2026-11-05)
+
+`payroll-regression` covers the not-filled reasons, old records without attendance fields, correcting sent old records, void slips releasing employment dates, old-format employee saves and sending to the current address. `payroll-display` covers Excel import validation. `payroll-workflow-ui` adds hidden-record months, the editor reason, the fullscreen editor and the old-record correction flow.

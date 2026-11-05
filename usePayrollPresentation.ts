@@ -3,10 +3,11 @@ import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestor
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
 import { Client, Employee, MonthlySalaryRecord } from './types';
-import { Slip, amountFields, attendanceFields, emptyValues, periods, basisAt, calculate, monthEnd, legacyIssues, legacyAmounts, isPayrollEnrolled, legacyCanEdit, totals, legacyNeedsEnrollment, isEffectivePayroll, recurringPayroll, currentPayrollMonth, defaultBaseSalary, defaultFoodAllowance, isFullMonth, previousPayroll, carriedAmounts, payrollSendIssues, legacySendIssues, Values } from './functions/src/payrollDomain';
+import { Slip, amountFields, attendanceFields, emptyValues, periods, basisAt, calculate, monthEnd, legacyIssues, legacyAmounts, isPayrollEnrolled, legacyCanEdit, totals, legacyNeedsEnrollment, isEffectivePayroll, recurringPayroll, currentPayrollMonth, defaultBaseSalary, defaultFoodAllowance, isFullMonth, previousPayroll, carriedAmounts, payrollSendIssues, legacySendIssues, automaticPayrollIssue, legacyAttendance, Values } from './functions/src/payrollDomain';
 
 export const payrollStatus: Record<string, string> = {draft:'待首次納入',confirmed:'已保存',void:'已作廢',superseded:'已被更正取代'};
-export type PayrollRow = Employee & { sourceEmployeeId: string; slip?: Slip; legacyRecord?: MonthlySalaryRecord; periodId?: string; recommendedStart?: string; recommendedEnd?: string; warning?: string; excluded?: boolean };
+export type PayrollRow = Employee & { sourceEmployeeId: string; slip?: Slip; legacyRecord?: MonthlySalaryRecord; periodId?: string; recommendedStart?: string; recommendedEnd?: string; warning?: string; reason?: string; excluded?: boolean };
+const HIDDEN_LEGACY_MESSAGE = '這個月有暫藏的舊薪資，請先核對';
 export type BatchItem = { key:string; name:string; email:string; amounts:Values; changed:string[]; autoSave:boolean; issues:string[]; slip?:Slip; legacyRecord?:MonthlySalaryRecord };
 export type BatchReview = { ready:BatchItem[]; blocked:BatchItem[]; skipped:number };
 const command = httpsCallable<any, any>(functions, 'payrollCommand');
@@ -31,6 +32,9 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   const recurringIds = useRef<Record<string,string>>({});
   const pending = useRef<{body: any; operationId: string}|null>(null);
   const lastError = useRef('');
+  const [hiddenLegacy, setHiddenLegacy] = useState<Array<{employeeId:string;month:string}>>([]);
+  const [openReason, setOpenReason] = useState('');
+  const [legacyCorrecting, setLegacyCorrecting] = useState(false);
   const [batchReview, setBatchReview] = useState<BatchReview|null>(null);
   const [batchNotice, setBatchNotice] = useState<{text:string; failures:string[]}|null>(null);
   useEffect(() => { setBatchReview(null); setBatchNotice(null); },[clientId,month]);
@@ -40,7 +44,11 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     const cleanups = ['employees','monthlySalaries','payrollSlips'].map(name => onSnapshot(query(collection(db,name),where('clientId','==',clientId)), snapshot => {
       const rows = snapshot.docs.map(d=>({...d.data(),id:d.id}));
       if(name==='employees') setEmployees((rows as Employee[]).filter(r=>r.temporaryPayrollHidden!==true));
-      if(name==='monthlySalaries') setLegacy((rows as MonthlySalaryRecord[]).filter(r=>r.temporaryPayrollHidden!==true));
+      if(name==='monthlySalaries') {
+        setLegacy((rows as MonthlySalaryRecord[]).filter(r=>r.temporaryPayrollHidden!==true));
+        // Hidden amounts stay out of the page, but the month is reserved exactly as the backend treats it.
+        setHiddenLegacy((rows as MonthlySalaryRecord[]).filter(r=>r.temporaryPayrollHidden===true).map(r=>({employeeId:r.employeeId,month:r.month})));
+      }
       if(name==='payrollSlips') setSlips(rows as Slip[]);
       setLoaded(prev=>({...prev,[name]:true}));
     }, e=>{setError('薪資資料讀取失敗：'+e.message);setLoaded(prev=>({...prev,[name]:false}));}));
@@ -70,6 +78,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
       for(const r of olds) rows.push({...e,id:'old:'+r.id,sourceEmployeeId:e.id,legacyRecord:r,warning:legacyIssues(r,legacy,employees).join('；'),excluded:legacyIssues(r,legacy,employees).length>0||legacyNeedsEnrollment(r,employees,slips,legacy)});
       for(const s of ss) rows.push({...alias(e,s.id,s.basis.employmentType,periods(e).find(p=>p.id===s.employmentId)?.startDate||e.startDate,periods(e).find(p=>p.id===s.employmentId)?.endDate||null),name:s.employee.name,empNo:s.employee.empNo,email:s.employee.email,idNumber:s.employee.idNumber||'',bankAccount:s.employee.bankAccount||'',defaultBaseSalary:s.basis.baseSalary,defaultFoodAllowance:s.basis.foodAllowance,compensationHistory:[],slip:s,excluded:!isEffectivePayroll(s,e,slips,legacy)});
       if(olds.length) continue;
+      const reservedByHidden=hiddenLegacy.some(r=>r.employeeId===e.id&&r.month===m);
       for(const p of periods(e).filter(p=>p.startDate<=monthEnd(m)&&(!p.endDate||p.endDate>=m+'-01'))) {
         const start=p.startDate>m+'-01'?p.startDate:m+'-01'; const end=p.endDate&&p.endDate<monthEnd(m)?p.endDate:monthEnd(m);
         const nextDay=(d:string,offset:number)=>{const date=new Date(d+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);};
@@ -78,9 +87,9 @@ export function usePayrollPresentation(client: Client | null, month: string) {
           let gaps=[{start:cuts[i],end:i+1<cuts.length?nextDay(cuts[i+1],-1):end}];
           for(const slip of ss.filter(s=>s.employmentId===p.id&&s.kind==='regular')) gaps=gaps.flatMap(g=>slip.periodStart>g.end||slip.periodEnd<g.start?[g]:[...(g.start<slip.periodStart?[{start:g.start,end:nextDay(slip.periodStart,-1)}]:[]),...(g.end>slip.periodEnd?[{start:nextDay(slip.periodEnd,1),end:g.end}]:[])]);
           for(const g of gaps) {
-            const recurring=recurringPayroll(e,p,m,client!,slips,legacy,currentMonth);
+            const recurring=reservedByHidden?null:recurringPayroll(e,p,m,client!,slips,legacy,currentMonth);
             if(recurring && g.start===recurring.periodStart && g.end===recurring.periodEnd) rows.push({...alias(e,recurring.id,p.type,p.startDate,p.endDate),slip:recurring,excluded:false});
-            else rows.push({...alias(e,'period:'+e.id+':'+p.id+':'+g.start,p.type,p.startDate,p.endDate),periodId:p.id,recommendedStart:g.start,recommendedEnd:g.end,excluded:true});
+            else rows.push({...alias(e,'period:'+e.id+':'+p.id+':'+g.start,p.type,p.startDate,p.endDate),periodId:p.id,recommendedStart:g.start,recommendedEnd:g.end,excluded:true,reason:reservedByHidden?HIDDEN_LEGACY_MESSAGE:automaticPayrollIssue(e,p,m,g.start,g.end,slips,legacy,currentMonth)});
           }
         }
       }
@@ -95,7 +104,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   }
   function open(row:PayrollRow,m=month) {
     setOpenSequence(n=>n+1);
-    setError('');setInfo('');setHistory([]);setLegacyHistory([]);setHistoryUsers({});setMailState('NONE');
+    setError('');setInfo('');setHistory([]);setLegacyHistory([]);setHistoryUsers({});setMailState('NONE');setLegacyCorrecting(false);setOpenReason(row.slip||row.legacyRecord?'':row.reason||'');
     if(!ready) return;
     if(row.legacyRecord){setEditing(null);setOldEditing(structuredClone(row.legacyRecord));setMailState(row.legacyRecord.legacySeptemberMailId?'UNKNOWN':'NONE');return;}
     if(row.slip){setOldEditing(null);openedSignature.current=signature(row.slip);setEditing(structuredClone(row.slip.revision===0?{...row.slip,id:recurringIds.current[row.slip.id]||(recurringIds.current[row.slip.id]=crypto.randomUUID())}:row.slip));setMailState(row.slip.status==='confirmed'?'UNKNOWN':'NONE');return;}
@@ -103,6 +112,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
       const e=employees.find(e=>e.id===row.sourceEmployeeId||e.id===row.id);
       if(!e) throw Error('找不到員工');
       if(legacy.some(r=>r.employeeId===e.id&&r.month===m)) throw Error('該月已有舊薪資，請先核對，避免重複結薪');
+      if(hiddenLegacy.some(r=>r.employeeId===e.id&&r.month===m)) throw Error(HIDDEN_LEGACY_MESSAGE);
       const ps=periods(e).filter(p=>p.startDate<=monthEnd(m)&&(!p.endDate||p.endDate>=m+'-01'));
       const p=ps.find(p=>p.id===row.periodId)||ps[0];if(!p)throw Error('該月沒有有效任職期間');
       const start=row.recommendedStart||(p.startDate>m+'-01'?p.startDate:m+'-01'),end=row.recommendedEnd||(p.endDate&&p.endDate<monthEnd(m)?p.endDate:monthEnd(m));
@@ -118,7 +128,9 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   const canEdit = !!editing && (editing.status === 'draft' || editing.status === 'confirmed' && mailState === 'NONE');
   const hasOtherPayFor = (s:Slip) => slips.some(x=>x.id!==s.id && x.id!==s.replacesId && x.employeeId===s.employeeId && x.month===s.month && x.status==='confirmed');
   const hasOtherPay = !!editing && hasOtherPayFor(editing);
-  const slipSendIssues = (s:Slip) => payrollSendIssues({kind:s.kind,month:s.month,email:s.employee.email,amounts:s.amounts,basis:s.basis,hasOtherPay:hasOtherPayFor(s)});
+  // Matches the backend: an unsent slip goes to the address currently on the employee record.
+  const recipientOf = (s:Slip) => { const e=employees.find(e=>e.id===s.employeeId); return e?(e.email||''):s.employee.email; };
+  const slipSendIssues = (s:Slip) => payrollSendIssues({kind:s.kind,month:s.month,email:recipientOf(s),amounts:s.amounts,basis:s.basis,hasOtherPay:hasOtherPayFor(s)});
   const legacyIssuesToSend = (r:MonthlySalaryRecord) => legacySendIssues(r,employees.find(e=>e.id===r.employeeId));
   const sendIssues = editing ? slipSendIssues(editing) : oldEditing ? legacyIssuesToSend(oldEditing) : [];
   useEffect(()=>{
@@ -139,7 +151,8 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     }catch(e:any){setError(e.message);}
   }
   const oldSaved = oldEditing && legacy.find(r=>r.id===oldEditing.id);
-  const legacyEditable = !!oldEditing && legacyCanEdit(oldEditing,legacy,employees,slips);
+  const legacyCanCorrect = !!oldEditing && !!(oldEditing.isEmailSent||oldEditing.legacySeptemberMailId) && ['SUCCESS','ERROR','UNTRACKED'].includes(mailState) && legacyCanEdit({...oldEditing,isEmailSent:false,legacySeptemberMailId:''},legacy,employees,slips);
+  const legacyEditable = !!oldEditing && (legacyCanEdit(oldEditing,legacy,employees,slips) || legacyCorrecting && legacyCanCorrect);
   const dirtyLegacy = !!oldEditing && !!oldSaved && [...amountFields,...attendanceFields].some(k=>(oldEditing as any)[k] !== (oldSaved as any)[k]);
   function changeLegacy(k:string,value:string) {
     if(!legacyEditable || busy || ![...amountFields,...attendanceFields].includes(k as any))return;
@@ -147,11 +160,11 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   }
   async function saveLegacy(reason:string) {
     if(!legacyEditable || !oldEditing || !oldSaved || !dirtyLegacy)return;
-    const result=await run({action:'saveLegacySeptember',id:oldEditing.id,expectedRevision:oldSaved.legacySeptemberRevision||0,expected:oldSaved,amounts:Object.fromEntries(amountFields.map(k=>[k,(oldEditing as any)[k]])),attendance:Object.fromEntries(attendanceFields.map(k=>[k,(oldEditing as any)[k]])),reason});
-    if(result){setOldEditing(result.record);setInfo('薪資修改已保存，原值保留。');}
+    const result=await run({action:'saveLegacySeptember',id:oldEditing.id,expectedRevision:oldSaved.legacySeptemberRevision||0,expected:oldSaved,amounts:Object.fromEntries(amountFields.map(k=>[k,(oldEditing as any)[k]])),attendance:legacyAttendance(oldEditing),reason,correction:legacyCorrecting});
+    if(result){const corrected=legacyCorrecting;setLegacyCorrecting(false);setOldEditing(result.record);setInfo(corrected?'更正已保存，原值保留；請重新寄送。':'薪資修改已保存，原值保留。');}
   }
   async function sendLegacy(retry=false) {
-    if(!oldEditing || dirtyLegacy){setError('請先保存薪資修改，再寄送。');return;}
+    if(!oldEditing || dirtyLegacy || legacyCorrecting){setError('請先保存薪資修改，再寄送。');return;}
     if(sendIssues.length){setError('不能寄送：'+sendIssues.join('；'));return;}
     if(!window.confirm(legacyReview(oldEditing)))return;
     const result=await run({action:'sendLegacySeptember',id:oldEditing.id,expectedRevision:oldEditing.legacySeptemberRevision||0,retry});
@@ -178,7 +191,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   }
   const reviewAmounts = (a:Values) => '勞保 '+a.laborIns.toLocaleString()+'／健保 '+a.healthIns.toLocaleString()+'／所得稅 '+a.incomeTax.toLocaleString()+'／全勤 '+a.fullAttendance.toLocaleString()+'\n實發：'+totals(a).net.toLocaleString()+' 元';
   function legacyReview(r:MonthlySalaryRecord) { const e=employees.find(e=>e.id===r.employeeId); return '核對本次寄送內容：\n'+r.month+'／'+e?.name+'\n收件人：'+e?.email+'\n'+reviewAmounts(legacyAmounts(r))+'\n確認寄送？'; }
-  function slipReview(s:Slip) { return s.month+'／'+s.employee.name+'\n收件人：'+s.employee.email+'\n'+reviewAmounts(s.amounts); }
+  function slipReview(s:Slip) { return s.month+'／'+s.employee.name+'\n收件人：'+recipientOf(s)+'\n'+reviewAmounts(s.amounts); }
   async function save(){if(!editing)return;const result=await run({action:'saveSlip',slip:editing,expectedRevision:editing.revision});if(result){openedSignature.current=signature(result.slip);setEditing(result.slip);setInfo(result.slip.status==='confirmed'?'薪資已保存並納入小計。':'薪資已保存，請完成首次納入確認。');setMailState('NONE');}return result;}
   const saved=editing&&slips.find(s=>s.id===editing.id);
   const signature=(s:Slip)=>JSON.stringify([amountFields.map(k=>s.amounts[k]),attendanceFields.map(k=>s.attendance[k]),s.reviewedMonth,s.reason,s.note,s.periodStart,s.periodEnd,Object.keys(s.basis).sort().map(k=>[k,(s.basis as any)[k]])]);
@@ -225,9 +238,9 @@ export function usePayrollPresentation(client: Client | null, month: string) {
         const s=row.slip;
         if(!row.excluded&&s.revision>0){const status=await run({action:'mailStatus',id:s.id});if(!status)return;if(status.state!=='NONE'){skipped++;continue;}}
         const issues=[...(row.excluded?[s.status==='draft'?'待首次納入或待補齊資料':'未納入有效薪資']:[]),...slipSendIssues(s)];
-        const item:BatchItem={key:row.id,name:row.name,email:s.employee.email,amounts:s.amounts,changed:changedFromPrevious(e,s.employmentId,month,s.amounts),autoSave:s.revision===0||s.status==='draft',issues,slip:s};
+        const item:BatchItem={key:row.id,name:row.name,email:recipientOf(s),amounts:s.amounts,changed:changedFromPrevious(e,s.employmentId,month,s.amounts),autoSave:s.revision===0||s.status==='draft',issues,slip:s};
         (issues.length?blocked:ready).push(item);
-      } else blocked.push({key:row.id,name:row.name,email:e?.email||'',amounts:emptyValues(amountFields),changed:[],autoSave:false,issues:['待填當月資料']});
+      } else blocked.push({key:row.id,name:row.name,email:e?.email||'',amounts:emptyValues(amountFields),changed:[],autoSave:false,issues:[row.reason||'待填當月資料']});
     }
     if(!ready.length&&!blocked.length){setBatchNotice({text:'本月沒有可新寄送的薪資單；已排程、已寄送及失敗待重試的單據不重複寄送。',failures:[]});return;}
     setBatchReview({ready,blocked,skipped});
@@ -255,5 +268,5 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     setError('');
     setBatchNotice({text:'本次 '+completed+' 張薪資單已交寄送服務排程；不代表收件匣已收到。',failures});
   }
-  return {batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,confirmLegacyEnrollment,isLegacyIncluded,canEdit,needsEnrollment,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,changePeriod,save,transition,revise,send,checkMail,versions};
+  return {openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,confirmLegacyEnrollment,isLegacyIncluded,canEdit,needsEnrollment,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,changePeriod,save,transition,revise,send,checkMail,versions};
 }
