@@ -152,13 +152,16 @@ const INSURANCE_KEYS = ['insuranceBracket', 'hasLaborIns', 'hasHealthIns'] as co
 const hasMissingInsurance = (b: Basis, a: Values) => isInsured(b.hasLaborIns) && !(a.laborIns > 0) || isInsured(b.hasHealthIns) && !(a.healthIns > 0);
 // Explains a row that was not filled automatically, so the person knows what to check.
 export function automaticPayrollIssue(emp: any, p: Period, month: string, start: string, end: string, slips: Slip[], legacy: any[], currentMonth = currentPayrollMonth()): string {
+    let basis: Basis;
+    try { basis = basisAt(emp, p, start, end); } catch (e) { return e instanceof Error ? e.message : '待遇資料待確認'; }
     if (p.type !== 'full_time') return '兼職請填寫工時';
-    if (!isFullMonth(month, start, end)) return (emp.compensationHistory || []).some((c: any) => c.effectiveDate > month + '-01' && c.effectiveDate <= monthEnd(month)) ? '本月有待遇變動，請分開開單' : '本月不足月，請手動填寫本薪並確認伙食費';
+    if (!isFullMonth(month, start, end)) {
+        const from = p.startDate > month + '-01' ? p.startDate : month + '-01', to = p.endDate && p.endDate < monthEnd(month) ? p.endDate : monthEnd(month);
+        return (emp.compensationHistory || []).some((c: any) => c.effectiveDate > from && c.effectiveDate <= to) ? '本月有待遇變動，這段的本薪請手動填寫' : '本月不足月，請手動填寫本薪並確認伙食費';
+    }
     if (month > currentMonth) return '未來月份不會自動帶入';
     if (!isPayrollEnrolled(emp, p.id, slips, legacy, month)) return '尚未首次納入';
     if (slips.some(s => s.employeeId === emp.id && s.month === month && s.kind === 'regular' && s.status === 'void')) return '本月薪資單已作廢，請重新填寫';
-    let basis: Basis;
-    try { basis = basisAt(emp, p, start, end); } catch (e) { return e instanceof Error ? e.message : '待遇資料待確認'; }
     const found = findPreviousPayroll(emp, p, month, slips, legacy);
     if (!found.previous) return found.issue || '請填寫當月資料';
     if (INSURANCE_KEYS.some(k => found.previous!.insurance[k] !== basis[k])) return '投保級距或加退保有變動，請確認勞健保';

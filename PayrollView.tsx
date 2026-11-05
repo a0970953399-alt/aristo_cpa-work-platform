@@ -1,5 +1,6 @@
 import { isEmployeeResigned, insuranceLabel, parseEmployeeImport, sortEmployees, taiwanToday } from './payrollDisplay';
 import { usePayrollPresentation, PayrollRow, payrollStatus } from './usePayrollPresentation';
+import { includedRows, monthTotals, rowAmounts } from './payrollRows';
 import { validatePeriods, periods, slipPeriod, Slip, amountFields, attendanceFields, legacyAmounts, legacyIssues, annualMetrics, labels, calculate, emptyValues, slipHtml, totals as payrollTotals, maskIdNumber, maskBankAccount, isFullMonth } from './functions/src/payrollDomain';
 import React, { useState, useEffect, useRef } from 'react';
 import * as XLSX from 'xlsx';
@@ -178,7 +179,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
           const ws = workbook.worksheets[0];
 
           if(!payroll.ready){alert('薪資資料尚未載入完成');return;}
-          const currentMonthEmps = monthlyRows.filter(row=>!row.excluded&&(row.slip||row.legacyRecord));
+          const currentMonthEmps = includedRows(monthlyRows);
           if (currentMonthEmps.length === 0 && !payroll.legacy.some(r=>r.month===selectedYear+'-'+selectedMonth) && !payroll.slips.some(r=>r.month===selectedYear+'-'+selectedMonth)) {
               alert("本月無在職員工可匯出！");
               return;
@@ -535,11 +536,11 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
         const grandTotals={salary:Array(12).fill(0),food:Array(12).fill(0),taxFreeOt:Array(12).fill(0),bonus:Array(12).fill(0),totalSalary:0,totalFood:0,totalTaxFreeOt:0,totalBonus:0};
         const yearlyData=yearlyEmps.map(emp=>({emp,empMonths:months.map((m,i)=>{
           const target=selectedYear+'-'+m;
-          const ss=payroll.rowsFor(target).filter(r=>r.sourceEmployeeId===emp.id&&r.slip&&!r.excluded).map(r=>r.slip!);
-          const old=payroll.legacy.filter(r=>r.employeeId===emp.id&&r.month===target&&payroll.isLegacyIncluded(r));
-          const values=[...ss.map(s=>s.amounts),...old.map(r=>legacyAmounts(r))].map(annualMetrics);
+          const included=includedRows(payroll.rowsFor(target)).filter(r=>r.sourceEmployeeId===emp.id);
+          const ss=included.filter(r=>r.slip).map(r=>r.slip!);
+          const values=included.map(rowAmounts).map(annualMetrics);
           const salary=values.reduce((n,v)=>n+v['薪資總額'],0),food=values.reduce((n,v)=>n+v['伙食費'],0),taxFreeOt=values.reduce((n,v)=>n+v['免稅加班費'],0),bonus=values.reduce((n,v)=>n+v['獎金'],0);
-          const isActive=periods(emp).some(p=>p.startDate<=target+'-31'&&(!p.endDate||p.endDate>=target+'-01'))||ss.length>0||old.length>0;
+          const isActive=periods(emp).some(p=>p.startDate<=target+'-31'&&(!p.endDate||p.endDate>=target+'-01'))||included.length>0;
           const comp=[...(emp.compensationHistory||[])].sort((a,b)=>b.effectiveDate.localeCompare(a.effectiveDate)).find(c=>c.effectiveDate<=target+'-31');
           const insurance=ss.length ? ss.map(s=>s.periodStart.slice(5)+'～'+s.periodEnd.slice(5)+'：'+insuranceLabel(s.basis)).join('；') : isActive&&comp?.insuranceBracket ? insuranceLabel(comp) : 0;
           grandTotals.salary[i]+=salary;grandTotals.food[i]+=food;grandTotals.taxFreeOt[i]+=taxFreeOt;grandTotals.bonus[i]+=bonus;
@@ -831,22 +832,14 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                 {(() => {
                                     const currentMonthEmps = monthlyRows;
 
-                                    const totals = {
-                                        base: 0, fullAtt: 0, pos: 0, perf: 0, taxOt: 0, addTotal: 0,
-                                        leave: 0, short: 0, late: 0, pension: 0, dedTotal: 0,
-                                        taxable: 0,
-                                        food: 0, freeOt: 0, freeTotal: 0,
-                                        labor: 0, health: 0, tax: 0, advance: 0, withTotal: 0,
-                                        net: 0
-                                    };
-
+                                    const totals = monthTotals(currentMonthEmps);
                                     return (
                                         <>
                                             {currentMonthEmps.map((emp, index) => {
                                                 const rowData = monthlyData[emp.id] || {};
 
                                                 const isFullTime = resolveIsFullTime(emp, selectedYear, selectedMonth);
-                                                const part=(key:string,out:string)=>emp.slip ? calculate(emp.slip.basis,{...emptyValues(attendanceFields),[key]:rowData[key]||0},{...emptyValues(amountFields),foodAllowance:rowData.foodAllowance||0},emp.slip.kind)[out] : (emp.legacyRecord?'未保存分項':0);
+                                                const part=(key:string,out:string)=>emp.slip ? calculate(emp.slip.basis,{...emptyValues(attendanceFields),[key]:rowData[key]||0},{...emptyValues(amountFields),foodAllowance:rowData.foodAllowance||0},emp.slip.kind)[out] : (emp.legacyRecord?null:0);
                                                 const realLateDeduction=rowData.lateDeduction||0,realSickDeduction=part('sickLeave','leaveDeduction'),realPersonalDeduction=part('personalLeave','leaveDeduction'),realAnnualPay=part('annualLeave','taxFreeOt'),realHolidayPay=part('holidayOt','taxFreeOt'),realNormalPay=part('normalOt','taxFreeOt');
                                                 const totalAdditions = (rowData.baseSalary||0) + (rowData.fullAttendance||0) + (rowData.positionAllowance||0) + (rowData.performanceBonus||0) + (rowData.taxableOt||0);
                                                 const totalDeductions = (rowData.leaveDeduction || 0) + (rowData.dailyShortage||0) + (rowData.lateDeduction || 0) + (rowData.pensionSelf||0);
@@ -856,15 +849,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                 const taxableAmount = totalAdditions - totalDeductions;
                                                 const netPay = payrollTotals(rowData).net;
 
-                                                if (!emp.excluded) {
-                                                totals.base += (rowData.baseSalary||0); totals.fullAtt += (rowData.fullAttendance||0); totals.pos += (rowData.positionAllowance||0); totals.perf += (rowData.performanceBonus||0); totals.taxOt += (rowData.taxableOt||0); totals.addTotal += totalAdditions;
-                                                totals.leave += (rowData.leaveDeduction || 0); totals.short += (rowData.dailyShortage||0); totals.late += (rowData.lateDeduction || 0); totals.pension += (rowData.pensionSelf||0); totals.dedTotal += totalDeductions;
-                                                totals.taxable += taxableAmount;
-                                                totals.food += (rowData.foodAllowance||0); totals.freeOt += (rowData.taxFreeOt || 0); totals.freeTotal += totalTaxFree;
-                                                totals.labor += (rowData.laborIns||0); totals.health += (rowData.healthIns||0); totals.tax += (rowData.incomeTax||0); totals.advance += (rowData.advancePay||0); totals.withTotal += totalWithholdings;
-                                                totals.net += netPay;
-
-                                                }
+                                                const money = (value: number) => emp.excluded ? '—' : Number(value || 0).toLocaleString();
+                                                const hoverMoney = (sign: string, value: number | null) => value === null ? '—' : sign + '$' + value;
                                                 return (
                                                     <tr key={emp.id} onClick={() => handleRowClickMonthly(emp)} className="hover:bg-blue-50 transition-colors cursor-pointer group">
                                                         <td className="p-3 w-[60px] min-w-[60px] max-w-[60px] text-center font-mono text-gray-400 sticky left-0 z-20 bg-white group-hover:bg-blue-50 border-r border-gray-100">{emp.empNo || String(index + 1).padStart(3, '0')}</td>
@@ -894,66 +880,66 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                                         <td className="p-3 text-center font-bold text-gray-600">{isFullTime ? '-' : (rowData.workHours || 0)}</td>
                                                         <td className="p-3 group/cell relative text-center">
                                                             <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.lateHours || 0}</span>
-                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">-${realLateDeduction}</div>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">{hoverMoney('-',realLateDeduction)}</div>
                                                         </td>
                                                         <td className="p-3 group/cell relative text-center">
                                                             <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.sickLeave || 0}</span>
-                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">-${realSickDeduction}</div>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">{hoverMoney('-',realSickDeduction)}</div>
                                                         </td>
                                                         <td className="p-3 border-r border-gray-200 group/cell relative text-center">
                                                             <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.personalLeave || 0}</span>
-                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">-${realPersonalDeduction}</div>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-red-600 font-black text-sm bg-red-50 rounded transition-all">{hoverMoney('-',realPersonalDeduction)}</div>
                                                         </td>
 
                                                         <td className="p-3 border-l border-gray-100 group/cell relative text-center">
                                                             <span className={`font-bold transition-opacity ${isFullTime ? 'text-gray-600 group-hover/cell:opacity-0' : 'text-gray-300'}`}>{isFullTime ? (rowData.annualLeave || 0) : '-'}</span>
-                                                            {isFullTime && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realAnnualPay}</div>}
+                                                            {isFullTime && <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">{hoverMoney('+',realAnnualPay)}</div>}
                                                         </td>
                                                         <td className="p-3 group/cell relative text-center">
                                                             <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.holidayOt || 0}</span>
-                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realHolidayPay}</div>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">{hoverMoney('+',realHolidayPay)}</div>
                                                         </td>
                                                         <td className="p-3 border-r border-gray-200 group/cell relative text-center">
                                                             <span className="font-bold text-gray-600 group-hover/cell:opacity-0 transition-opacity">{rowData.normalOt || 0}</span>
-                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">+${realNormalPay}</div>
+                                                            <div className="absolute inset-0 flex items-center justify-center pointer-events-none opacity-0 group-hover/cell:opacity-100 text-blue-600 font-black text-sm bg-blue-50 rounded transition-all">{hoverMoney('+',realNormalPay)}</div>
                                                         </td>
 
                                                         {expandedGroups.additions ? (
                                                             <>
-                                                                <td className="p-3 text-right font-medium text-gray-600">{(rowData.baseSalary || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-gray-600">{(rowData.fullAttendance || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-gray-600">{(rowData.positionAllowance || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-gray-600">{(rowData.performanceBonus || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-gray-600 border-r border-gray-200">{(rowData.taxableOt || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-gray-600">{money(rowData.baseSalary)}</td>
+                                                                <td className="p-3 text-right font-medium text-gray-600">{money(rowData.fullAttendance)}</td>
+                                                                <td className="p-3 text-right font-medium text-gray-600">{money(rowData.positionAllowance)}</td>
+                                                                <td className="p-3 text-right font-medium text-gray-600">{money(rowData.performanceBonus)}</td>
+                                                                <td className="p-3 text-right font-medium text-gray-600 border-r border-gray-200">{money(rowData.taxableOt)}</td>
                                                             </>
-                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-blue-700">{totalAdditions.toLocaleString()}</td>}
+                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-blue-700">{money(totalAdditions)}</td>}
 
                                                         {expandedGroups.deductions ? (
                                                             <>
-                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.leaveDeduction || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.dailyShortage || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-red-500">{(rowData.lateDeduction || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-red-500 border-r border-gray-200">{(rowData.pensionSelf || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-red-500">{money(rowData.leaveDeduction)}</td>
+                                                                <td className="p-3 text-right font-medium text-red-500">{money(rowData.dailyShortage)}</td>
+                                                                <td className="p-3 text-right font-medium text-red-500">{money(rowData.lateDeduction)}</td>
+                                                                <td className="p-3 text-right font-medium text-red-500 border-r border-gray-200">{money(rowData.pensionSelf)}</td>
                                                             </>
-                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">{totalDeductions.toLocaleString()}</td>}
+                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-red-600">{money(totalDeductions)}</td>}
 
-                                                        <td className="p-3 text-right border-r border-gray-200 font-black text-purple-700 bg-purple-50/20">{taxableAmount.toLocaleString()}</td>
+                                                        <td className="p-3 text-right border-r border-gray-200 font-black text-purple-700 bg-purple-50/20">{money(taxableAmount)}</td>
 
                                                         {expandedGroups.taxFree ? (
                                                             <>
-                                                                <td className="p-3 text-right font-medium text-yellow-600">{(rowData.foodAllowance || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{(rowData.taxFreeOt || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-yellow-600">{money(rowData.foodAllowance)}</td>
+                                                                <td className="p-3 text-right font-medium text-yellow-600 border-r border-gray-200">{money(rowData.taxFreeOt)}</td>
                                                             </>
-                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{totalTaxFree.toLocaleString()}</td>}
+                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-yellow-600">{money(totalTaxFree)}</td>}
 
                                                         {expandedGroups.withholdings ? (
                                                             <>
-                                                                <td className="p-3 text-right font-medium text-orange-500">{(rowData.laborIns || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-orange-500">{(rowData.healthIns || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-orange-500">{(rowData.incomeTax || 0).toLocaleString()}</td>
-                                                                <td className="p-3 text-right font-medium text-orange-500 border-r border-gray-200">{(rowData.advancePay || 0).toLocaleString()}</td>
+                                                                <td className="p-3 text-right font-medium text-orange-500">{money(rowData.laborIns)}</td>
+                                                                <td className="p-3 text-right font-medium text-orange-500">{money(rowData.healthIns)}</td>
+                                                                <td className="p-3 text-right font-medium text-orange-500">{money(rowData.incomeTax)}</td>
+                                                                <td className="p-3 text-right font-medium text-orange-500 border-r border-gray-200">{money(rowData.advancePay)}</td>
                                                             </>
-                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-orange-600">{totalWithholdings.toLocaleString()}</td>}
+                                                        ) : <td className="p-3 text-right border-r border-gray-200 font-bold text-orange-600">{money(totalWithholdings)}</td>}
 
                                                         <td title={emp.excluded ? (emp.reason ? emp.reason+'；' : '')+'未納入有效薪資小計；試算金額請開啟薪資明細查看' : undefined} className="p-3 text-right font-black text-lg text-green-700 bg-green-50/50">{emp.excluded ? '—' : netPay.toLocaleString()}</td>
                                                     </tr>

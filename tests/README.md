@@ -86,3 +86,13 @@ The workflow suite now checks payroll amounts before opening an editor or saving
 ## Keyboard, audit and data loading (2026-11-05)
 
 `payroll-regression` covers unchanged saves keeping their version and masked employee change history. `payroll-display` checks the page no longer subscribes to all employees. `payroll-workflow-ui` adds Enter saving through the shared save rule and Esc closing only the preview. The add/remove client failure messages have no browser test.
+
+# Payroll month data scenarios
+
+Run from the repository root:
+
+```powershell
+node --test tests/payroll-rows.test.cjs
+```
+
+Covers the shared month rows in `payrollRows.ts`: new hires, leavers, rehires, mid-month pay changes, supplements, old records, missing pay data, and that totals equal the counted rows. Uses synthetic data only.

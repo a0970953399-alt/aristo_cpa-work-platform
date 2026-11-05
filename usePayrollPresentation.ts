@@ -3,12 +3,11 @@ import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestor
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
 import { Client, Employee, MonthlySalaryRecord } from './types';
-import { Slip, amountFields, attendanceFields, emptyValues, periods, basisAt, calculate, monthEnd, legacyIssues, legacyAmounts, isPayrollEnrolled, legacyCanEdit, totals, legacyNeedsEnrollment, isEffectivePayroll, recurringPayroll, currentPayrollMonth, defaultBaseSalary, defaultFoodAllowance, isFullMonth, previousPayroll, carriedAmounts, payrollSendIssues, legacySendIssues, automaticPayrollIssue, legacyAttendance, legacyBasis, legacyRecalculated, Values } from './functions/src/payrollDomain';
-import { sortEmployees } from './payrollDisplay';
+import { Slip, amountFields, attendanceFields, emptyValues, periods, basisAt, calculate, monthEnd, legacyIssues, legacyAmounts, isPayrollEnrolled, legacyCanEdit, totals, legacyNeedsEnrollment, isEffectivePayroll, currentPayrollMonth, defaultBaseSalary, defaultFoodAllowance, isFullMonth, previousPayroll, carriedAmounts, payrollSendIssues, legacySendIssues, legacyAttendance, legacyBasis, legacyRecalculated, Values } from './functions/src/payrollDomain';
+import { PayrollRow, HIDDEN_LEGACY_MESSAGE, buildMonthRows, rowValues } from './payrollRows';
 
 export const payrollStatus: Record<string, string> = {draft:'待首次納入',confirmed:'已保存',void:'已作廢',superseded:'已被更正取代'};
-export type PayrollRow = Employee & { sourceEmployeeId: string; slip?: Slip; legacyRecord?: MonthlySalaryRecord; periodId?: string; recommendedStart?: string; recommendedEnd?: string; warning?: string; reason?: string; excluded?: boolean };
-const HIDDEN_LEGACY_MESSAGE = '這個月有暫藏的舊薪資，請先核對';
+export type { PayrollRow };
 export type BatchItem = { key:string; name:string; email:string; amounts:Values; changed:string[]; autoSave:boolean; issues:string[]; slip?:Slip; legacyRecord?:MonthlySalaryRecord };
 export type BatchReview = { ready:BatchItem[]; blocked:BatchItem[]; skipped:number };
 const command = httpsCallable<any, any>(functions, 'payrollCommand');
@@ -77,9 +76,6 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     command({clientId,operationId:crypto.randomUUID(),action:'monthMailStatus',month}).then(r=>{if(request===monthMailRequest.current)setMonthMail(r.data.states||{});}).catch(()=>{if(request===monthMailRequest.current)setMonthMail(null);});
   }
   useEffect(()=>{setMonthMail(null);refreshMonthMail();},[clientId,ready,month]);
-  function alias(e: Employee, id:string, type:string, start:string, end:string|null): PayrollRow {
-    return {...e,id,sourceEmployeeId:e.id,employmentType:type as any,startDate:start,endDate:end||'',employmentHistory:[{id,type:type as any,startDate:start,endDate:end}]};
-  }
   // Rows only depend on this data, so typing in the editor must not recalculate them.
   const rowsCache = useMemo(()=>new Map<string,PayrollRow[]>(),[client,ready,employees,legacy,slips,hiddenLegacy]);
   function rowsFor(m:string): PayrollRow[] {
@@ -87,38 +83,11 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     const currentMonth=currentPayrollMonth();
     const cached=rowsCache.get(m+'|'+currentMonth);
     if(cached) return cached;
-    const rows:PayrollRow[]=[];
-    for(const e of sortEmployees(employees)) {
-      const olds=legacy.filter(r=>r.employeeId===e.id&&r.month===m);
-      const ss=slips.filter(s=>s.employeeId===e.id&&s.month===m&&s.status!=='void'&&s.status!=='superseded').sort((a,b)=>a.periodStart.localeCompare(b.periodStart)||a.createdAt.localeCompare(b.createdAt)||a.id.localeCompare(b.id));
-      for(const r of olds) rows.push({...e,id:'old:'+r.id,sourceEmployeeId:e.id,legacyRecord:r,warning:legacyIssues(r,legacy,employees).join('；'),excluded:legacyIssues(r,legacy,employees).length>0||legacyNeedsEnrollment(r,employees,slips,legacy)});
-      for(const s of ss) rows.push({...alias(e,s.id,s.basis.employmentType,periods(e).find(p=>p.id===s.employmentId)?.startDate||e.startDate,periods(e).find(p=>p.id===s.employmentId)?.endDate||null),name:s.employee.name,empNo:s.employee.empNo,email:s.employee.email,idNumber:s.employee.idNumber||'',bankAccount:s.employee.bankAccount||'',defaultBaseSalary:s.basis.baseSalary,defaultFoodAllowance:s.basis.foodAllowance,compensationHistory:[],slip:s,excluded:!isEffectivePayroll(s,e,slips,legacy)});
-      if(olds.length) continue;
-      const reservedByHidden=hiddenLegacy.some(r=>r.employeeId===e.id&&r.month===m);
-      for(const p of periods(e).filter(p=>p.startDate<=monthEnd(m)&&(!p.endDate||p.endDate>=m+'-01'))) {
-        const start=p.startDate>m+'-01'?p.startDate:m+'-01'; const end=p.endDate&&p.endDate<monthEnd(m)?p.endDate:monthEnd(m);
-        const nextDay=(d:string,offset:number)=>{const date=new Date(d+'T12:00:00Z');date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);};
-        const cuts=[...new Set([start,...(e.compensationHistory||[]).map(c=>c.effectiveDate).filter(d=>d>start&&d<=end)])].sort();
-        for(let i=0;i<cuts.length;i++){
-          let gaps=[{start:cuts[i],end:i+1<cuts.length?nextDay(cuts[i+1],-1):end}];
-          for(const slip of ss.filter(s=>s.employmentId===p.id&&s.kind==='regular')) gaps=gaps.flatMap(g=>slip.periodStart>g.end||slip.periodEnd<g.start?[g]:[...(g.start<slip.periodStart?[{start:g.start,end:nextDay(slip.periodStart,-1)}]:[]),...(g.end>slip.periodEnd?[{start:nextDay(slip.periodEnd,1),end:g.end}]:[])]);
-          for(const g of gaps) {
-            const recurring=reservedByHidden?null:recurringPayroll(e,p,m,client!,slips,legacy,currentMonth);
-            if(recurring && g.start===recurring.periodStart && g.end===recurring.periodEnd) rows.push({...alias(e,recurring.id,p.type,p.startDate,p.endDate),slip:recurring,excluded:false});
-            else rows.push({...alias(e,'period:'+e.id+':'+p.id+':'+g.start,p.type,p.startDate,p.endDate),periodId:p.id,recommendedStart:g.start,recommendedEnd:g.end,excluded:true,reason:reservedByHidden?HIDDEN_LEGACY_MESSAGE:automaticPayrollIssue(e,p,m,g.start,g.end,slips,legacy,currentMonth)});
-          }
-        }
-      }
-    }
+    const rows=buildMonthRows(m,{client,employees,legacy,slips,hiddenLegacy},currentMonth);
     rowsCache.set(m+'|'+currentMonth,rows);
     return rows;
   }
-  function flat(row:PayrollRow) {
-    if(row.slip) return {...row.slip.amounts,...row.slip.attendance,id:row.slip.id};
-    if(row.legacyRecord) return {...row.legacyRecord,...legacyAmounts(row.legacyRecord)};
-    try {const e=employees.find(e=>e.id===row.sourceEmployeeId)!;const p=periods(e).find(p=>p.id===row.periodId)!;const start=row.recommendedStart||(p.startDate>month+'-01'?p.startDate:month+'-01'),end=row.recommendedEnd||(p.endDate&&p.endDate<monthEnd(month)?p.endDate:monthEnd(month));const b=basisAt(e,p,start,end);return {...emptyValues(amountFields),...emptyValues(attendanceFields),baseSalary:defaultBaseSalary(b,start.slice(0,7),start,end),foodAllowance:defaultFoodAllowance(b,start.slice(0,7),start,end)};}
-    catch{return {...emptyValues(amountFields),...emptyValues(attendanceFields)};}
-  }
+  const flat=(row:PayrollRow)=>rowValues(row,month,employees);
   function open(row:PayrollRow,m=month) {
     setOpenSequence(n=>n+1);
     setError('');setInfo('');setHistory([]);setLegacyHistory([]);setHistoryUsers({});setMailState('NONE');setLegacyCorrecting(false);setOpenReason(row.slip||row.legacyRecord?'':row.reason||'');setOpenedRowId(row.id);
@@ -201,7 +170,6 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     const result=await run({action:'confirmLegacyEnrollment',id:oldEditing.id,expected:oldEditing});
     if(result){setOldEditing(result.record);setInfo('已完成首次納入薪資。');}
   }
-  const isLegacyIncluded = (r:MonthlySalaryRecord) => !legacyIssues(r,legacy,employees).length && !legacyNeedsEnrollment(r,employees,slips);
   async function checkLegacyMail() {
     if(!oldEditing)return;
     const result=await run({action:'legacySeptemberMailStatus',id:oldEditing.id});
@@ -296,5 +264,5 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     refreshMonthMail();
     setBatchNotice({text:'本次 '+completed+' 張薪資單已交寄送服務排程；不代表收件匣已收到。',failures});
   }
-  return {employeeHistory,openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,confirmLegacyEnrollment,isLegacyIncluded,canEdit,needsEnrollment,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,changePeriod,save,transition,revise,send,checkMail,versions};
+  return {employeeHistory,openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,confirmLegacyEnrollment,canEdit,needsEnrollment,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,changePeriod,save,transition,revise,send,checkMail,versions};
 }
