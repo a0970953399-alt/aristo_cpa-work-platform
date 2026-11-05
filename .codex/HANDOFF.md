@@ -1,34 +1,62 @@
 # 碩業工作平台交接
 
-更新日期：2026-10-12。修正前基準 `19426ce`，功能提交 `806ae55`（Fix payroll settlement display and editing safeguards）已推送 `main`，Vercel 正式部署 success，公開入口及薪資模組已讀回新版修正。工作分支 `main`。
+更新日期：2026-11-05。基準版本 `4dc6a95`（Complete recurring payroll enrollment continuity），工作分支 `main`。本次修改已提交並推送 `main`（提交編號見 Git 歷史）。**Functions 尚未部署**；前端可能由既有整合自動部署，本文件未核對。
+
+使用者表示 10/13 的 `fe34c17`、`4dc6a95` 已上線，並要求以最新程式碼為準；本文件未實際核對正式版本。
 
 ## 本次範圍與已確認決策
 
-使用者同意六項修正，明確要求保留操作介面外觀、不修改 Firebase 既有資料、不影響原有正常功能。排除「9 月舊薪資多人編輯覆蓋」及「員工 Excel 匯入失敗」，這兩項保持原樣，仍待日後處理。
+修正薪資掃描第一大類（可能發錯薪資或算錯帳），並依使用者同意一併處理批次寄送的中斷與結果顯示。
 
-- 月表最終結算欄與有效小計採相同範圍；草稿、未開單及異常舊紀錄顯示「—」，沿用原狀態與 title 提示說明未納入，其餘明細及編輯試算仍保留。未取消有效小計的排除保護。
-- 薪資及待遇數字輸入明確允許後端已接受的小數精度，包含半小時及小數出勤帶算的本薪；保存金額及計算公式不改。月表、編輯預估及 Excel 實發欄沿用共用 totals 的既有小數兩位規則，與薪資單預覽一致。
-- 新制編輯以開啟／成功保存時的快照判斷是否有使用者修改，切換月份／單據或關閉 modal（包括 Escape、取消與背景）有放棄修改提示。未輸入的新單不多跳提示，保存中不能關閉。表單值直接由當前薪資狀態呈現，避免切換時舊值覆蓋快速輸入。
-- 舊單選單以真正員工 ID 尋找同人單據，修正顯示列 alias ID 混用及選項 value 不一致；原唯讀與更正限制保留。
-- 年度投保欄同時顯示勞保／健保，已確認單用保存快照，無確認單時沿用既有待遇來源；不改保費或薪資金額。
-- 員工離職樣式與排序按台灣日期及實際任職區間判斷，最後在職日仍視為在職，隔日起才為離職，兼容舊主檔與復職。
+- 自動帶入：月份不晚於台灣當月，且上月有唯一一張已保存的完整月份薪資才帶入；未保存的自動帶入單不算已保存，因此不會連續往後產生。
+- 沿用項目：本薪、伙食費依目前待遇；勞保、健保、勞退自提、職務津貼沿用上月。全勤、所得稅、績效獎金、加班、請假、遲到、預支、結帳差額每月重新填。
+- 不帶入改顯示「待填當月資料」：上月不足月或有多張一般單、投保級距或加退保變動、應投保卻是 0 元。開啟時仍預填可沿用的金額，保存後才納入。
+- 投保勾選以待遇歷程為準，舊資料未設定視為有投保；只有勞保的員工要取消勾選「投保健保」。未投保項目帶 0。
+- 寄送擋下條件（前端與 Functions 一致）：信箱無效、未來月份、一般單本薪為 0、應投保卻是 0 元。同月已有其他已保存單時不檢查投保金額；補發單不檢查本薪與投保。
+- 不足月本薪與伙食費都預設 0，需手動填。
+- 空白新單保存後才算納入，只有自動帶入單可未保存就寄送。
+- 批次寄送改為核對表，黃底標示與上月不同；有問題的員工略過，其餘照常寄送，結果顯示於月表上方。
+- 作廢已生效的更正單會恢復被取代的原單。寄送紀錄改查單據所有版本，作廢或恢復後仍顯示真實寄送狀態，也不會重複寄送或直接修改。
+- 作廢已排程或已寄出的單會先警告，但仍允許作廢。
+- 勞健保每月由人工核對，因此不做費率表，也不做費率生效月提醒。
 
-未新增／移除頁面、欄位、按鈕或操作入口；原 JSX 結構、CSS class、inline style、表格跨度及尺寸屬性與 `19426ce` 一致。正常資料月表／年度表 geometry 與既有版型一致。修改涉及儲存格內容、既有選單內容及必要確認提示，並非改版。
+## 相關檔案
 
-## 相關檔案與驗證
+`functions/src/payrollDomain.ts`、`functions/src/payroll.ts`、`usePayrollPresentation.ts`、`PayrollView.tsx`、`tests/payroll-regression.test.cjs`、`tests/payroll-workflow-ui.test.cjs`、`tests/payroll-fixes-ui.test.cjs`、`tests/payroll-layout.test.cjs`、`tests/README.md`。Firestore Rules 與既有資料未修改。
 
-程式：`PayrollView.tsx`、`usePayrollPresentation.ts`、新增 `payrollDisplay.ts`。測試：新增 `tests/payroll-display.test.cjs`、`tests/payroll-fixes-ui.test.cjs`；測試操作見 `tests/README.md`。
+## 驗證結果
 
-- 薪資、權限、出勤及新增顯示測試合計 68/68 通過。
-- 新增真實 Edge 隔離測試通過：可見最終結算與小計對帳、同員工多張舊單切換、小數時數保存、投保旗標、未來離職、未修改新單不提示、月份／單據／關閉提示取消與確認，以及小數本薪的預覽／月表／Excel 一致。
-- 原有 `payroll-layout.test.cjs` 與 `payroll-ui.test.cjs` 通過；前者測正式 PayrollView 的月表／年度 geometry、欄寬與位置、全螢幕、薪資流程、預覽及原格式 Excel，後者包含舊 Ledger 計算 fixture 及實際員工復職表單，不能以後者替代正式頁面。
-- 根目錄 `npm.cmd run build` 與 `git diff --check` 通過。Functions、共用薪資 domain、Firestore Rules、員工服務及原寄信 Extension 未修改。
-- 全部使用模擬資料，未寫入正式 Firestore、未建立正式薪資或郵件、未登入正式帳號驗收，未重跑遠端 Rules API。未進行完整專案型別檢查；前次交接記載有既有型別問題，不能宣稱 TypeScript 全專案無錯。
+全部使用模擬資料，未登入正式帳號、未寫入正式 Firestore、未實際寄信。
 
-## 部署狀態與待辦
+- `tests/payroll-regression`、`payroll-display`、`permission-regression`、`attendance-handlers` 通過 93/93，其中 10 項為新增。
+- `tests/payroll-workflow-ui.test.cjs` 通過，並新增批次核對、略過、結果顯示、空白單與未來月份情境；另修正其測試替身依系統日期判斷首次納入的問題。
+- `tests/payroll-ui.test.cjs` 通過。
+- `tests/payroll-fixes-ui.test.cjs` 與 `tests/payroll-layout.test.cjs` 已更新並通過。兩者在 `def7210` 通過、自 `fe34c17` 起失敗，根因是測試仍依舊的「保存草稿／確認薪資」流程與舊規則，並非應用程式錯誤；本次改成目前流程，原本的檢查項目保留。例外：`payroll-layout` 的舊單唯讀檢查已改為未修改時不能保存，因舊單已可編輯；其欄寬比對的測試員工改為已首次納入，才能與舊版同樣顯示實發金額（未納入列顯示「—」、欄寬較窄是 `806ae55` 既有設計）。
+- 根目錄與 Functions 的 `npm.cmd run build` 通過。
 
-本次只發布前端；使用者已要求推送與部署，將本次相關程式、測試與交接提交 main，由既有 Vercel／GitHub Pages 整合自動部署。發布前已 fetch 確認 HEAD 與 origin/main 同為 19426ce，68/68 測試、薪資修正隔離 Edge 測試、根目錄 build 與 diff 檢查再次通過。Functions、Rules 及原寄信 Extension 沒有差異，不需要部署；預覽腳本與模擬資料位於儲存庫外，不納入發布。功能提交 806ae55 的 Vercel 部署已 success（Production deployment 7005089661）。正式網址 https://aristo-cpa-work-platform.vercel.app/ 回應 HTTP 200，入口 index-CBfXZ7lM.js 實際引用 PayrollView-kydPDTu7.js，該薪資資源回應 200 並含新版未儲存確認文字、step:any 與投保顯示。雲端資源名稱可能與本機不同，未宣稱逐位元一致。既有 GitHub Pages 工作 38195286970 此次核對仍在建置，與 Vercel 正式部署分開；本交接文件推送也會觸發原有自動發布。公開資源核對不等於正式帳號操作驗收。
+Playwright 未安裝於專案；瀏覽器測試使用專案外的 `playwright-core`，以 `PLAYWRIGHT_MODULE` 指定路徑，搭配本機 Edge。
 
-正式站主管所見的客戶／月份尚未逐筆唯讀核對，修正發布後仍需正式帳號核對；合成測試與版面比對不代表正式帳號／實際收件驗證。不要把草稿、重複舊單或寄送排程當成已確認應付／已付款／已收到郵件。
+## 部署狀態
 
-依前次交接，正式資料有八筆 temporaryPayrollHidden 暫時標記，本次未核對或改動；不要自行清理、取消、重算或遷移。保留既有復職、版本、更正及寄送架構，不直接回退舊版。Google 日曆仍為單向同步，不得刪除或替換 firebase/firestore-send-email Extension。歷史發布記錄以 Git 與原交接版本查閱，本次未重新核對其正式部署狀態。
+| 服務 | 需要部署 | 目前狀態 |
+|---|---|---|
+| 前端 | 是 | 已推送，可能自動部署，待核對 |
+| Functions（`payrollCommand`） | 是 | 未部署 |
+| Firestore Rules | 否 | 無差異 |
+| `firebase/firestore-send-email` Extension | 否 | 不得刪除或取代 |
+
+應盡快部署 Functions，部署前要確認實際差異，只部署 `payrollCommand`。
+
+## 待辦
+
+- Functions 部署需使用者同意後才進行；部署後核對前端與 Functions 版本一致。
+- 掃描清單其餘項目依大類逐步處理：第二大類第 9–16 項，另加「需處理」清單要說明具體原因（目前投保變動的單只顯示「待填當月資料」）；第三大類操作體驗、第四大類程式缺陷、第五大類事務所規則確認（兼職請假、平日加班倍率、免稅範圍）。
+- 舊有待核對：「9 月舊薪資多人編輯覆蓋」保持原樣。
+
+## 風險
+
+- 部署後，有投保勾選但金額為 0 的員工（含兼職）會被擋下寄送，需填金額或取消勾選。
+- 部署後，沒有上月完整薪資的月份不再顯示自動金額，月表小計與年度帳冊數字會比現在少。
+- 前端與 Functions 版本不一致時，寄送檢查與寄送狀態可能不同步。
+- 正式資料有八筆 `temporaryPayrollHidden` 標記（依前次交接，本次未核對）；後端仍會因這些紀錄拒絕該月新單。不要自行清理、取消、重算或遷移。
+- Google 日曆仍為單向同步。

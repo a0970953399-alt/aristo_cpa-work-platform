@@ -121,7 +121,60 @@ export function isEffectivePayroll(s: Slip, emp: any, slips: Slip[], legacy: any
     if (s.status !== 'draft' || s.kind !== 'regular' || s.replacesId || !isPayrollEnrolled(emp, s.employmentId, slips, legacy, s.month)) return false;
     try { validateSlip(s, emp, slips, legacy); return sameBasis(basisAt(emp, periods(emp).find(p=>p.id===s.employmentId)!, s.periodStart, s.periodEnd), s.basis); } catch { return false; }
 }
-export function recurringPayroll(emp: any, p: Period, month: string, company: any, slips: Slip[], legacy: any[]): Slip | null {
+export function currentPayrollMonth(now = new Date()): string { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit' }).format(now); }
+export function previousMonth(month: string): string { monthEnd(month); return new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7); }
+export function isFullMonth(month: string, start: string, end: string): boolean { return start === month + '-01' && end === monthEnd(month); }
+// A partial month has no safe default: the payable base and meal allowance must be entered by hand.
+export function defaultBaseSalary(b: Basis, month: string, start: string, end: string): number { return b.employmentType === 'full_time' && isFullMonth(month, start, end) ? b.baseSalary : 0; }
+export function defaultFoodAllowance(b: Basis, month: string, start: string, end: string): number { return isFullMonth(month, start, end) ? b.foodAllowance : 0; }
+// Insurance flags default to insured, matching the employee form.
+const isInsured = (flag: unknown) => flag !== false;
+export type PreviousPayroll = { amounts: Values; insurance: Pick<Basis, 'insuranceBracket' | 'hasLaborIns' | 'hasHealthIns'> };
+// The single saved full-month payroll directly before this month, or null when it cannot be carried safely.
+export function previousPayroll(emp: any, p: Period, month: string, slips: Slip[], legacy: any[]): PreviousPayroll | null {
+    const prev = previousMonth(month), start = prev + '-01', end = monthEnd(prev);
+    if (p.startDate > start || p.endDate && p.endDate < end) return null;
+    const visible = legacy.filter(r => r.temporaryPayrollHidden !== true);
+    const olds = visible.filter(r => r.employeeId === emp.id && r.month === prev);
+    const regular = slips.filter(s => s.employeeId === emp.id && s.month === prev && s.kind === 'regular' && s.revision > 0 && s.status !== 'void' && s.status !== 'superseded');
+    if (olds.length + regular.length !== 1) return null;
+    try {
+        if (olds.length) {
+            if (legacyIssues(olds[0], visible, [emp]).length || legacyNeedsEnrollment(olds[0], [emp], slips, visible)) return null;
+            return { amounts: legacyAmounts(olds[0]), insurance: basisAt(emp, p, start, end) };
+        }
+        const s = regular[0];
+        if (s.employmentId !== p.id || !isFullMonth(prev, s.periodStart, s.periodEnd) || !isEffectivePayroll(s, emp, slips, visible)) return null;
+        return { amounts: s.amounts, insurance: s.basis };
+    } catch { return null; }
+}
+export function carriedAmounts(b: Basis, previous: PreviousPayroll): Values {
+    return { laborIns: isInsured(b.hasLaborIns) ? previous.amounts.laborIns : 0, healthIns: isInsured(b.hasHealthIns) ? previous.amounts.healthIns : 0, pensionSelf: previous.amounts.pensionSelf, positionAllowance: previous.amounts.positionAllowance };
+}
+export function payrollSendIssues(p: { kind: string; month: string; email: string; amounts: Values; basis: Pick<Basis, 'hasLaborIns' | 'hasHealthIns'> | null; hasOtherPay: boolean }, currentMonth = currentPayrollMonth()): string[] {
+    const issues: string[] = [];
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(p.email || '')) issues.push('沒有有效收件信箱');
+    if (p.month > currentMonth) issues.push('未來月份的薪資單還不能寄送');
+    if (p.kind === 'regular') {
+        if (!(p.amounts.baseSalary > 0)) issues.push('本薪為 0');
+        // Another saved slip in the month may legitimately hold the insurance deduction.
+        if (p.basis && !p.hasOtherPay) {
+            if (isInsured(p.basis.hasLaborIns) && !(p.amounts.laborIns > 0)) issues.push('應投保勞保但金額為 0');
+            if (isInsured(p.basis.hasHealthIns) && !(p.amounts.healthIns > 0)) issues.push('應投保健保但金額為 0');
+        }
+    }
+    return issues;
+}
+export function legacySendIssues(r: any, emp: any, currentMonth = currentPayrollMonth()): string[] {
+    let basis: Basis | null = null;
+    if (emp) try {
+        const ps = periods(emp).filter(p => p.startDate <= monthEnd(r.month) && (!p.endDate || p.endDate >= r.month + '-01'));
+        if (ps.length === 1) basis = basisAt(emp, ps[0], r.month + '-01', monthEnd(r.month));
+    } catch { basis = null; }
+    return payrollSendIssues({ kind: 'regular', month: r.month, email: emp?.email || '', amounts: legacyAmounts(r), basis, hasOtherPay: false }, currentMonth);
+}
+export function recurringPayroll(emp: any, p: Period, month: string, company: any, slips: Slip[], legacy: any[], currentMonth = currentPayrollMonth()): Slip | null {
+    if (month > currentMonth) return null;
     if (p.type !== 'full_time' || p.startDate > month + '-01' || p.endDate && p.endDate < monthEnd(month)) return null;
     if (!isPayrollEnrolled(emp, p.id, slips, legacy, month)) return null;
     if (legacy.some(r=>r.employeeId===emp.id&&r.month===month)) return null;
@@ -129,7 +182,12 @@ export function recurringPayroll(emp: any, p: Period, month: string, company: an
     try {
         validatePeriods(periods(emp));
         const basis=basisAt(emp,p,month+'-01',monthEnd(month));
-        const amounts=emptyValues(amountFields);amounts.baseSalary=basis.baseSalary;amounts.foodAllowance=basis.foodAllowance;
+        const previous=previousPayroll(emp,p,month,slips,legacy);
+        if (!previous) return null;
+        // A changed bracket or enrollment needs a person to confirm the new deductions.
+        if ((['insuranceBracket','hasLaborIns','hasHealthIns'] as const).some(k=>previous.insurance[k]!==basis[k])) return null;
+        const amounts: Values={...emptyValues(amountFields),...carriedAmounts(basis,previous),baseSalary:basis.baseSalary,foodAllowance:basis.foodAllowance};
+        if (isInsured(basis.hasLaborIns)&&!(amounts.laborIns>0) || isInsured(basis.hasHealthIns)&&!(amounts.healthIns>0)) return null;
         const candidate: Slip = {id:'auto:'+emp.id+':'+p.id+':'+month,schemaVersion:2,revision:0,clientId:emp.clientId,employeeId:emp.id,employmentId:p.id,month,periodStart:month+'-01',periodEnd:monthEnd(month),kind:'regular',relatedId:'',replacesId:'',status:'draft',basis,amounts,attendance:emptyValues(attendanceFields),employee:{name:emp.name,email:emp.email||'',empNo:emp.empNo||'',idNumber:emp.idNumber||'',bankAccount:emp.bankAccount||''},company:{name:company.fullName||company.name||'',phone:company.phone||'',address:company.contactAddress||company.regAddress||''},note:'',reason:'',reviewedMonth:false,createdAt:'',updatedAt:'',actor:''};
         validateSlip(candidate,emp,slips,legacy);
         return candidate;

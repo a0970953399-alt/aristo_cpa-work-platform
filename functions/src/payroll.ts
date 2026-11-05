@@ -1,7 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
-import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml, isPayrollEnrolled, legacyCanEdit, monthEnd, legacyNeedsEnrollment } from './payrollDomain.js';
+import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml, isPayrollEnrolled, legacyCanEdit, monthEnd, legacyNeedsEnrollment, payrollSendIssues, legacySendIssues } from './payrollDomain.js';
 const key = (value: unknown) => { assert(typeof value === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(value), '識別碼不正確'); return value as string; };
 const text = (value: unknown, max = 2000) => { assert(typeof value === 'string' && value.length <= max, '文字欄位不正確'); return value as string; };
 const canonical = (v: any): string => JSON.stringify(v && typeof v === 'object' ? Array.isArray(v) ? v.map(x => JSON.parse(canonical(x))) : Object.fromEntries(Object.keys(v).sort().map(k => [k, JSON.parse(canonical(v[k]))])) : v);
@@ -42,6 +42,8 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
             const now = new Date().toISOString();
             let result: any = {};
             const writeSlip = (s: Slip) => { tx.set(db.doc('payrollSlips/' + s.id), s); tx.create(db.doc(`payrollSlips/${s.id}/versions/${s.revision}`), s); };
+            // Void and supersede bump the revision, so a sent slip must be found across all its revisions.
+            const latestDispatch = async (id: string) => { const found = await tx.get(db.collection('payrollDispatch').where('slipId', '==', id)); return found.docs.map(d => d.data()).sort((a, b) => b.revision - a.revision || b.attempt - a.attempt)[0]; };
             if (action === 'saveEmployee') {
                 const raw = data.employee;
                 const id = key(raw?.id);
@@ -181,6 +183,8 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                         assert(state === 'ERROR', '此版本已排程或寄送；只有明確失敗後可重試');
                         attempt = dispatch.data()!.attempt + 1;
                     }
+                    const issues = legacySendIssues(record, { ...employee, id: record.employeeId });
+                    assert(!issues.length, issues.join('；'));
                     const mailId = `legacyPayroll_${id}_${revision}_${attempt}`;
                     const c = company.data()!;
                     const snapshot = { id, schemaVersion: 2, revision, month: record.month, periodStart: record.month + '-01', periodEnd: monthEnd(record.month), status: 'confirmed', amounts, attendance, employee: { name: employee.name, email: employee.email, empNo: employee.empNo || '', idNumber: employee.idNumber || '', bankAccount: employee.bankAccount || '' }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: '既有薪資，已核對後寄送', reason: '' } as Slip;
@@ -198,8 +202,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 const current = slips.find(s => s.id === id);
                 assert(!current || ['draft','confirmed'].includes(current.status), '已作廢或被取代薪資不能直接修改');
                 if (current?.status === 'confirmed') {
-                    const dispatch = await tx.get(db.doc('payrollDispatch/' + id + '_' + current.revision));
-                    assert(!dispatch.exists, '已排程或寄送的薪資不能直接修改，請建立更正');
+                    assert(!(await latestDispatch(id)), '已排程或寄送的薪資不能直接修改，請建立更正');
                 }
                 assert((current?.revision || 0) === data.expectedRevision, '薪資版本已變更，請重新開啟');
                 const employeeId = key(raw.employeeId);
@@ -249,6 +252,12 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                         writeSlip({ ...old, status: 'superseded', revision: old.revision + 1, updatedAt: now, actor: uid, reason: '由 ' + s.id + ' 更正取代' });
                     }
                 }
+                if (action === 'void' && s.status === 'confirmed' && s.replacesId) {
+                    // The saved correction superseded its source; voiding it must not leave the month without pay.
+                    const original = slips.find(x => x.id === s.replacesId);
+                    if (original?.status === 'superseded' && !slips.some(x => x.id !== s.id && x.replacesId === original.id && x.status !== 'void'))
+                        writeSlip({ ...original, status: 'confirmed', revision: original.revision + 1, updatedAt: now, actor: uid, reason: '更正單 ' + s.id + ' 作廢，恢復原單' });
+                }
                 const next: Slip = { ...s, status: action === 'confirm' ? 'confirmed' : 'void', revision: s.revision + 1, updatedAt: now, actor: uid, reason: reason || s.reason };
                 writeSlip(next);
                 result = { slip: next };
@@ -259,16 +268,18 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 assert(s && s.status === 'confirmed' && s.revision === data.expectedRevision, '僅能寄送目前已確認版本');
                 assert(/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(s!.employee.email), '本單未保存有效收件信箱，請建立更正版本');
                 const dispatchRef = db.doc(`payrollDispatch/${id}_${s!.revision}`);
-                const dispatch = await tx.get(dispatchRef);
+                const dispatch = await latestDispatch(id);
                 let attempt = 1;
-                if (dispatch.exists) {
-                    const mail = await tx.get(db.doc('mail/' + dispatch.data()!.mailId));
+                if (dispatch) {
+                    const mail = await tx.get(db.doc('mail/' + dispatch.mailId));
                     const state = mail.data()?.delivery?.state || 'PENDING';
                     if (data.retry !== true)
-                        return { mailId: dispatch.data()!.mailId, state, alreadyQueued: true };
+                        return { mailId: dispatch.mailId, state, alreadyQueued: true };
                     assert(state === 'ERROR', '此版本已排程或寄送；只有明確失敗後可重試');
-                    attempt = dispatch.data()!.attempt + 1;
+                    attempt = dispatch.attempt + 1;
                 }
+                const issues = payrollSendIssues({ kind: s!.kind, month: s!.month, email: s!.employee.email, amounts: s!.amounts, basis: s!.basis, hasOtherPay: slips.some(x => x.id !== id && x.id !== s!.replacesId && x.employeeId === s!.employeeId && x.month === s!.month && x.status === 'confirmed') });
+                assert(!issues.length, issues.join('；'));
                 const mailId = `payroll_${id}_${s!.revision}_${attempt}`;
                 const employee = await tx.get(db.doc('employees/' + s!.employeeId));
                 const employment = employee.exists ? slipPeriod(s!, { ...employee.data(), id: s!.employeeId }) : undefined;
@@ -280,11 +291,11 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 const id = key(data.id);
                 const s = slips.find(x => x.id === id);
                 assert(s, '找不到薪資單');
-                const d = await tx.get(db.doc(`payrollDispatch/${id}_${s!.revision}`));
-                if (!d.exists)
+                const d = await latestDispatch(id);
+                if (!d)
                     return { state: 'NONE' };
-                const m = await tx.get(db.doc('mail/' + d.data()!.mailId));
-                return { state: m.data()?.delivery?.state || 'PENDING', attempt: d.data()!.attempt };
+                const m = await tx.get(db.doc('mail/' + d.mailId));
+                return { state: m.data()?.delivery?.state || 'PENDING', attempt: d.attempt };
             }
             else
                 throw new Error('不支援此操作');
