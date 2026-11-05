@@ -1,6 +1,6 @@
 # 碩業工作平台交接
 
-更新日期：2026-11-05。基準版本 `4dc6a95`（Complete recurring payroll enrollment continuity），工作分支 `main`。本次修改已提交並推送 `main`（提交編號見 Git 歷史）。**Functions 尚未部署**；前端可能由既有整合自動部署，本文件未核對。
+更新日期：2026-11-05。基準版本 `4dc6a95`（Complete recurring payroll enrollment continuity），工作分支 `main`。功能提交 `0478907` 已推送 `main`；Vercel Production 部署 success，`payrollCommand` 已於 2026-11-05 部署。尚未以正式帳號驗收。
 
 使用者表示 10/13 的 `fe34c17`、`4dc6a95` 已上線，並要求以最新程式碼為準；本文件未實際核對正式版本。
 
@@ -40,23 +40,22 @@ Playwright 未安裝於專案；瀏覽器測試使用專案外的 `playwright-co
 
 | 服務 | 需要部署 | 目前狀態 |
 |---|---|---|
-| 前端 | 是 | 已推送，可能自動部署，待核對 |
-| Functions（`payrollCommand`） | 是 | 未部署 |
+| 前端 | 是 | 已部署（Vercel Production success） |
+| Functions（`payrollCommand`） | 是 | 已部署，只更新此函式 |
 | Firestore Rules | 否 | 無差異 |
 | `firebase/firestore-send-email` Extension | 否 | 不得刪除或取代 |
 
-應盡快部署 Functions，部署前要確認實際差異，只部署 `payrollCommand`。
+部署後已確認函式與 `ext-firestore-send-email-processqueue` 都存在，未登入呼叫回 401；正式網址的 `PayrollView-B9Ujj8X6.js` 含新版批次核對程式。本機部署曾因分析程式碼逾時失敗，可在部署指令前設定 `FUNCTIONS_DISCOVERY_TIMEOUT=120`。
 
 ## 待辦
 
-- Functions 部署需使用者同意後才進行；部署後核對前端與 Functions 版本一致。
+- 以正式帳號驗收批次核對、寄送檢查與作廢更正單；驗收時注意不要寄出真實薪資單。
 - 掃描清單其餘項目依大類逐步處理：第二大類第 9–16 項，另加「需處理」清單要說明具體原因（目前投保變動的單只顯示「待填當月資料」）；第三大類操作體驗、第四大類程式缺陷、第五大類事務所規則確認（兼職請假、平日加班倍率、免稅範圍）。
 - 舊有待核對：「9 月舊薪資多人編輯覆蓋」保持原樣。
 
 ## 風險
 
-- 部署後，有投保勾選但金額為 0 的員工（含兼職）會被擋下寄送，需填金額或取消勾選。
-- 部署後，沒有上月完整薪資的月份不再顯示自動金額，月表小計與年度帳冊數字會比現在少。
-- 前端與 Functions 版本不一致時，寄送檢查與寄送狀態可能不同步。
+- 有投保勾選但金額為 0 的員工（含兼職）會被擋下寄送，需填金額或取消勾選。
+- 沒有上月完整薪資的月份不再顯示自動金額，月表小計與年度帳冊數字會比先前少。
 - 正式資料有八筆 `temporaryPayrollHidden` 標記（依前次交接，本次未核對）；後端仍會因這些紀錄拒絕該月新單。不要自行清理、取消、重算或遷移。
 - Google 日曆仍為單向同步。
