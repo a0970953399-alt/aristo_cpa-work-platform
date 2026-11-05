@@ -134,7 +134,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
       const ps=periods(e).filter(p=>p.startDate<=monthEnd(m)&&(!p.endDate||p.endDate>=m+'-01'));
       const p=ps.find(p=>p.id===row.periodId)||ps[0];if(!p)throw Error('該月沒有有效任職期間');
       const start=row.recommendedStart||(p.startDate>m+'-01'?p.startDate:m+'-01'),end=row.recommendedEnd||(p.endDate&&p.endDate<monthEnd(m)?p.endDate:monthEnd(m));
-      const basis=basisAt(e,p,start,end),amounts=emptyValues(amountFields); amounts.baseSalary=defaultBaseSalary(basis,m,start,end);amounts.foodAllowance=defaultFoodAllowance(basis,m,start,end);
+      const basis=basisAt(e,p,start,end),amounts=emptyValues(amountFields); amounts.baseSalary=defaultBaseSalary(basis,m,start,end);amounts.foodAllowance=defaultFoodAllowance(basis);
       const previous=basis.employmentType==='full_time'&&isFullMonth(m,start,end)?previousPayroll(e,p,m,slips,legacy):null;if(previous)Object.assign(amounts,carriedAmounts(basis,previous));
       const draft: Slip = {id:crypto.randomUUID(),schemaVersion:2,revision:0,clientId,employeeId:e.id,employmentId:p.id,month:m,periodStart:start,periodEnd:end,kind:'regular',relatedId:'',replacesId:'',status:'draft',basis,amounts,attendance:emptyValues(attendanceFields),employee:{name:e.name,email:e.email,empNo:e.empNo,idNumber:e.idNumber||'',bankAccount:e.bankAccount||''},company:{name:client!.fullName||client!.name,phone:client!.phone||'',address:client!.contactAddress||client!.regAddress||''},note:'',reason:'',reviewedMonth:false,createdAt:'',updatedAt:'',actor:''};
       openedSignature.current=signature(draft);setOldEditing(null);setEditing(draft);
@@ -164,8 +164,9 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     if(!editing||!canEdit||busy)return;
     const n=Number(value)||0;
     try{let amounts={...editing.amounts};const attendance={...editing.attendance};
-      if((attendanceFields as readonly string[]).includes(k)){attendance[k]=n;if(k==='workHours'&&editing.basis.employmentType==='part_time')amounts.baseSalary=n*editing.basis.baseSalary;amounts=calculate(editing.basis,attendance,amounts);}
+      if((attendanceFields as readonly string[]).includes(k)){attendance[k]=n;if(k==='workHours'&&editing.basis.employmentType==='part_time')amounts.baseSalary=n*editing.basis.baseSalary;}
       else amounts[k]=n;
+      amounts=calculate(editing.basis,attendance,amounts,editing.kind);
       setEditing({...editing,amounts,attendance});
     }catch(e:any){setError(e.message);}
   }
@@ -210,8 +211,8 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     if(!editing||editing.revision>0||editing.status!=='draft')return;
     try{const e=employees.find(e=>e.id===editing.employeeId)!;const p=periods(e).find(p=>p.id===id)!;
       const a=start||(p.startDate>editing.month+'-01'?p.startDate:editing.month+'-01');const z=end||(p.endDate&&p.endDate<monthEnd(editing.month)?p.endDate:monthEnd(editing.month));
-      const basis=basisAt(e,p,a,z);const amounts={...editing.amounts};if(id!==editing.employmentId){amounts.baseSalary=defaultBaseSalary(basis,editing.month,a,z);amounts.foodAllowance=defaultFoodAllowance(basis,editing.month,a,z);}else{if(basis.employmentType==='full_time'&&(amounts.baseSalary===0||amounts.baseSalary===editing.basis.baseSalary))amounts.baseSalary=defaultBaseSalary(basis,editing.month,a,z);if(amounts.foodAllowance===0||amounts.foodAllowance===editing.basis.foodAllowance)amounts.foodAllowance=defaultFoodAllowance(basis,editing.month,a,z);}
-      setEditing({...editing,employmentId:id,periodStart:a,periodEnd:z,basis,amounts:calculate(basis,editing.attendance,amounts)});setError('');
+      const basis=basisAt(e,p,a,z);const amounts={...editing.amounts};if(id!==editing.employmentId){amounts.baseSalary=defaultBaseSalary(basis,editing.month,a,z);amounts.foodAllowance=defaultFoodAllowance(basis);}else{if(basis.employmentType==='full_time'&&(amounts.baseSalary===0||amounts.baseSalary===editing.basis.baseSalary))amounts.baseSalary=defaultBaseSalary(basis,editing.month,a,z);if(amounts.foodAllowance===0||amounts.foodAllowance===editing.basis.foodAllowance)amounts.foodAllowance=defaultFoodAllowance(basis);}
+      setEditing({...editing,employmentId:id,periodStart:a,periodEnd:z,basis,amounts:calculate(basis,editing.attendance,amounts,editing.kind)});setError('');
     }catch(e:any){setError(e.message);}
   }
   const reviewAmounts = (a:Values) => '勞保 '+a.laborIns.toLocaleString()+'／健保 '+a.healthIns.toLocaleString()+'／所得稅 '+a.incomeTax.toLocaleString()+'／全勤 '+a.fullAttendance.toLocaleString()+'\n實發：'+totals(a).net.toLocaleString()+' 元';

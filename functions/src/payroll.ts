@@ -233,7 +233,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 const start = text(raw.periodStart, 10), end = text(raw.periodEnd, 10);
                 const basis = basisAt(emp, p!, start, end);
                 const attendance = numbers(raw.attendance, attendanceFields);
-                const amounts = calculate(basis, attendance, numbers(raw.amounts, amountFields));
+                const amounts = calculate(basis, attendance, numbers(raw.amounts, amountFields), raw.kind);
                 const c = company.data()!;
                 const s: Slip = { id, schemaVersion: 2, revision: (current?.revision || 0) + 1, clientId, employeeId, employmentId, month: text(raw.month, 7), periodStart: start, periodEnd: end, kind: raw.kind, relatedId: raw.relatedId ? key(raw.relatedId) : '', replacesId: raw.replacesId ? key(raw.replacesId) : '', status: 'draft', basis, amounts, attendance, employee: { name: text((emp as any).name, 500), email: text((emp as any).email || '', 500), empNo: text((emp as any).empNo || '', 500), idNumber: text((emp as any).idNumber || '', 50), bankAccount: text((emp as any).bankAccount || '', 100) }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: text(raw.note || ''), reason: text(raw.reason || '', 500), reviewedMonth: raw.reviewedMonth === true, createdAt: current?.createdAt || now, updatedAt: now, actor: uid };
                 validateSlip(s, emp, slips, legacy);

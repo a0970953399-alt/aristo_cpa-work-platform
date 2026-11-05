@@ -1,6 +1,6 @@
 # 碩業工作平台交接
 
-更新日期：2026-11-05。工作分支 `main`。第一大類（`0478907`）、第二大類（`5cae73b`）、第三大類（`61328cc`）與第四大類（其後的提交，見 Git 歷史）都已推送，`payrollCommand` 已部署，前端由既有整合部署；都尚未以正式帳號驗收。
+更新日期：2026-11-06。工作分支 `main`。第一大類（`0478907`）、第二大類（`5cae73b`）、第三大類（`61328cc`）、第四大類（`ce09426`）與加班費基準修改（其後的提交，見 Git 歷史）都已推送，`payrollCommand` 已部署，前端由既有整合部署；都尚未以正式帳號驗收。
 
 使用者表示 10/13 的 `fe34c17`、`4dc6a95` 已上線，並要求以最新程式碼為準；本文件未實際核對正式版本。
 
@@ -13,7 +13,7 @@
 - 不帶入改顯示「待填當月資料」：上月不足月或有多張一般單、投保級距或加退保變動、應投保卻是 0 元。開啟時仍預填可沿用的金額，保存後才納入。
 - 投保勾選以待遇歷程為準，舊資料未設定視為有投保；只有勞保的員工要取消勾選「投保健保」。未投保項目帶 0。
 - 寄送擋下條件（前端與 Functions 一致）：信箱無效、未來月份、一般單本薪為 0、應投保卻是 0 元。同月已有其他已保存單時不檢查投保金額；補發單不檢查本薪與投保。
-- 不足月本薪與伙食費都預設 0，需手動填。
+- 不足月本薪預設 0，需手動填；伙食費預填約定金額，可修改。
 - 空白新單保存後才算納入，只有自動帶入單可未保存就寄送。
 - 批次寄送改為核對表，黃底標示與上月不同；有問題的員工略過，其餘照常寄送，結果顯示於月表上方。
 - 作廢已生效的更正單會恢復被取代的原單。寄送紀錄改查單據所有版本，作廢或恢復後仍顯示真實寄送狀態，也不會重複寄送或直接修改。
@@ -59,6 +59,16 @@
 
 部署：已先部署 `payrollCommand` 再推送，Rules 無差異。本機部署指令前可設定 `FUNCTIONS_DISCOVERY_TIMEOUT=120`。
 
+## 加班費基準（使用者決定，已部署；尚未以正式帳號驗收）
+
+- 使用者決定完整月份的本薪與伙食費先不鎖定，仍可修改。
+
+- 正職的加班費與特休折現改用（約定月薪 + 當月薪資單的伙食費）÷ 240；請假、遲到扣款與兼職計算不變。
+- 補發單只存差額、伙食費通常為 0，因此仍用約定伙食費。
+- 舊薪資改出勤時會用該筆的伙食費重算；只改伙食費不會自動改手動金額。
+- 已保存單不會自動重算，但未寄出的單再次保存、或建立更正並保存時，會依新規則重算。
+- 這會降低不足月員工的加班時薪，是否符合法規仍待事務所確認（第五大類第 3 題）。
+
 ## 相關檔案
 
 `functions/src/payrollDomain.ts`、`functions/src/payroll.ts`、`usePayrollPresentation.ts`、`PayrollView.tsx`、`payrollDisplay.ts`、`tests/payroll-display.test.cjs`、`tests/payroll-regression.test.cjs`、`tests/payroll-workflow-ui.test.cjs`、`tests/payroll-fixes-ui.test.cjs`、`tests/payroll-layout.test.cjs`、`tests/README.md`。Firestore Rules 與既有資料未修改。
@@ -67,7 +77,7 @@
 
 全部使用模擬資料，未登入正式帳號、未寫入正式 Firestore、未實際寄信。
 
-- `tests/payroll-regression`、`payroll-display`、`permission-regression`、`attendance-handlers` 全數通過（第四大類後為 108 項）。Email 身分證、月表版面比對已依核准內容更新；`payroll-layout` 的欄寬比對仍通過。`payroll-display` 原本凍結 Excel 匯入與舊薪資保存邏輯的測試，因這兩處已納入範圍，改為只檢查舊薪資保存仍帶版本與原始資料。
+- `tests/payroll-regression`、`payroll-display`、`permission-regression`、`attendance-handlers` 全數通過（加班費基準修改後為 111 項）。Email 身分證、月表版面比對已依核准內容更新；`payroll-layout` 的欄寬比對仍通過。`payroll-display` 原本凍結 Excel 匯入與舊薪資保存邏輯的測試，因這兩處已納入範圍，改為只檢查舊薪資保存仍帶版本與原始資料。
 - `tests/payroll-workflow-ui.test.cjs` 通過，並新增批次核對、略過、結果顯示、空白單與未來月份情境；另修正其測試替身依系統日期判斷首次納入的問題。
 - `tests/payroll-ui.test.cjs` 通過。
 - `tests/payroll-fixes-ui.test.cjs` 與 `tests/payroll-layout.test.cjs` 已更新並通過。兩者在 `def7210` 通過、自 `fe34c17` 起失敗，根因是測試仍依舊的「保存草稿／確認薪資」流程與舊規則，並非應用程式錯誤；本次改成目前流程，原本的檢查項目保留。例外：`payroll-layout` 的舊單唯讀檢查已改為未修改時不能保存，因舊單已可編輯；其欄寬比對的測試員工改為已首次納入，才能與舊版同樣顯示實發金額（未納入列顯示「—」、欄寬較窄是 `806ae55` 既有設計）。
@@ -79,8 +89,8 @@ Playwright 未安裝於專案；瀏覽器測試使用專案外的 `playwright-co
 
 | 服務 | 需要部署 | 目前狀態 |
 |---|---|---|
-| 前端 | 是 | 已部署（Vercel Production success） |
-| Functions（`payrollCommand`） | 是 | 已部署，只更新此函式 |
+| 前端 | 是 | 加班費基準修改已推送 `main`，由既有整合部署 |
+| Functions（`payrollCommand`） | 是 | 加班費基準修改已部署，只更新此函式 |
 | Firestore Rules | 否 | 無差異 |
 | `firebase/firestore-send-email` Extension | 否 | 不得刪除或取代 |
 

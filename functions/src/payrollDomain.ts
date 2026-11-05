@@ -82,12 +82,13 @@ export function numbers(raw: any, fields: readonly string[]): Values { const out
     out[k] = n;
 } return out; }
 export const emptyValues = (fields: readonly string[]) => Object.fromEntries(fields.map(k => [k, 0])) as Values;
-export function calculate(b: Basis, t: Values, a: Values): Values {
+// Overtime uses the meal allowance actually paid that month. A supplement slip only holds the extra amounts, so it keeps the contractual one.
+export function calculate(b: Basis, t: Values, a: Values, kind: Slip['kind'] = 'regular'): Values {
     numbers(t, attendanceFields);
     numbers(a, amountFields);
     assert(Number.isFinite(b.baseSalary) && b.baseSalary >= 0 && Number.isFinite(b.foodAllowance) && b.foodAllowance >= 0, '約定待遇不正確');
     const h = b.employmentType === 'full_time' ? b.baseSalary / 240 : b.baseSalary;
-    const ot = b.employmentType === 'full_time' ? (b.baseSalary + b.foodAllowance) / 240 : b.baseSalary;
+    const ot = b.employmentType === 'full_time' ? (b.baseSalary + (kind === 'supplement' ? b.foodAllowance : a.foodAllowance)) / 240 : b.baseSalary;
     return { ...a, lateDeduction: Math.round(h / 60 * t.lateHours), leaveDeduction: Math.round(h * t.sickLeave / 2) + Math.round(h * t.personalLeave), taxFreeOt: b.employmentType === 'full_time' ? Math.round(ot * t.annualLeave) + Math.round(ot * t.holidayOt) + Math.round(ot * t.normalOt * 1.3333) : Math.round(ot * t.holidayOt * 2) + Math.round(ot * t.normalOt * 1.3333) };
 }
 export function totals(a: Values) { const add = a.baseSalary + a.fullAttendance + a.positionAllowance + a.performanceBonus + a.taxableOt; const deduct = a.leaveDeduction + a.dailyShortage + a.lateDeduction + a.pensionSelf; const exempt = a.foodAllowance + a.taxFreeOt; const withholding = a.laborIns + a.healthIns + a.incomeTax + a.advancePay; return { add, deduct, exempt, withholding, net: Math.round((add - deduct + exempt - withholding) * 100) / 100 }; }
@@ -121,7 +122,7 @@ export function previousMonth(month: string): string { monthEnd(month); return n
 export function isFullMonth(month: string, start: string, end: string): boolean { return start === month + '-01' && end === monthEnd(month); }
 // A partial month has no safe default: the payable base and meal allowance must be entered by hand.
 export function defaultBaseSalary(b: Basis, month: string, start: string, end: string): number { return b.employmentType === 'full_time' && isFullMonth(month, start, end) ? b.baseSalary : 0; }
-export function defaultFoodAllowance(b: Basis, month: string, start: string, end: string): number { return isFullMonth(month, start, end) ? b.foodAllowance : 0; }
+export function defaultFoodAllowance(b: Basis): number { return b.foodAllowance; }
 // Insurance flags default to insured, matching the employee form.
 const isInsured = (flag: unknown) => flag !== false;
 export type PreviousPayroll = { amounts: Values; insurance: Pick<Basis, 'insuranceBracket' | 'hasLaborIns' | 'hasHealthIns'> };
@@ -152,7 +153,7 @@ const hasMissingInsurance = (b: Basis, a: Values) => isInsured(b.hasLaborIns) &&
 // Explains a row that was not filled automatically, so the person knows what to check.
 export function automaticPayrollIssue(emp: any, p: Period, month: string, start: string, end: string, slips: Slip[], legacy: any[], currentMonth = currentPayrollMonth()): string {
     if (p.type !== 'full_time') return '兼職請填寫工時';
-    if (!isFullMonth(month, start, end)) return (emp.compensationHistory || []).some((c: any) => c.effectiveDate > month + '-01' && c.effectiveDate <= monthEnd(month)) ? '本月有待遇變動，請分開開單' : '本月不足月，請手動填寫本薪和伙食費';
+    if (!isFullMonth(month, start, end)) return (emp.compensationHistory || []).some((c: any) => c.effectiveDate > month + '-01' && c.effectiveDate <= monthEnd(month)) ? '本月有待遇變動，請分開開單' : '本月不足月，請手動填寫本薪並確認伙食費';
     if (month > currentMonth) return '未來月份不會自動帶入';
     if (!isPayrollEnrolled(emp, p.id, slips, legacy, month)) return '尚未首次納入';
     if (slips.some(s => s.employeeId === emp.id && s.month === month && s.kind === 'regular' && s.status === 'void')) return '本月薪資單已作廢，請重新填寫';
