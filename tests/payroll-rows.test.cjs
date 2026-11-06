@@ -73,3 +73,49 @@ for (const m of ['2026-03', '2026-04', '2026-09', '2026-10', '2026-11', '2026-12
 });
 test('November totals match the scenario by hand', () => { const t = R.monthTotals(rowsOf('2026-11')); assert.equal(t.net, 37540 /*steady*/ + 2440 /*rehire*/ + 37540 + 5000 /*extra*/ + 37540 /*legacyok*/); });
 test('future months do not fill automatically', () => { assert.equal(forEmp('2026-12', 'steady')[0].excluded, true); assert.match(forEmp('2026-12', 'steady')[0].reason, /未來月份/); });
+
+// One person per line: grouping, states and labels used by the month table and Excel export.
+const groupOf = (m, id, mail = null) => R.groupMonthRows(rowsOf(m), mail, m, employees).find(g => g.employeeId === id);
+test('every person has exactly one line in every month', () => { for (const m of ['2026-03', '2026-10', '2026-11', '2026-12']) { const gs = R.groupMonthRows(rowsOf(m), null, m, employees); assert.equal(new Set(gs.map(g => g.employeeId)).size, gs.length); assert.equal(gs.flatMap(g => g.rows).length, rowsOf(m).length); } });
+test('lines show the right state', () => {
+  assert.equal(groupOf('2026-11', 'steady').state, 'ready');
+  assert.equal(groupOf('2026-11', 'fresh').state, 'fill');
+  assert.equal(groupOf('2026-11', 'drafted').state, 'fill');
+  const rehireGroup = groupOf('2026-11', 'rehire'); assert.equal(rehireGroup.state, 'fill'); assert.equal(rehireGroup.fillCount, 1);
+  assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'SUCCESS', 's-extra-sup': 'PENDING' }).state, 'sent');
+  assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'SUCCESS' }).state, 'ready');
+  assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'ERROR', 's-extra-sup': 'SUCCESS' }).state, 'ready');
+  assert.equal(groupOf('2026-11', 'legacyok', { 'old-nov': 'UNTRACKED' }).state, 'sent');
+});
+test('state labels stay honest about what is waiting', () => {
+  assert.equal(R.rowStateLabel(forEmp('2026-11', 'fresh')[0], null), '待填');
+  assert.equal(R.rowStateLabel(forEmp('2026-11', 'drafted')[0], null), '待首次納入');
+  assert.equal(R.rowStateLabel(forEmp('2026-04', 'stub')[0], null), '待核對');
+  assert.equal(R.rowStateLabel(forEmp('2026-11', 'steady')[0], null), '待寄');
+});
+test('period labels read as a person would say them', () => {
+  assert.equal(groupOf('2026-11', 'steady').period, '整月');
+  assert.equal(groupOf('2026-11', 'fresh').period, '11/5 到職');
+  assert.equal(groupOf('2026-11', 'leaver').period, '11/10 離職');
+  assert.equal(groupOf('2026-11', 'back').period, '11/10 復職');
+  assert.equal(groupOf('2026-11', 'rehire').period, '11/1–11/3、11/20–11/30');
+  assert.equal(groupOf('2026-11', 'raise').period, '11/1–11/15、11/16–11/30');
+  assert.equal(groupOf('2026-11', 'extra').period, '整月');
+  assert.equal(groupOf('2026-11', 'legacyok').period, '整月');
+});
+test('a saved later slip and its unfilled earlier days list in date order', () => { const late = emp('late', [per('p', '2026-10-01', null, 'part_time')], [comp('2026-10-05', 200, { foodAllowance: 0 })]); const s = slip('s-late', late, 'p', '2026-10', '2026-10-05', '2026-10-31', { baseSalary: 22400, laborIns: 277, healthIns: 475 }); const rows = R.buildMonthRows('2026-10', { client, employees: [late], legacy: [], slips: [s], hiddenLegacy: [] }, CUR); const [g] = R.groupMonthRows(rows, null, '2026-10', [late]); assert.equal(g.period, '10/1–10/4、10/5–10/31'); assert.deepEqual(g.rows.map(r => R.rowPeriodText(r, '2026-10')), ['10/1–10/4', '10/5–10/31']); assert.equal(R.rowDataProblem(g.rows[0]), '缺待遇資料'); });
+test('a supplement is named and listed after its slip', () => { const g = groupOf('2026-11', 'extra'); assert.deepEqual(g.rows.map(r => R.rowPeriodText(r, '2026-11')), ['11/1–11/30', '補發']); });
+test('only blocking data problems are shown on the line', () => {
+  assert.equal(R.rowDataProblem(forEmp('2026-11', 'fresh')[0]), '');
+  assert.equal(R.rowDataProblem(forEmp('2026-11', 'part')[0]), '');
+  assert.equal(R.rowDataProblem(forEmp('2026-11', 'nocomp')[0]), '缺待遇資料');
+  assert.equal(R.rowDataProblem(forEmp('2026-11', 'nofood')[0]), '缺待遇資料');
+  assert.match(R.rowDataProblem(forEmp('2026-04', 'stub')[0]), /金額明細不完整/);
+  assert.equal(R.rowDataProblem(forEmp('2026-11', 'hiddenmonth')[0]), R.HIDDEN_LEGACY_MESSAGE);
+});
+test('merged values add a person\'s slips, and match the month totals', () => {
+  const g = groupOf('2026-11', 'extra'); const v = R.mergedValues(g.included); assert.equal(v.baseSalary, 36000); assert.equal(v.performanceBonus, 5000); assert.equal(d.totals(v).net, 42540);
+  for (const m of ['2026-10', '2026-11']) { const gs = R.groupMonthRows(R.includedRows(rowsOf(m)), null, m, employees); assert.equal(gs.reduce((n, x) => n + d.totals(R.mergedValues(x.rows)).net, 0), R.monthTotals(rowsOf(m)).net); }
+});
+test('attendance amounts are read from the slip; old records report none', () => { assert.equal(R.partAmount(forEmp('2026-11', 'legacyok')[0], 'sickLeave', 'leaveDeduction'), null); assert.equal(R.partAmount(forEmp('2026-11', 'fresh')[0], 'sickLeave', 'leaveDeduction'), 0); });
+test('months handled outside the platform are never picked up by batch send', () => { assert.equal(R.PLATFORM_SEND_FROM, '2026-11'); const hook = fs.readFileSync(path.join(repo, 'usePayrollPresentation.ts'), 'utf8'); assert(hook.includes('if(month<PLATFORM_SEND_FROM)')); });

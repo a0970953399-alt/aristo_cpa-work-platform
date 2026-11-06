@@ -4,7 +4,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
 import { Client, Employee, MonthlySalaryRecord } from './types';
 import { Slip, amountFields, attendanceFields, emptyValues, periods, basisAt, calculate, monthEnd, legacyIssues, legacyAmounts, isPayrollEnrolled, legacyCanEdit, totals, legacyNeedsEnrollment, isEffectivePayroll, currentPayrollMonth, defaultBaseSalary, defaultFoodAllowance, isFullMonth, previousPayroll, carriedAmounts, payrollSendIssues, legacySendIssues, legacyAttendance, legacyBasis, legacyRecalculated, Values } from './functions/src/payrollDomain';
-import { PayrollRow, HIDDEN_LEGACY_MESSAGE, buildMonthRows, rowValues } from './payrollRows';
+import { PayrollRow, HIDDEN_LEGACY_MESSAGE, PLATFORM_SEND_FROM, buildMonthRows, rowValues } from './payrollRows';
 
 export const payrollStatus: Record<string, string> = {draft:'待首次納入',confirmed:'已保存',void:'已作廢',superseded:'已被更正取代'};
 export type { PayrollRow };
@@ -218,6 +218,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   // Collects the month for the review table; nothing is saved or sent until executeBatch.
   async function prepareBatch(){
     setBatchNotice(null);
+    if(month<PLATFORM_SEND_FROM){setBatchNotice({text:'10 月以前的薪資單不列入批次寄送；如需寄送，請開啟該員工的薪資單。',failures:[]});return;}
     const ready:BatchItem[]=[],blocked:BatchItem[]=[];let skipped=0;
     for(const row of rowsFor(month)){
       const e=employees.find(e=>e.id===row.sourceEmployeeId);

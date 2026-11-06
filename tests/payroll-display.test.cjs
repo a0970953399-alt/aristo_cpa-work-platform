@@ -30,11 +30,11 @@ const baseline=cp.execFileSync('git',['show','19426ce:PayrollView.tsx'],{cwd:rep
 const current=fs.readFileSync(path.join(repo,'PayrollView.tsx'),'utf8');
 function layout(source){const ast=ts.createSourceFile('PayrollView.tsx',source.replaceAll('\r\n','\n'),ts.ScriptTarget.Latest,true,ts.ScriptKind.TSX),nodes=[];
  function visit(n){if(ts.isJsxOpeningElement(n)||ts.isJsxSelfClosingElement(n)){const attrs={};for(const a of n.attributes.properties)if(ts.isJsxAttribute(a)&&['className','style','width','height','colSpan','rowSpan'].includes(a.name.text))attrs[a.name.text]=a.initializer?.getText(ast);nodes.push({tag:n.tagName.getText(ast),attrs});}ts.forEachChild(n,visit);}visit(ast);return nodes;}
-test('monthly and annual table layout retain the approved baseline while editor workflow changes',()=>{
- const tables=s=>s.slice(s.indexOf('{/* 📍 標籤二'),s.indexOf('{/* 🚀 薪資編輯'));
- // The per-row mail state and the smaller insurance label are the only approved additions.
- const approved=s=>s.replace(/\{\(\(\)=>\{const state=payroll\.monthMail[^\n]*\n/,'\n').replace('p-3 text-center text-xs font-bold text-teal-700','p-3 text-center font-bold text-teal-700');
- assert(tables(current).length>10000);assert.deepEqual(layout(approved(tables(current))),layout(tables(baseline)));
+test('annual table layout retains the approved baseline; the month table was redesigned with approval',()=>{
+ const tables=s=>s.slice(s.indexOf('{/* 📍 標籤三'),s.indexOf('{/* 🚀 薪資編輯'));
+ // The smaller insurance label is the only approved addition.
+ const approved=s=>s.replace('p-3 text-center text-xs font-bold text-teal-700','p-3 text-center font-bold text-teal-700');
+ assert(tables(current).length>5000);assert.deepEqual(layout(approved(tables(current))),layout(tables(baseline)));
 });
 test('legacy saves still carry the revision and original record used to reject stale writes',()=>{
  const newHook=fs.readFileSync(path.join(repo,'usePayrollPresentation.ts'),'utf8').replaceAll('\r\n','\n');

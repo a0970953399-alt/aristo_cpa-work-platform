@@ -1,6 +1,6 @@
 // The single source for "what is on the payroll this month": the month table, yearly ledger, Excel export and batch send all read from here.
 import type { Client, Employee, MonthlySalaryRecord } from './types';
-import { Slip, Values, amountFields, attendanceFields, automaticPayrollIssue, basisAt, currentPayrollMonth, defaultBaseSalary, defaultFoodAllowance, emptyValues, isEffectivePayroll, legacyAmounts, legacyIssues, legacyNeedsEnrollment, monthEnd, periods, recurringPayroll, totals } from './functions/src/payrollDomain';
+import { Slip, Values, amountFields, attendanceFields, automaticPayrollIssue, basisAt, calculate, currentPayrollMonth, isFullMonth, defaultBaseSalary, defaultFoodAllowance, emptyValues, isEffectivePayroll, legacyAmounts, legacyIssues, legacyNeedsEnrollment, monthEnd, periods, recurringPayroll, totals } from './functions/src/payrollDomain';
 import { sortEmployees } from './payrollDisplay';
 
 export type PayrollRow = Employee & { sourceEmployeeId: string; slip?: Slip; legacyRecord?: MonthlySalaryRecord; periodId?: string; recommendedStart?: string; recommendedEnd?: string; warning?: string; reason?: string; excluded?: boolean };
@@ -66,4 +66,81 @@ export function monthTotals(rows: PayrollRow[]) {
     t.net += sum.net;
   }
   return t;
+}
+
+// One person per line: the month table's states and grouping.
+export type MonthState = 'fill' | 'ready' | 'sent';
+export type MonthGroup = { employeeId: string; rows: PayrollRow[]; included: PayrollRow[]; state: MonthState; fillCount: number; period: string };
+// Months before this were handled outside the platform, so batch send must not pick them up.
+export const PLATFORM_SEND_FROM = '2026-11';
+
+export function rowMonthState(row: PayrollRow, mail: Record<string, string> | null): MonthState {
+  if (row.excluded) return 'fill';
+  const id = row.slip?.id || row.legacyRecord?.id || '';
+  const state = mail?.[id];
+  if (state === 'ERROR') return 'ready';
+  if (state) return 'sent';
+  if (row.legacyRecord && (row.legacyRecord.isEmailSent || (row.legacyRecord as any).legacySeptemberMailId)) return 'sent';
+  return 'ready';
+}
+export function rowStateLabel(row: PayrollRow, mail: Record<string, string> | null): string {
+  const state = rowMonthState(row, mail);
+  if (state === 'sent') return '已寄';
+  if (state === 'ready') return '待寄';
+  if (row.slip) return '待首次納入';
+  if (row.legacyRecord) return '待核對';
+  return '待填';
+}
+// A reason worth showing on the line: data that blocks work, not the normal "please fill this month".
+export function rowDataProblem(row: PayrollRow): string {
+  if (row.warning) return row.warning;
+  if (row.reason === HIDDEN_LEGACY_MESSAGE) return row.reason;
+  if (row.reason && /尚無已生效待遇|約定伙食費|待遇資料/.test(row.reason)) return '缺待遇資料';
+  return '';
+}
+const rowRange = (row: PayrollRow, month: string) => ({ start: row.slip?.periodStart || row.recommendedStart || month + '-01', end: row.slip?.periodEnd || row.recommendedEnd || monthEnd(month) });
+const shortDate = (d: string) => Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
+// How a single slip is named when a person's line is expanded.
+export function rowPeriodText(row: PayrollRow, month: string): string {
+  if (row.slip?.kind === 'supplement') return '補發';
+  if (row.legacyRecord) return '舊資料';
+  const { start, end } = rowRange(row, month);
+  return shortDate(start) + '–' + shortDate(end);
+}
+function periodLabel(rows: PayrollRow[], month: string, employee: Employee | undefined): string {
+  const ranges = rows.filter(r => r.slip?.kind !== 'supplement').map(r => rowRange(r, month));
+  if (!ranges.length) return '整月';
+  if (ranges.length > 1) return ranges.map(r => shortDate(r.start) + '–' + shortDate(r.end)).join('、');
+  const { start, end } = ranges[0];
+  if (isFullMonth(month, start, end)) return '整月';
+  const list = employee ? periods(employee) : [], period = list.find(p => p.startDate === start), left = list.find(p => p.endDate === end);
+  if (period && !left && end === monthEnd(month)) return shortDate(start) + (list.indexOf(period) > 0 ? ' 復職' : ' 到職');
+  if (left && !period && start === month + '-01') return shortDate(end) + ' 離職';
+  return shortDate(start) + '–' + shortDate(end);
+}
+export function groupMonthRows(rows: PayrollRow[], mail: Record<string, string> | null, month: string, employees: Employee[]): MonthGroup[] {
+  const order: string[] = [], byId: Record<string, PayrollRow[]> = {};
+  for (const row of rows) { if (!byId[row.sourceEmployeeId]) { byId[row.sourceEmployeeId] = []; order.push(row.sourceEmployeeId); } byId[row.sourceEmployeeId].push(row); }
+  return order.map(employeeId => {
+    // Earliest days first, with a supplement after the slip it adds to.
+    const list = [...byId[employeeId]].sort((a, b) => Number(a.slip?.kind === 'supplement') - Number(b.slip?.kind === 'supplement') || rowRange(a, month).start.localeCompare(rowRange(b, month).start));
+    const states = list.map(r => rowMonthState(r, mail));
+    const fillCount = states.filter(s => s === 'fill').length;
+    return { employeeId, rows: list, included: includedRows(list), fillCount, state: fillCount ? 'fill' : states.every(s => s === 'sent') ? 'sent' : 'ready', period: periodLabel(list, month, employees.find(e => e.id === employeeId)) };
+  });
+}
+// Amounts and attendance added across a person's slips in the month.
+export function mergedValues(rows: PayrollRow[]): any {
+  const out: any = { ...emptyValues(amountFields), ...emptyValues(attendanceFields) };
+  for (const row of rows) {
+    const values: any = row.slip ? { ...row.slip.amounts, ...row.slip.attendance } : row.legacyRecord ? { ...legacyAmounts(row.legacyRecord), ...row.legacyRecord } : {};
+    for (const k of [...amountFields, ...attendanceFields]) out[k] += Number(values[k]) || 0;
+  }
+  return out;
+}
+// What one attendance field is worth. Old records did not save this, so they return null.
+export function partAmount(row: PayrollRow, key: string, output: string): number | null {
+  if (!row.slip) return row.legacyRecord ? null : 0;
+  if (output === 'lateDeduction') return row.slip.amounts.lateDeduction;
+  return calculate(row.slip.basis, { ...emptyValues(attendanceFields), [key]: row.slip.attendance[key] || 0 }, { ...emptyValues(amountFields), foodAllowance: row.slip.amounts.foodAllowance }, row.slip.kind)[output];
 }
