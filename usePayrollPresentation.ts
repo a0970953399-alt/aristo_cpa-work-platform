@@ -3,10 +3,10 @@ import { collection, onSnapshot, query, where, getDocs } from 'firebase/firestor
 import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
 import { Client, Employee, MonthlySalaryRecord } from './types';
-import { Slip, amountFields, attendanceFields, emptyValues, periods, basisAt, calculate, monthEnd, legacyIssues, legacyAmounts, isPayrollEnrolled, legacyCanEdit, totals, legacyNeedsEnrollment, isEffectivePayroll, currentPayrollMonth, defaultBaseSalary, defaultFoodAllowance, isFullMonth, previousPayroll, carriedAmounts, payrollSendIssues, legacySendIssues, legacyAttendance, legacyBasis, legacyRecalculated, Values } from './functions/src/payrollDomain';
+import { Slip, amountFields, attendanceFields, emptyValues, periods, basisAt, calculate, monthEnd, legacyIssues, legacyAmounts, legacyCanEdit, totals, isEffectivePayroll, currentPayrollMonth, defaultBaseSalary, defaultFoodAllowance, isFullMonth, previousPayroll, carriedAmounts, payrollSendIssues, legacySendIssues, legacyAttendance, legacyBasis, legacyRecalculated, Values } from './functions/src/payrollDomain';
 import { PayrollRow, HIDDEN_LEGACY_MESSAGE, PLATFORM_SEND_FROM, buildMonthRows, rowValues } from './payrollRows';
 
-export const payrollStatus: Record<string, string> = {draft:'待首次納入',confirmed:'已保存',void:'已作廢',superseded:'已被更正取代'};
+export const payrollStatus: Record<string, string> = {draft:'草稿',confirmed:'已保存',void:'已作廢',superseded:'已被更正取代'};
 export type { PayrollRow };
 export type BatchItem = { key:string; name:string; email:string; amounts:Values; changed:string[]; autoSave:boolean; issues:string[]; slip?:Slip; legacyRecord?:MonthlySalaryRecord };
 export type BatchReview = { ready:BatchItem[]; blocked:BatchItem[]; skipped:number };
@@ -109,7 +109,6 @@ export function usePayrollPresentation(client: Client | null, month: string) {
       openedSignature.current=signature(draft);setOldEditing(null);setEditing(draft);
     }catch(e:any){setEditing(null);setOldEditing(null);setError(e.message);}
   }
-  const needsEnrollment = oldEditing ? legacyNeedsEnrollment(oldEditing,employees,slips,legacy) : !!editing && !isPayrollEnrolled(employees.find(e=>e.id===editing.employeeId), editing.employmentId, slips, legacy, editing.month);
   // A blank new slip only counts after saving; an unsaved slip is effective only if it came from an automatic row.
   const effectiveEditing = !!editing && (editing.revision>0 || Object.values(recurringIds.current).includes(editing.id)) && isEffectivePayroll(editing,employees.find(e=>e.id===editing.employeeId),slips,legacy);
   const canEdit = !!editing && (editing.status === 'draft' || editing.status === 'confirmed' && mailState === 'NONE');
@@ -165,11 +164,6 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     const result=await run({action:'sendLegacySeptember',id:oldEditing.id,expectedRevision:oldEditing.legacySeptemberRevision||0,retry});
     if(result){setOldEditing(prev=>prev?{...prev,legacySeptemberMailId:result.mailId}:prev);setMailState(result.state);setInfo('已交寄送服務排程；不代表收件匣已收到。');refreshMonthMail();}
   }
-  async function confirmLegacyEnrollment() {
-    if(!oldEditing || dirtyLegacy || !window.confirm('確認到職日、待遇與計薪期間，首次納入薪資？'))return;
-    const result=await run({action:'confirmLegacyEnrollment',id:oldEditing.id,expected:oldEditing});
-    if(result){setOldEditing(result.record);setInfo('已完成首次納入薪資。');}
-  }
   async function checkLegacyMail() {
     if(!oldEditing)return;
     const result=await run({action:'legacySeptemberMailStatus',id:oldEditing.id});
@@ -186,15 +180,15 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   const reviewAmounts = (a:Values) => '勞保 '+a.laborIns.toLocaleString()+'／健保 '+a.healthIns.toLocaleString()+'／所得稅 '+a.incomeTax.toLocaleString()+'／全勤 '+a.fullAttendance.toLocaleString()+'\n實發：'+totals(a).net.toLocaleString()+' 元';
   function legacyReview(r:MonthlySalaryRecord) { const e=employees.find(e=>e.id===r.employeeId); return '核對本次寄送內容：\n'+r.month+'／'+e?.name+'\n收件人：'+e?.email+'\n'+reviewAmounts(legacyAmounts(r))+'\n確認寄送？'; }
   function slipReview(s:Slip) { return s.month+'／'+s.employee.name+'\n收件人：'+recipientOf(s)+'\n'+reviewAmounts(s.amounts); }
-  async function save(){if(!editing)return;const result=await run({action:'saveSlip',slip:editing,expectedRevision:editing.revision});if(result){openedSignature.current=signature(result.slip);setEditing(result.slip);setInfo(result.slip.status==='confirmed'?'薪資已保存並納入小計。':'薪資已保存，請完成首次納入確認。');mailStateSeeded.current=true;setMailState('NONE');}return result;}
+  async function save(){if(!editing)return;const result=await run({action:'saveSlip',slip:editing,expectedRevision:editing.revision});if(result){openedSignature.current=signature(result.slip);setEditing(result.slip);setInfo('薪資已保存並納入小計。');mailStateSeeded.current=true;setMailState('NONE');}return result;}
   const saved=editing&&slips.find(s=>s.id===editing.id);
   const signature=(s:Slip)=>JSON.stringify([amountFields.map(k=>s.amounts[k]),attendanceFields.map(k=>s.attendance[k]),s.reviewedMonth,s.reason,s.note,s.periodStart,s.periodEnd,Object.keys(s.basis).sort().map(k=>[k,(s.basis as any)[k]])]);
   const dirty=!!editing&&(saved?signature(saved)!==signature(editing):signature(editing)!==openedSignature.current);
   const hasUnsavedChanges=!!editing&&['draft','confirmed'].includes(editing.status)&&signature(editing)!==openedSignature.current;
-  async function transition(action:'confirm'|'void') {if(!editing)return;if(action==='confirm'&&dirty){setError('請先保存目前修改，再確認薪資。');return;}if(action==='void'){const status=await run({action:'mailStatus',id:editing.id});if(!status)return;const warnings=[...(['PENDING','PROCESSING','SUCCESS'].includes(status.state)?['這張薪資單已排程或寄出，信件無法收回；如果是金額有誤，請改用「建立更正」。']:[]),...(editing.replacesId&&editing.status==='confirmed'?['作廢這張更正單後，會恢復被它取代的原單。']:[])];if(warnings.length&&!window.confirm(warnings.join('\n')+'\n確定要作廢嗎？'))return;}const reason=action==='void'?window.prompt('請填作廢原因；原始紀錄仍保留。'):'';if(action==='void'&&!reason?.trim())return;if(action==='confirm'&&!window.confirm('確認此任職的到職日、待遇及計薪期間，首次納入薪資？後續月份保存後直接納入小計。'))return;const result=await run({action,id:editing.id,expectedRevision:editing.revision,reason});if(result){openedSignature.current=signature(result.slip);setEditing(result.slip);if(action==='confirm'){mailStateSeeded.current=true;setMailState('NONE');}setInfo(action==='confirm'?'已完成首次納入薪資。':'薪資已作廢，原始紀錄保留。');refreshMonthMail();}return result;}
-  function revise(kind:'regular'|'supplement'='regular'){if(!editing||editing.status!=='confirmed')return;const draft:Slip={...editing,id:crypto.randomUUID(),revision:0,status:'draft',kind,relatedId:kind==='supplement'?editing.id:'',replacesId:kind==='regular'?editing.id:'',amounts:kind==='supplement'?emptyValues(amountFields):editing.amounts,attendance:kind==='supplement'?emptyValues(attendanceFields):editing.attendance,reason:'',reviewedMonth:false,createdAt:'',updatedAt:''};openedSignature.current=signature(draft);setEditing(draft);setMailState('NONE');}
+  async function voidSlip() {if(!editing)return;const status=await run({action:'mailStatus',id:editing.id});if(!status)return;const warnings=[...(['PENDING','PROCESSING','SUCCESS'].includes(status.state)?['這張薪資單已排程或寄出，信件無法收回；如果是金額有誤，請改用「建立更正」。']:[]),...(editing.replacesId&&editing.status==='confirmed'?['作廢這張更正單後，會恢復被它取代的原單。']:[])];if(warnings.length&&!window.confirm(warnings.join('\n')+'\n確定要作廢嗎？'))return;const reason=window.prompt('請填作廢原因；原始紀錄仍保留。');if(!reason?.trim())return;const result=await run({action:'void',id:editing.id,expectedRevision:editing.revision,reason});if(result){openedSignature.current=signature(result.slip);setEditing(result.slip);setInfo('薪資已作廢，原始紀錄保留。');refreshMonthMail();}return result;}
+  function revise(){if(!editing||editing.status!=='confirmed')return;const draft:Slip={...editing,id:crypto.randomUUID(),revision:0,status:'draft',kind:'regular',relatedId:'',replacesId:editing.id,reason:'',reviewedMonth:false,createdAt:'',updatedAt:''};openedSignature.current=signature(draft);setEditing(draft);setMailState('NONE');}
   async function send(retry=false){
-    if(!editing||!effectiveEditing||dirty){setError('請先保存修改；新進員工需完成首次納入。');return;}
+    if(!editing||!effectiveEditing||dirty){setError('請先保存修改。');return;}
     if(sendIssues.length){setError('不能寄送：'+sendIssues.join('；'));return;}
     if(!window.confirm('核對本次寄送內容：\n'+slipReview(editing)+'\n確認寄送？'))return;
     let current=editing;
@@ -226,14 +220,14 @@ export function usePayrollPresentation(client: Client | null, month: string) {
         const r=row.legacyRecord;
         if(r.month<'2026-09')continue;
         if(r.isEmailSent||r.legacySeptemberMailId){skipped++;continue;}
-        const issues=[...(row.warning?[row.warning]:[]),...(legacyNeedsEnrollment(r,employees,slips,legacy)?['待首次納入']:[]),...(!row.warning&&!legacyCanEdit(r,legacy,employees,slips)?['舊資料待核對']:[]),...legacyIssuesToSend(r)];
+        const issues=[...(row.warning?[row.warning]:[]),...(!row.warning&&!legacyCanEdit(r,legacy,employees,slips)?['舊資料待核對']:[]),...legacyIssuesToSend(r)];
         const ps=e?periods(e).filter(p=>p.startDate<=monthEnd(month)&&(!p.endDate||p.endDate>=month+'-01')):[];
         const item:BatchItem={key:row.id,name:row.name,email:e?.email||'',amounts:legacyAmounts(r),changed:changedFromPrevious(e,ps.length===1?ps[0].id:undefined,month,legacyAmounts(r)),autoSave:false,issues,legacyRecord:r};
         (issues.length?blocked:ready).push(item);
       } else if(row.slip){
         const s=row.slip;
         if(!row.excluded&&s.revision>0){const status=await run({action:'mailStatus',id:s.id});if(!status)return;if(status.state!=='NONE'){skipped++;continue;}}
-        const issues=[...(row.excluded?[s.status==='draft'?'待首次納入或待補齊資料':'未納入有效薪資']:[]),...slipSendIssues(s)];
+        const issues=[...(row.excluded?['未納入有效薪資']:[]),...slipSendIssues(s)];
         const item:BatchItem={key:row.id,name:row.name,email:recipientOf(s),amounts:s.amounts,changed:changedFromPrevious(e,s.employmentId,month,s.amounts),autoSave:s.revision===0||s.status==='draft',issues,slip:s};
         (issues.length?blocked:ready).push(item);
       } else blocked.push({key:row.id,name:row.name,email:e?.email||'',amounts:emptyValues(amountFields),changed:[],autoSave:false,issues:[row.reason||'待填當月資料']});
@@ -265,5 +259,5 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     refreshMonthMail();
     setBatchNotice({text:'本次 '+completed+' 張薪資單已交寄送服務排程；不代表收件匣已收到。',failures});
   }
-  return {employeeHistory,openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,confirmLegacyEnrollment,canEdit,needsEnrollment,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,changePeriod,save,transition,revise,send,checkMail,versions};
+  return {employeeHistory,openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,canEdit,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,changePeriod,save,voidSlip,revise,send,checkMail,versions};
 }

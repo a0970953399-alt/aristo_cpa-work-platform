@@ -4,8 +4,7 @@ const {build}=require(repo+'/node_modules/esbuild');
 const {chromium}=require(process.env.PLAYWRIGHT_MODULE||'playwright');
 const out=fs.mkdtempSync(path.join(require('node:os').tmpdir(),'aristo-payroll-fixes-'));
 let mock=fs.readFileSync(repo+'/tests/payroll-ui.test.cjs','utf8').split('const mock=`')[1].split('\n`;')[0].replaceAll('${repo}',repo);
-mock=mock.replace('calculate,periods,basisAt','calculate,periods,basisAt,isPayrollEnrolled');
-mock=mock.replace('const next={...raw,basis,','const next={...raw,status:isPayrollEnrolled(e,p.id,data.payrollSlips,[],raw.month)?"confirmed":"draft",basis,');
+mock=mock.replace('const next={...raw,basis,','const next={...raw,status:"confirmed",basis,');
 mock+=`
 const regular={...base,id:'e1',name:'結算測試員工',employmentType:'full_time',startDate:'2026-01-01',endDate:'',employmentHistory:[{id:'p1',type:'full_time',startDate:'2026-01-01',endDate:null}],compensationHistory:[{...base.compensationHistory[0],id:'c1',effectiveDate:'2026-01-01',baseSalary:30000,insuranceBracket:30300,hasLaborIns:true,hasHealthIns:false}]};
 data.employees=[regular,{...regular,id:'e2',name:'舊單選擇測試'},{...regular,id:'future',name:'未來離職測試',endDate:'2099-12-31',employmentHistory:[{...regular.employmentHistory[0],endDate:'2099-12-31'}],compensationHistory:[{...regular.compensationHistory[0],hasLaborIns:false,hasHealthIns:false}]}];

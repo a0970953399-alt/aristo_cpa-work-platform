@@ -1,6 +1,6 @@
 // The single source for "what is on the payroll this month": the month table, yearly ledger, Excel export and batch send all read from here.
 import type { Client, Employee, MonthlySalaryRecord } from './types';
-import { Slip, Values, amountFields, attendanceFields, automaticPayrollIssue, basisAt, calculate, currentPayrollMonth, isFullMonth, defaultBaseSalary, defaultFoodAllowance, emptyValues, isEffectivePayroll, legacyAmounts, legacyIssues, legacyNeedsEnrollment, monthEnd, periods, recurringPayroll, totals } from './functions/src/payrollDomain';
+import { Slip, Values, amountFields, attendanceFields, automaticPayrollIssue, basisAt, calculate, currentPayrollMonth, isFullMonth, defaultBaseSalary, defaultFoodAllowance, emptyValues, isEffectivePayroll, legacyAmounts, legacyIssues, legacyNeedsReview, monthEnd, periods, recurringPayroll, totals } from './functions/src/payrollDomain';
 import { sortEmployees } from './payrollDisplay';
 
 export type PayrollRow = Employee & { sourceEmployeeId: string; slip?: Slip; legacyRecord?: MonthlySalaryRecord; periodId?: string; recommendedStart?: string; recommendedEnd?: string; warning?: string; reason?: string; excluded?: boolean };
@@ -17,7 +17,7 @@ export function buildMonthRows(m: string, { client, employees, legacy, slips, hi
   for (const e of sortEmployees(employees)) {
     const olds = legacy.filter(r => r.employeeId === e.id && r.month === m);
     const ss = slips.filter(s => s.employeeId === e.id && s.month === m && s.status !== 'void' && s.status !== 'superseded').sort((a, b) => a.periodStart.localeCompare(b.periodStart) || a.createdAt.localeCompare(b.createdAt) || a.id.localeCompare(b.id));
-    for (const r of olds) rows.push({ ...e, id: 'old:' + r.id, sourceEmployeeId: e.id, legacyRecord: r, warning: legacyIssues(r, legacy, employees).join('；'), excluded: legacyIssues(r, legacy, employees).length > 0 || legacyNeedsEnrollment(r, employees, slips, legacy) });
+    for (const r of olds) rows.push({ ...e, id: 'old:' + r.id, sourceEmployeeId: e.id, legacyRecord: r, warning: legacyIssues(r, legacy, employees).join('；'), excluded: legacyIssues(r, legacy, employees).length > 0 || legacyNeedsReview(r, employees) });
     for (const s of ss) rows.push({ ...alias(e, s.id, s.basis.employmentType, periods(e).find(p => p.id === s.employmentId)?.startDate || e.startDate, periods(e).find(p => p.id === s.employmentId)?.endDate || null), name: s.employee.name, empNo: s.employee.empNo, email: s.employee.email, idNumber: s.employee.idNumber || '', bankAccount: s.employee.bankAccount || '', defaultBaseSalary: s.basis.baseSalary, defaultFoodAllowance: s.basis.foodAllowance, compensationHistory: [], slip: s, excluded: !isEffectivePayroll(s, e, slips, legacy) });
     if (olds.length) continue;
     const reservedByHidden = hiddenLegacy.some(r => r.employeeId === e.id && r.month === m);
@@ -87,8 +87,7 @@ export function rowStateLabel(row: PayrollRow, mail: Record<string, string> | nu
   const state = rowMonthState(row, mail);
   if (state === 'sent') return '已寄';
   if (state === 'ready') return '待寄';
-  if (row.slip) return '待首次納入';
-  if (row.legacyRecord) return '待核對';
+  if (row.slip || row.legacyRecord) return '待核對';
   return '待填';
 }
 // A reason worth showing on the line: data that blocks work, not the normal "please fill this month".

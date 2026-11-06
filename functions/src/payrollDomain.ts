@@ -94,27 +94,15 @@ export function calculate(b: Basis, t: Values, a: Values, kind: Slip['kind'] = '
 export function totals(a: Values) { const add = a.baseSalary + a.fullAttendance + a.positionAllowance + a.performanceBonus + a.taxableOt; const deduct = a.leaveDeduction + a.dailyShortage + a.lateDeduction + a.pensionSelf; const exempt = a.foodAllowance + a.taxFreeOt; const withholding = a.laborIns + a.healthIns + a.incomeTax + a.advancePay; return { add, deduct, exempt, withholding, net: Math.round((add - deduct + exempt - withholding) * 100) / 100 }; }
 export function sameBasis(a: Basis, b: Basis): boolean { return (['employmentType','baseSalary','foodAllowance','insuranceBracket','hasLaborIns','hasHealthIns','effectiveDate','compensationId'] as (keyof Basis)[]).every(k=>a[k]===b[k]); }
 export function annualMetrics(a: Values) { return { '薪資總額': a.baseSalary + a.fullAttendance + a.positionAllowance + a.taxableOt - a.leaveDeduction - a.dailyShortage - a.lateDeduction, '伙食費': a.foodAllowance, '免稅加班費': a.taxFreeOt, '獎金': a.performanceBonus, '實發': totals(a).net }; }
-// Enrollment belongs to an employment period, not an individual monthly slip.
-export function isPayrollEnrolled(emp: any, periodId: string, slips: Slip[], _legacy: any[] = [], month =new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit' }).format(new Date())): boolean {
-    if (!emp) return false;
-    const p = periods(emp).find(p => p.id === periodId);
-    if (!p) return false;
-    if ((emp.payrollAdmissions || []).includes(periodId)) return true;
-    if (slips.some(s => s.employeeId === emp.id && s.employmentId === periodId && s.kind === 'regular' && ['confirmed', 'superseded'].includes(s.status))) return true;
-    if ((emp.payrollEnrollmentRequired || []).includes(periodId)) return false;
-    // Compatibility for established employees without enrollment metadata.
-    // New/backdated hires created through the backend carry an explicit required flag.
-    return p.startDate < month + '-01';
-}
-export function legacyNeedsEnrollment(r: any, employees: any[], slips: Slip[], legacy: any[] = []): boolean {
+// An old record can only be matched to pay when it belongs to one employment period in its month.
+export function legacyNeedsReview(r: any, employees: any[]): boolean {
     const emp = employees.find(e => e.id === r.employeeId);
     if (!emp) return true;
-    const ps = periods(emp).filter(p => p.startDate <= monthEnd(r.month) && (!p.endDate || p.endDate >= r.month + '-01'));
-    return ps.length !== 1 || !isPayrollEnrolled(emp, ps[0].id, slips, legacy, r.month);
+    return periods(emp).filter(p => p.startDate <= monthEnd(r.month) && (!p.endDate || p.endDate >= r.month + '-01')).length !== 1;
 }
 export function isEffectivePayroll(s: Slip, emp: any, slips: Slip[], legacy: any[]): boolean {
     if (s.status === 'confirmed') return true;
-    if (s.status !== 'draft' || s.kind !== 'regular' || s.replacesId || !isPayrollEnrolled(emp, s.employmentId, slips, legacy, s.month)) return false;
+    if (s.status !== 'draft' || s.kind !== 'regular' || s.replacesId) return false;
     try { validateSlip(s, emp, slips, legacy); return sameBasis(basisAt(emp, periods(emp).find(p=>p.id===s.employmentId)!, s.periodStart, s.periodEnd), s.basis); } catch { return false; }
 }
 export function currentPayrollMonth(now = new Date()): string { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit' }).format(now); }
@@ -138,7 +126,7 @@ function findPreviousPayroll(emp: any, p: Period, month: string, slips: Slip[], 
     if (p.startDate > start) return { issue: '上月不是完整月份，請確認本月金額' };
     try {
         if (olds.length) {
-            if (legacyIssues(olds[0], visible, [emp]).length || legacyNeedsEnrollment(olds[0], [emp], slips, visible)) return { issue: '上月舊薪資待核對' };
+            if (legacyIssues(olds[0], visible, [emp]).length || legacyNeedsReview(olds[0], [emp])) return { issue: '上月舊薪資待核對' };
             return { previous: { amounts: legacyAmounts(olds[0]), insurance: basisAt(emp, p, start, end) } };
         }
         const s = regular[0];
@@ -160,7 +148,6 @@ export function automaticPayrollIssue(emp: any, p: Period, month: string, start:
         return (emp.compensationHistory || []).some((c: any) => c.effectiveDate > from && c.effectiveDate <= to) ? '本月有待遇變動，這段的本薪請手動填寫' : '本月不足月，請手動填寫本薪並確認伙食費';
     }
     if (month > currentMonth) return '未來月份不會自動帶入';
-    if (!isPayrollEnrolled(emp, p.id, slips, legacy, month)) return '尚未首次納入';
     if (slips.some(s => s.employeeId === emp.id && s.month === month && s.kind === 'regular' && s.status === 'void')) return '本月薪資單已作廢，請重新填寫';
     const found = findPreviousPayroll(emp, p, month, slips, legacy);
     if (!found.previous) return found.issue || '請填寫當月資料';
@@ -205,7 +192,6 @@ export function legacyRecalculated(b: Basis, r: any, field: string): Values {
 export function recurringPayroll(emp: any, p: Period, month: string, company: any, slips: Slip[], legacy: any[], currentMonth = currentPayrollMonth()): Slip | null {
     if (month > currentMonth) return null;
     if (p.type !== 'full_time' || p.startDate > month + '-01' || p.endDate && p.endDate < monthEnd(month)) return null;
-    if (!isPayrollEnrolled(emp, p.id, slips, legacy, month)) return null;
     if (legacy.some(r=>r.employeeId===emp.id&&r.month===month)) return null;
     if (slips.some(s=>s.employeeId===emp.id&&s.month===month&&s.kind==='regular'&&s.status!=='superseded')) return null;
     try {
@@ -213,7 +199,7 @@ export function recurringPayroll(emp: any, p: Period, month: string, company: an
         const basis=basisAt(emp,p,month+'-01',monthEnd(month));
         const previous=previousPayroll(emp,p,month,slips,legacy);
         if (!previous) return null;
-        // A changed bracket or enrollment needs a person to confirm the new deductions.
+        // A changed bracket or insurance enrollment needs a person to confirm the new deductions.
         if (INSURANCE_KEYS.some(k=>previous.insurance[k]!==basis[k])) return null;
         const amounts: Values={...emptyValues(amountFields),...carriedAmounts(basis,previous),baseSalary:basis.baseSalary,foodAllowance:basis.foodAllowance};
         if (hasMissingInsurance(basis,amounts)) return null;

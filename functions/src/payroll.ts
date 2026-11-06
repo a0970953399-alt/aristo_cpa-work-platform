@@ -1,7 +1,7 @@
 import { getFirestore } from 'firebase-admin/firestore';
 import { HttpsError, onCall } from 'firebase-functions/v2/https';
 import { createHash } from 'node:crypto';
-import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml, isPayrollEnrolled, legacyCanEdit, monthEnd, legacyNeedsEnrollment, payrollSendIssues, legacySendIssues, legacyAttendance, slipTitle, employeeChanges } from './payrollDomain.js';
+import { Slip, assert, periods, slipPeriod, validatePeriods, validDate, basisAt, sameBasis, numbers, amountFields, attendanceFields, calculate, validateSlip, slipHtml, legacyCanEdit, monthEnd, legacyNeedsReview, payrollSendIssues, legacySendIssues, legacyAttendance, slipTitle, employeeChanges } from './payrollDomain.js';
 const key = (value: unknown) => { assert(typeof value === 'string' && /^[A-Za-z0-9_-]{1,120}$/.test(value), '識別碼不正確'); return value as string; };
 const text = (value: unknown, max = 2000) => { assert(typeof value === 'string' && value.length <= max, '文字欄位不正確'); return value as string; };
 const canonical = (v: any): string => JSON.stringify(v && typeof v === 'object' ? Array.isArray(v) ? v.map(x => JSON.parse(canonical(x))) : Object.fromEntries(Object.keys(v).sort().map(k => [k, JSON.parse(canonical(v[k]))])) : v);
@@ -59,9 +59,6 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 assert(!emp.email || /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(emp.email), '電子郵件格式不正確');
                 const ps = periods(raw);
                 validatePeriods(ps);
-                const previousPeriods = before ? periods({ ...before, id }) : [];
-                emp.payrollAdmissions = before?.payrollAdmissions || [];
-                emp.payrollEnrollmentRequired = [...new Set([...(before?.payrollEnrollmentRequired || []), ...ps.filter(p => !previousPeriods.some(old => old.id === p.id)).map(p => p.id)])];
                 emp.employmentHistory = ps.map(p => ({ id: key(p.id), type: p.type, startDate: p.startDate, endDate: p.endDate }));
                 const comps = raw.compensationHistory || [];
                 assert(Array.isArray(comps), '待遇資料不正確');
@@ -111,25 +108,6 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 assert(target.exists && target.data()!.clientId === clientId, '員工不屬於此客戶');
                 const versions = await tx.get(db.collection('employees/' + id + '/versions'));
                 return { history: versions.docs.map(d => d.data()).sort((a, b) => String(b.changedAt).localeCompare(String(a.changedAt))) };
-            }
-            else if (action === 'confirmLegacyEnrollment') {
-                assert(['boss', 'supervisor'].includes(u.role) || u.permissions?.payroll === true, '沒有薪資操作權限');
-                const id = key(data.id);
-                const record = legacy.find(r => r.id === id);
-                assert(record && record.temporaryPayrollHidden !== true, '找不到薪資單');
-                const employeeRef = db.doc('employees/' + key(record.employeeId));
-                const employeeDoc = await tx.get(employeeRef);
-                const emp = { ...employeeDoc.data(), id: record.employeeId };
-                assert(employeeDoc.exists && employeeDoc.data()!.clientId === clientId, '員工不屬於此客戶');
-                assert(legacyCanEdit(record, legacy.filter(r => r.temporaryPayrollHidden !== true), [emp], slips), '請先核對薪資資料及寄送狀態');
-                assert(canonical(record) === canonical(data.expected), '薪資資料已變更，請重新開啟');
-                const ps = periods(emp).filter(p => p.startDate <= monthEnd(record.month) && (!p.endDate || p.endDate >= record.month + '-01'));
-                assert(ps.length === 1, '同月有多段任職，請先核對計薪區間');
-                const next = { ...record, legacySeptemberRevision: (record.legacySeptemberRevision || 0) + 1, updatedAt: now };
-                tx.set(employeeRef, { payrollAdmissions: [...new Set([...(employeeDoc.data()?.payrollAdmissions || []), ps[0].id])] }, { merge: true });
-                tx.create(db.doc('monthlySalaries/' + id + '/versions/' + next.legacySeptemberRevision), { before: record, after: next, reason: '首次納入薪資', actor: uid, changedAt: now });
-                tx.set(db.doc('monthlySalaries/' + id), next);
-                result = { record: next };
             }
             else if (action === 'legacyHistory') {
                 const id = key(data.id);
@@ -182,7 +160,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                         const mail = await tx.get(db.doc('mail/' + key(mailId)));
                         return { state: mail.data()?.delivery?.state || 'PENDING' };
                     }
-                    assert(!legacyNeedsEnrollment(record, [{ ...employee, id: record.employeeId }], slips, legacy), '請先完成首次納入薪資');
+                    assert(!legacyNeedsReview(record, [{ ...employee, id: record.employeeId }]), '請先核對舊薪資的任職期間');
                     assert(revision === data.expectedRevision, '薪資版本已變更，請重新開啟');
                     assert(!record.isEmailSent, '這份舊薪資已有寄信標記，請先核對');
                     assert(legacy.filter((x: any) => x.employeeId === record.employeeId && x.month === record.month && x.temporaryPayrollHidden !== true).length === 1, '同員工同月仍有多筆可見薪資，請先核對');
@@ -227,6 +205,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 assert(empDoc.exists, '員工不存在');
                 const emp = { ...empDoc.data(), id: employeeId };
                 assert(!current || current.employeeId === employeeId, '不能更換已保存單據的員工');
+                assert(raw.kind !== 'supplement' || current?.kind === 'supplement', '補發功能已取消，請改用更正');
                 const employmentId = key(raw.employmentId);
                 const p = periods(emp).find(x => x.id === employmentId);
                 assert(p, '任職期間不存在');
@@ -237,12 +216,12 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 const c = company.data()!;
                 const s: Slip = { id, schemaVersion: 2, revision: (current?.revision || 0) + 1, clientId, employeeId, employmentId, month: text(raw.month, 7), periodStart: start, periodEnd: end, kind: raw.kind, relatedId: raw.relatedId ? key(raw.relatedId) : '', replacesId: raw.replacesId ? key(raw.replacesId) : '', status: 'draft', basis, amounts, attendance, employee: { name: text((emp as any).name, 500), email: text((emp as any).email || '', 500), empNo: text((emp as any).empNo || '', 500), idNumber: text((emp as any).idNumber || '', 50), bankAccount: text((emp as any).bankAccount || '', 100) }, company: { name: String(c.fullName || c.name || ''), phone: String(c.phone || ''), address: String(c.contactAddress || c.regAddress || '') }, note: text(raw.note || ''), reason: text(raw.reason || '', 500), reviewedMonth: raw.reviewedMonth === true, createdAt: current?.createdAt || now, updatedAt: now, actor: uid };
                 validateSlip(s, emp, slips, legacy);
-                if (isPayrollEnrolled(emp, employmentId, slips, legacy.filter(r => r.temporaryPayrollHidden !== true), s.month)) s.status = 'confirmed';
+                // Saving is what makes a slip count; there is no second confirmation step.
+                s.status = 'confirmed';
                 if (s.status === 'confirmed' && s.replacesId && slips.find(x => x.id === s.replacesId)?.status === 'confirmed') {
                     const previous = slips.find(x => x.id === s.replacesId)!;
                     writeSlip({ ...previous, status: 'superseded', revision: previous.revision + 1, updatedAt: now, actor: uid, reason: '由 ' + s.id + ' 更正取代' });
                 }
-                if (s.status === 'draft' && !(empDoc.data()?.payrollEnrollmentRequired || []).includes(employmentId)) tx.set(db.doc('employees/' + employeeId), { payrollEnrollmentRequired: [...(empDoc.data()?.payrollEnrollmentRequired || []), employmentId] }, { merge: true });
                 const content = (x: Slip) => canonical([x.month, x.periodStart, x.periodEnd, x.kind, x.relatedId, x.replacesId, x.basis, x.amounts, x.attendance, x.employee, x.company, x.note, x.reason, x.reviewedMonth]);
                 // Saving an unchanged slip must not create a new version.
                 if (current?.status === 'confirmed' && s.status === 'confirmed' && content(current) === content(s)) result = { slip: current };
@@ -251,36 +230,22 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                     result = { slip: s };
                 }
             }
-            else if (action === 'confirm' || action === 'void') {
+            else if (action === 'void') {
                 const id = key(data.id);
                 const current = slips.find(s => s.id === id);
                 assert(current, '找不到薪資單');
                 const s = current!;
                 assert(s.revision === data.expectedRevision, '薪資版本已變更，請重新開啟');
-                assert(action === 'confirm' ? s.status === 'draft' : s.status === 'draft' || s.status === 'confirmed', '此狀態不能進行該操作');
+                assert(s.status === 'draft' || s.status === 'confirmed', '此狀態不能進行該操作');
                 const reason = text(data.reason || '', 500);
-                if (action === 'void')
-                    assert(reason.trim(), '請填作廢原因');
-                if (action === 'confirm') {
-                    const empDoc = await tx.get(db.doc('employees/' + s.employeeId));
-                    assert(empDoc.exists, '員工不存在');
-                    const emp = { ...empDoc.data(), id: s.employeeId };
-                    validateSlip(s, emp, slips, legacy);
-                    const p = periods(emp).find(x => x.id === s.employmentId)!;
-                    assert(sameBasis(basisAt(emp, p, s.periodStart, s.periodEnd), s.basis), '待遇已變更，請重新編輯並儲存草稿');
-                    tx.set(db.doc('employees/' + s.employeeId), { payrollAdmissions: [...new Set([...(empDoc.data()?.payrollAdmissions || []), s.employmentId])] }, { merge: true });
-                    if (s.replacesId) {
-                        const old = slips.find(x => x.id === s.replacesId)!;
-                        writeSlip({ ...old, status: 'superseded', revision: old.revision + 1, updatedAt: now, actor: uid, reason: '由 ' + s.id + ' 更正取代' });
-                    }
-                }
-                if (action === 'void' && s.status === 'confirmed' && s.replacesId) {
+                assert(reason.trim(), '請填作廢原因');
+                if (s.status === 'confirmed' && s.replacesId) {
                     // The saved correction superseded its source; voiding it must not leave the month without pay.
                     const original = slips.find(x => x.id === s.replacesId);
                     if (original?.status === 'superseded' && !slips.some(x => x.id !== s.id && x.replacesId === original.id && x.status !== 'void'))
                         writeSlip({ ...original, status: 'confirmed', revision: original.revision + 1, updatedAt: now, actor: uid, reason: '更正單 ' + s.id + ' 作廢，恢復原單' });
                 }
-                const next: Slip = { ...s, status: action === 'confirm' ? 'confirmed' : 'void', revision: s.revision + 1, updatedAt: now, actor: uid, reason: reason || s.reason };
+                const next: Slip = { ...s, status: 'void', revision: s.revision + 1, updatedAt: now, actor: uid, reason: reason || s.reason };
                 writeSlip(next);
                 result = { slip: next };
             }

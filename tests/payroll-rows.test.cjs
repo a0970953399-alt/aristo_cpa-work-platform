@@ -56,7 +56,7 @@ test('missing pay data is named instead of being called a partial month', () => 
 test('days before the first pay record say so, and the covered days stay separate', () => { const rows = forEmp('2026-11', 'latecomp'); assert.equal(rows.length, 2); assert.match(rows[0].reason, /尚無已生效待遇/); assert.match(rows[1].reason, /兼職|不足月|待遇變動/); });
 test('a part-time month asks for hours', () => { assert.match(forEmp('2026-11', 'part')[0].reason, /兼職請填寫工時/); });
 test('the month after a partial first month still needs filling', () => { const [r] = forEmp('2026-11', 'second'); assert.equal(r.excluded, true); assert.match(r.reason, /上月不是完整月份/); });
-test('a saved slip waiting for enrollment stays out of the totals', () => { const [r] = forEmp('2026-11', 'drafted'); assert.equal(r.excluded, true); assert.equal(R.includedRows([r]).length, 0); });
+test('an older saved draft counts like any saved slip', () => { const [r] = forEmp('2026-11', 'drafted'); assert.equal(r.excluded, false); assert.equal(R.includedRows([r]).length, 1); });
 test('a supplement is a second counted row', () => { const rows = forEmp('2026-11', 'extra'); assert.equal(rows.length, 2); assert.equal(R.includedRows(rows).length, 2); });
 test('hidden old records reserve the month without showing any amount', () => { const [r] = forEmp('2026-11', 'hiddenmonth'); assert.equal(r.excluded, true); assert.equal(r.slip, undefined); assert.equal(r.reason, R.HIDDEN_LEGACY_MESSAGE); });
 test('a voided slip brings the row back to filling', () => { const [r] = forEmp('2026-11', 'stub'); assert.equal(r.slip, undefined); assert.match(r.reason, /已作廢/); });
@@ -71,7 +71,7 @@ for (const m of ['2026-03', '2026-04', '2026-09', '2026-10', '2026-11', '2026-12
   assert.equal(new Set(rows.map(r => r.id)).size, rows.length, 'row ids must be unique');
   for (const r of rows) if (!r.slip && !r.legacyRecord) assert.equal(r.excluded, true);
 });
-test('November totals match the scenario by hand', () => { const t = R.monthTotals(rowsOf('2026-11')); assert.equal(t.net, 37540 /*steady*/ + 2440 /*rehire*/ + 37540 + 5000 /*extra*/ + 37540 /*legacyok*/); });
+test('November totals match the scenario by hand', () => { const t = R.monthTotals(rowsOf('2026-11')); assert.equal(t.net, 37540 /*steady*/ + 35140 /*drafted*/ + 2440 /*rehire*/ + 37540 + 5000 /*extra*/ + 37540 /*legacyok*/); });
 test('future months do not fill automatically', () => { assert.equal(forEmp('2026-12', 'steady')[0].excluded, true); assert.match(forEmp('2026-12', 'steady')[0].reason, /未來月份/); });
 
 // One person per line: grouping, states and labels used by the month table and Excel export.
@@ -80,7 +80,7 @@ test('every person has exactly one line in every month', () => { for (const m of
 test('lines show the right state', () => {
   assert.equal(groupOf('2026-11', 'steady').state, 'ready');
   assert.equal(groupOf('2026-11', 'fresh').state, 'fill');
-  assert.equal(groupOf('2026-11', 'drafted').state, 'fill');
+  assert.equal(groupOf('2026-11', 'drafted').state, 'ready');
   const rehireGroup = groupOf('2026-11', 'rehire'); assert.equal(rehireGroup.state, 'fill'); assert.equal(rehireGroup.fillCount, 1);
   assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'SUCCESS', 's-extra-sup': 'PENDING' }).state, 'sent');
   assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'SUCCESS' }).state, 'ready');
@@ -89,7 +89,7 @@ test('lines show the right state', () => {
 });
 test('state labels stay honest about what is waiting', () => {
   assert.equal(R.rowStateLabel(forEmp('2026-11', 'fresh')[0], null), '待填');
-  assert.equal(R.rowStateLabel(forEmp('2026-11', 'drafted')[0], null), '待首次納入');
+  assert.equal(R.rowStateLabel(forEmp('2026-11', 'drafted')[0], null), '待寄');
   assert.equal(R.rowStateLabel(forEmp('2026-04', 'stub')[0], null), '待核對');
   assert.equal(R.rowStateLabel(forEmp('2026-11', 'steady')[0], null), '待寄');
 });
