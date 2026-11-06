@@ -1,4 +1,4 @@
-import { isEmployeeResigned, insuranceLabel, parseEmployeeImport, sortEmployees, taiwanToday } from './payrollDisplay';
+import { isEmployeeResigned, insuranceLabel, parseEmployeeImport, sortEmployees, taiwanToday, employeeStatus, latestPeriod } from './payrollDisplay';
 import { usePayrollPresentation, PayrollRow, payrollStatus } from './usePayrollPresentation';
 import { groupMonthRows, includedRows, mergedValues, rowAmounts } from './payrollRows';
 import { PayrollMonthTable } from './PayrollMonthTable';
@@ -20,6 +20,7 @@ interface PayrollViewProps {
   clients: Client[];
 }
 
+const EMPLOYEE_STATUS_STYLE = { active: 'bg-green-100 text-green-700', leaving: 'bg-amber-100 text-amber-700', upcoming: 'bg-blue-100 text-blue-700', gone: 'bg-gray-200 text-gray-500' };
 const MAIL_ROW_LABELS: Record<string, string> = { PENDING: '已排程', PROCESSING: '處理中', SUCCESS: '已寄送', ERROR: '寄送失敗', UNTRACKED: '已寄送' };
 const MAIL_STATE_TEXT: Record<string, string> = { NONE: '尚未寄送', CHECKING: '查詢中…', UNKNOWN: '查詢失敗，請按「查詢寄送狀態」重試', UNTRACKED: '已有寄送標記，無可查詢紀錄', PENDING: '已排程', PROCESSING: '處理中', SUCCESS: '寄送服務已完成', ERROR: '寄送失敗' };
 
@@ -438,6 +439,9 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     employeeSaveLock.current = true; setEmployeeSaving(true); setEmployeeError('');
     try {
     if (editingEmpEmployHistory.some(p => !p.startDate)) throw new Error('請填寫到職日');
+    if (editingEmpCompHistory.some(c => !c.effectiveDate)) throw new Error('請填寫待遇生效日期');
+    if (new Set(editingEmpCompHistory.map(c => c.effectiveDate)).size !== editingEmpCompHistory.length) throw new Error('待遇生效日期不能重複');
+    for (const p of editingEmpEmployHistory) { const over = payroll.slips.filter(s => s.employeeId === editingEmp.id && s.employmentId === p.id && s.status !== 'void' && p.endDate && s.periodEnd > p.endDate)[0]; if (over) throw new Error(`已有 ${over.periodStart.slice(5).replace('-', '/')}–${over.periodEnd.slice(5).replace('-', '/')} 的薪資單超過離職日，請先作廢該單`); }
     validatePeriods(editingEmpEmployHistory.length ? editingEmpEmployHistory : periods({...editingEmp, id:editingEmp.id || 'new'}));
     const uncovered = editingEmpEmployHistory.filter(p => !editingEmpCompHistory.some(c => c.effectiveDate <= p.startDate));
     if (uncovered.length && !window.confirm(`到職日 ${uncovered.map(p => p.startDate).join('、')} 尚無對應的待遇紀錄，補上前不能開該期薪資單。確定先存檔嗎？`)) return;
@@ -450,7 +454,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
     const derivedEnd = latestEmploy ? (latestEmploy.endDate ?? '') : (editingEmp.endDate || '');
 
     // 從待遇歷程推導 defaultBaseSalary
-    const sortedComp = [...editingEmpCompHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
+    const savedComp = editingEmpCompHistory.map(({ forPeriodId, ...c }: any) => c);
+    const sortedComp = [...savedComp].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate));
     const derivedBase = sortedComp[0]?.baseSalary ?? Number(editingEmp.defaultBaseSalary ?? 0);
 
     const empData: Employee = {
@@ -467,13 +472,13 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
         bankAccount: editingEmp.bankAccount || '',
         address: editingEmp.address || '',
         defaultBaseSalary: derivedBase,
-        defaultFoodAllowance: derivedType === 'full_time' ? (Number(editingEmp.defaultFoodAllowance) || 0) : 0,
+        defaultFoodAllowance: Number(sortedComp[0]?.foodAllowance ?? editingEmp.defaultFoodAllowance ?? 0) || 0,
         insuranceBracket: sortedComp[0]?.insuranceBracket ?? Number(editingEmp.insuranceBracket ?? 0),
         hasLaborIns: sortedComp[0]?.hasLaborIns ?? editingEmp.hasLaborIns ?? true,
         hasHealthIns: sortedComp[0]?.hasHealthIns ?? editingEmp.hasHealthIns ?? true,
         createdAt: editingEmp.createdAt || new Date().toISOString(),
         employmentHistory: editingEmpEmployHistory,
-        compensationHistory: editingEmpCompHistory,
+        compensationHistory: savedComp,
     };
 
     if (employeeOriginal) {
@@ -669,6 +674,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                   <th className="p-3 font-bold text-gray-500 w-16 text-center">序號</th>
                                     <th className="p-3 font-bold text-gray-500 w-20 text-center">身分</th>
                                     <th className="p-3 font-bold text-gray-500 w-32">姓名</th>
+                                    <th className="p-3 font-bold text-gray-500 w-24">狀態</th>
+                                    <th className="p-3 font-bold text-gray-500 w-52">任職期間</th>
                                     <th className="p-3 font-bold text-gray-500 w-48">電子郵件</th>
                                     <th className="p-3 font-bold text-gray-500 w-32 font-mono">身分證字號</th>
                                     <th className="p-3 font-bold text-gray-500 w-40">銀行分行</th>
@@ -679,6 +686,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             <tbody className="divide-y divide-gray-100">
                                 {currentEmps.map((emp, index) => {
                                     const isResigned = isEmployeeResigned(emp);
+                                    const status = employeeStatus(emp), latest = latestPeriod(emp);
                                     return (
                                         <tr
                                             key={emp.id}
@@ -723,6 +731,8 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                             <td className={`p-3 font-black text-base transition-colors ${isResigned ? 'text-gray-500' : 'text-gray-800 group-hover:text-blue-600'}`}>
                                                 {emp.name}
                                             </td>
+                                            <td className="p-3"><span data-testid="employee-status" className={`px-2 py-0.5 rounded-md text-xs font-bold ${EMPLOYEE_STATUS_STYLE[status.tone]}`}>{status.label}</span></td>
+                                            <td data-testid="employee-period" className={`p-3 text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{latest.startDate.replaceAll('-', '/')} – {latest.endDate ? latest.endDate.replaceAll('-', '/') : '在職'}</td>
                                             <td className={`p-3 text-sm ${isResigned ? 'text-gray-400' : 'text-gray-500'}`}>{emp.email || '-'}</td>
                                             <td className={`p-3 font-mono text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{maskIdNumber(emp.idNumber) || '-'}</td>
                                             <td className={`p-3 text-sm ${isResigned ? 'text-gray-400' : 'text-gray-600'}`}>{emp.bankBranch || '-'}</td>
@@ -735,7 +745,7 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                                     );
                                 })}
                                 {currentEmps.length === 0 && (
-                                    <tr><td colSpan={8} className="py-20 text-center text-gray-400 font-bold">{payroll.ready ? '目前尚無員工資料，請點擊右上角新增' : '員工資料載入中…'}</td></tr>
+                                    <tr><td colSpan={10} className="py-20 text-center text-gray-400 font-bold">{payroll.ready ? '目前尚無員工資料，請點擊右上角新增' : '員工資料載入中…'}</td></tr>
                                 )}
                             </tbody>
                         </table>
@@ -1094,21 +1104,12 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
             <div className="fixed inset-0 bg-black/60 z-[110] flex items-center justify-center p-4 animate-fade-in" onClick={closeEmployeeEditor}>
                 <div className="bg-white rounded-2xl shadow-2xl w-full max-w-3xl overflow-hidden flex flex-col max-h-[90vh]" onClick={e => e.stopPropagation()}>
                     <div className="p-5 border-b bg-gray-50 flex justify-between items-center">
-                        <h3 className="text-xl font-black text-gray-800">{employeeOriginal ? '編輯員工資料' : '新增員工'}</h3>
+                        <div className="flex items-center gap-3"><h3 className="text-xl font-black text-gray-800">{employeeOriginal ? '編輯員工資料 - ' + employeeOriginal.name : '新增員工'}</h3>{employeeOriginal && <span className={`px-2 py-0.5 rounded-md text-xs font-bold ${EMPLOYEE_STATUS_STYLE[employeeStatus(employeeOriginal).tone]}`}>{employeeStatus(employeeOriginal).label}</span>}</div>
                         <button onClick={closeEmployeeEditor} className="text-gray-400 hover:text-gray-600 text-2xl font-black">✕</button>
                     </div>
                     {employeeError && <p role="alert" className="bg-red-50 text-red-700 px-6 py-3 border-b shrink-0">{employeeError}</p>}
 
                     <form onSubmit={handleSaveEmp} className="flex-1 overflow-y-auto p-6 custom-scrollbar space-y-6">
-                        <p className="p-3 text-sm text-gray-600">離職日為最後在職日。復職請新增任職，並確認相應待遇。舊薪資原值保留；有薪資引用的任職不可刪除。</p>
-                        {employeeOriginal && <div className="text-xs">
-                            <button type="button" aria-expanded={!!employeeVersions} onClick={async () => { if (employeeVersions) { setEmployeeVersions(null); return; } setEmployeeVersionsError(''); try { setEmployeeVersions(await payroll.employeeHistory(employeeOriginal.id)); } catch (error: any) { setEmployeeVersionsError(error.message || '變更紀錄讀取失敗'); } }} className="font-bold text-gray-600 underline hover:text-blue-700">變更紀錄</button>
-                            {employeeVersionsError && <p role="alert" className="text-red-600 mt-1">{employeeVersionsError}</p>}
-                            {employeeVersions && <div className="mt-2 max-h-64 overflow-auto">
-                                {!employeeVersions.length && <p className="text-gray-500">尚無變更紀錄；只會記錄此功能上線之後的修改。</p>}
-                                {employeeVersions.map((version, index) => <div key={index} className="border-b border-gray-200 py-2"><p className="font-bold">{new Date(version.changedAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false })} · {version.actorName || '操作人未記錄'}</p>{version.changes.map((change, n) => <p key={n}>{change.label}：{change.from} → {change.to}</p>)}</div>)}
-                            </div>}
-                        </div>}
                         <div className="space-y-4">
                             <h4 className="font-bold text-gray-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-blue-500 rounded-full"></div>核心資料</h4>
                             <div className="grid grid-cols-3 gap-4">
@@ -1128,104 +1129,66 @@ export const PayrollView: React.FC<PayrollViewProps> = ({ clients }) => {
                             <div><label className="block text-xs font-bold text-gray-500 mb-1">戶籍地址</label><input type="text" value={editingEmp.address || ''} onChange={e => setEditingEmp({...editingEmp, address: e.target.value})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-purple-500 text-sm" /></div>
                         </div>
 
-                        {/* 任職歷程管理區塊 */}
-                        <div className="space-y-4 bg-green-50 p-4 rounded-2xl border border-green-100">
-                            <div className="flex items-center justify-between">
-                                <h4 className="font-bold text-green-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-green-500 rounded-full"></div>任職歷程</h4>
+                        <div className="space-y-4">
+                            <h4 className="font-bold text-green-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-green-500 rounded-full"></div>任職歷程<span className="flex-1"></span>
                                 <button type="button" onClick={() => {
-                                  const sorted = [...editingEmpEmployHistory].sort((a,b)=>b.startDate.localeCompare(a.startDate));
-                                  if (sorted.some(p=>!p.endDate)) { setEmployeeError('請先填寫目前任職的離職日，再新增復職'); return; }
-                                  const date = window.prompt('請填復職／到職日期（YYYY-MM-DD）。原待遇會帶入供確認。', taiwanToday());
-                                  if (!date) return;
-                                  const next = [...editingEmpEmployHistory,{id:crypto.randomUUID(),type:sorted[0]?.type || editingEmp.employmentType || 'full_time',startDate:date,endDate:null}];
-                                  try { validatePeriods(next); } catch(e:any) {setEmployeeError(e.message);return;}
-                                  const c=[...editingEmpCompHistory].filter(x=>x.effectiveDate<=date).sort((a,b)=>b.effectiveDate.localeCompare(a.effectiveDate))[0];
-                                  if (!editingEmpCompHistory.some(x=>x.effectiveDate===date)) setEditingEmpCompHistory(prev=>[...prev,{id:crypto.randomUUID(),effectiveDate:date,baseSalary:c?.baseSalary??editingEmp.defaultBaseSalary??0,foodAllowance:c?.foodAllowance??editingEmp.defaultFoodAllowance??0,insuranceBracket:c?.insuranceBracket??editingEmp.insuranceBracket??0,hasLaborIns:c?.hasLaborIns??editingEmp.hasLaborIns??true,hasHealthIns:c?.hasHealthIns??editingEmp.hasHealthIns??true}]);
-                                  setEditingEmpEmployHistory(next); setEmployeeError('');
-                              }} className="text-xs font-bold text-green-700 bg-white border border-green-300 px-3 py-1.5 rounded-lg hover:bg-green-100 transition-colors">+ 新增任職／員工復職</button>
-                            </div>
-                            <p className="text-xs text-green-700">每段任職各自保存正兼職身分。離職日為最後在職日，留空代表仍在職。</p>
-                            {editingEmpEmployHistory.length === 0 && (
-                                <p className="text-xs text-gray-400 text-center py-3">尚無任職紀錄，請點擊「+ 新增任職／員工復職」</p>
-                            )}
-                            <div className="space-y-3">
-                                {[...editingEmpEmployHistory].sort((a, b) => b.startDate.localeCompare(a.startDate)).map(rec => (
-                                    <div key={rec.id} className="bg-white border border-green-200 rounded-xl p-3">
-                                        <div className="grid grid-cols-4 gap-2 items-end">
-                                            <div>
-                                                <label className="block text-xs font-bold text-green-700 mb-1">聘僱身分</label>
-                                                <select value={rec.type} onChange={e => setEditingEmpEmployHistory(prev => prev.map(r => r.id === rec.id ? { ...r, type: e.target.value as 'full_time' | 'part_time' } : r))} className="w-full border p-2 rounded-lg text-sm font-bold bg-white outline-none focus:ring-2 focus:ring-green-400">
-                                                    <option value="full_time">正職</option>
-                                                    <option value="part_time">兼職</option>
-                                                </select>
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-green-700 mb-1">入職日</label>
-                                                <input type="date" value={rec.startDate} onChange={e => setEditingEmpEmployHistory(prev => prev.map(r => r.id === rec.id ? { ...r, startDate: e.target.value } : r))} className="w-full border p-2 rounded-lg text-sm font-mono outline-none focus:ring-2 focus:ring-green-400" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-green-700 mb-1">離職日 (留空=在職)</label>
-                                                <input type="date" value={rec.endDate || ''} onChange={e => setEditingEmpEmployHistory(prev => prev.map(r => r.id === rec.id ? { ...r, endDate: e.target.value || null } : r))} className="w-full border p-2 rounded-lg text-sm font-mono bg-gray-50 outline-none focus:ring-2 focus:ring-green-400" />
-                                            </div>
-                                            <div className="flex justify-end">
-                                                <button type="button" onClick={() => setEditingEmpEmployHistory(prev => prev.filter(r => r.id !== rec.id))} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors">✕</button>
-                                            </div>
-                                        </div>
-                                    </div>
-                                ))}
+                                  if (editingEmpEmployHistory.some(p => !p.endDate)) { setEmployeeError('請先填寫目前任職的離職日，再新增復職'); return; }
+                                  const last = [...editingEmpEmployHistory].sort((a, b) => b.startDate.localeCompare(a.startDate))[0];
+                                  const pay = [...editingEmpCompHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0];
+                                  const id = crypto.randomUUID();
+                                  setEditingEmpEmployHistory(prev => [...prev, { id, type: last?.type || editingEmp.employmentType || 'full_time', startDate: '', endDate: null }]);
+                                  // The previous pay is carried over to confirm; its date follows the new start date.
+                                  setEditingEmpCompHistory(prev => [...prev, { ...(pay || { baseSalary: 0, foodAllowance: 0, insuranceBracket: 0, hasLaborIns: true, hasHealthIns: true }), id: crypto.randomUUID(), effectiveDate: '', forPeriodId: id } as any]);
+                                  setEmployeeError('');
+                                }} className="text-xs font-bold text-green-700 bg-white border border-green-300 px-3 py-1.5 rounded-lg hover:bg-green-50 transition-colors">+ 新增任職／員工復職</button>
+                            </h4>
+                            {editingEmpEmployHistory.length === 0 && <p className="text-xs text-gray-400 text-center py-3">尚無任職紀錄</p>}
+                            <div className="space-y-2">
+                                {[...editingEmpEmployHistory].sort((a, b) => (b.startDate || '9').localeCompare(a.startDate || '9')).map(rec => {
+                                    const locked = !!employeeOriginal && payroll.slips.some(s => s.employeeId === editingEmp.id && s.employmentId === rec.id && s.status !== 'void');
+                                    return <div key={rec.id} data-testid="employment-row" className={`flex flex-wrap items-end gap-3 border rounded-xl p-3 ${!rec.endDate ? 'border-blue-300 bg-blue-50/60' : 'border-gray-200 bg-white'}`}>
+                                        <label className="flex-1 min-w-[120px] text-xs font-bold text-gray-500">聘僱身分<select disabled={locked} value={rec.type} onChange={e => setEditingEmpEmployHistory(prev => prev.map(r => r.id === rec.id ? { ...r, type: e.target.value as 'full_time' | 'part_time' } : r))} className="mt-1 w-full border p-2 rounded-lg text-sm font-bold bg-white text-gray-800 disabled:bg-gray-100 disabled:text-gray-500"><option value="full_time">正職</option><option value="part_time">兼職</option></select></label>
+                                        <label className="flex-1 min-w-[140px] text-xs font-bold text-gray-500">到職日<input aria-label="到職日" type="date" disabled={locked} value={rec.startDate} onChange={e => { const value = e.target.value; setEditingEmpEmployHistory(prev => prev.map(r => r.id === rec.id ? { ...r, startDate: value } : r)); setEditingEmpCompHistory(prev => prev.map(c => (c as any).forPeriodId === rec.id ? { ...c, effectiveDate: value } : c)); }} className="mt-1 w-full border p-2 rounded-lg text-sm text-gray-800 bg-white disabled:bg-gray-100 disabled:text-gray-500" /></label>
+                                        <label className="flex-1 min-w-[140px] text-xs font-bold text-gray-500">離職日（留空代表在職）<input aria-label="離職日" type="date" value={rec.endDate || ''} onChange={e => setEditingEmpEmployHistory(prev => prev.map(r => r.id === rec.id ? { ...r, endDate: e.target.value || null } : r))} className="mt-1 w-full border p-2 rounded-lg text-sm text-gray-800 bg-white" /></label>
+                                        <button type="button" disabled={locked} aria-label="移除這段任職" title={locked ? '這段任職已有薪資單，不能移除' : '移除這段任職'} onClick={() => { setEditingEmpEmployHistory(prev => prev.filter(r => r.id !== rec.id)); setEditingEmpCompHistory(prev => prev.filter(c => (c as any).forPeriodId !== rec.id)); }} className="p-2 text-red-400 hover:text-red-600 rounded-lg disabled:opacity-25 disabled:cursor-not-allowed">✕</button>
+                                    </div>;
+                                })}
                             </div>
                         </div>
 
-                        <div className="space-y-4 bg-orange-50 p-4 rounded-2xl border border-orange-100">
-                            <div className="flex items-center justify-between">
-                                <h4 className="font-bold text-orange-800 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>待遇歷程</h4>
-                                <button type="button" onClick={() => setEditingEmpCompHistory(prev => [...prev, { id: Date.now().toString(), effectiveDate: (!prev.length && [...editingEmpEmployHistory].filter(p => p.startDate).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]?.startDate) || taiwanToday(), baseSalary: editingEmp.defaultBaseSalary ?? 0, foodAllowance: editingEmp.defaultFoodAllowance ?? 0, insuranceBracket: 0, hasLaborIns: true, hasHealthIns: true }])} className="text-xs font-bold text-orange-700 bg-white border border-orange-300 px-3 py-1.5 rounded-lg hover:bg-orange-100 transition-colors">+ 新增調薪紀錄</button>
-                            </div>
-                            <p className="text-xs text-orange-600">新薪資單依計薪起日選取待遇；期間內待遇變更須分開開單。舊薪資原值不重算。</p>
-                            {editingEmpCompHistory.length === 0 && (
-                                <p className="text-xs text-gray-400 text-center py-3">尚無待遇紀錄，請點擊「新增調薪紀錄」</p>
-                            )}
-                            <div className="space-y-3">
-                                {[...editingEmpCompHistory].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate)).map(rec => (
-                                    <div key={rec.id} className="bg-white border border-orange-200 rounded-xl p-3 space-y-2">
-                                        <div className="grid grid-cols-3 gap-2 items-end">
-                                            <div>
-                                                <label className="block text-xs font-bold text-orange-700 mb-1">生效日期</label>
-                                                <input type="date" value={rec.effectiveDate} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, effectiveDate: e.target.value } : r))} className="w-full border p-2 rounded-lg text-sm outline-none focus:ring-2 focus:ring-orange-400 font-mono" />
-                                            </div>
-                                            <div>
-                                                <label className="block text-xs font-bold text-orange-700 mb-1">{(editingEmpEmployHistory.find(p => p.startDate <= rec.effectiveDate && (!p.endDate || p.endDate >= rec.effectiveDate))?.type ?? editingEmp.employmentType) === 'full_time' ? '月薪' : '時薪/底薪'}</label>
-                                                <input type="number" step="any" min="0" value={rec.baseSalary || ''} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, baseSalary: Number(e.target.value) } : r))} className="w-full border p-2 rounded-lg text-sm font-black text-gray-800 outline-none focus:ring-2 focus:ring-orange-400" placeholder="0" />
-                                            </div>
-                                            <div className="flex gap-2 items-end">
-                                                <div className="flex-1">
-                                                    <label className="block text-xs font-bold text-orange-700 mb-1">勞健保級距</label>
-                                                    <input type="number" step="any" value={rec.insuranceBracket || ''} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, insuranceBracket: Number(e.target.value) } : r))} className="w-full border p-2 rounded-lg text-sm font-bold text-blue-900 outline-none focus:ring-2 focus:ring-orange-400" placeholder="0" />
-                                                </div>
-                                                <button type="button" onClick={() => setEditingEmpCompHistory(prev => prev.filter(r => r.id !== rec.id))} className="p-2 text-red-400 hover:text-red-600 hover:bg-red-50 rounded-lg transition-colors flex-shrink-0 mb-0.5">✕</button>
-                                            </div>
+                        <div className="space-y-4">
+                            <h4 className="font-bold text-orange-700 border-b pb-2 flex items-center gap-2"><div className="w-1.5 h-4 bg-orange-500 rounded-full"></div>待遇歷程<span className="flex-1"></span>
+                                <button type="button" onClick={() => setEditingEmpCompHistory(prev => { const pay = [...prev].sort((a, b) => b.effectiveDate.localeCompare(a.effectiveDate))[0]; const first = [...editingEmpEmployHistory].filter(p => p.startDate).sort((a, b) => a.startDate.localeCompare(b.startDate))[0]?.startDate; return [...prev, { ...(pay || { baseSalary: 0, foodAllowance: 0, insuranceBracket: 0, hasLaborIns: true, hasHealthIns: true }), id: crypto.randomUUID(), effectiveDate: pay ? taiwanToday() : (first || taiwanToday()) } as any]; })} className="text-xs font-bold text-orange-700 bg-white border border-orange-300 px-3 py-1.5 rounded-lg hover:bg-orange-50 transition-colors">+ 新增調薪紀錄</button>
+                            </h4>
+                            {editingEmpCompHistory.length === 0 && <p className="text-sm font-bold text-red-600 text-center py-2">尚無待遇紀錄，補上後才能開單</p>}
+                            <div className="space-y-2">
+                                {[...editingEmpCompHistory].sort((a, b) => (b.effectiveDate || '9').localeCompare(a.effectiveDate || '9')).map(rec => {
+                                    const current = rec.effectiveDate && rec.effectiveDate === editingEmpCompHistory.map(c => c.effectiveDate).filter(d => d && d <= taiwanToday()).sort().pop();
+                                    const fullTime = (editingEmpEmployHistory.find(p => p.startDate && p.startDate <= rec.effectiveDate && (!p.endDate || p.endDate >= rec.effectiveDate))?.type ?? editingEmp.employmentType) === 'full_time';
+                                    const update = (patch: any) => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, ...patch } : r));
+                                    return <div key={rec.id} data-testid="pay-row" className={`flex flex-wrap items-end gap-3 border rounded-xl p-3 ${current ? 'border-blue-300 bg-blue-50/60' : 'border-gray-200 bg-white'}`}>
+                                        <label className="flex-1 min-w-[140px] text-xs font-bold text-gray-500">生效日期<input aria-label="生效日期" type="date" value={rec.effectiveDate} onChange={e => update({ effectiveDate: e.target.value })} className="mt-1 w-full border p-2 rounded-lg text-sm text-gray-800 bg-white" /></label>
+                                        <label className="flex-1 min-w-[100px] text-xs font-bold text-gray-500">{fullTime ? '月薪' : '時薪'}<input aria-label="月薪或時薪" type="number" step="any" min="0" value={rec.baseSalary || ''} onChange={e => update({ baseSalary: Number(e.target.value) })} placeholder="0" className="mt-1 w-full border p-2 rounded-lg text-sm font-bold text-gray-800 bg-white" /></label>
+                                        <label className="flex-1 min-w-[100px] text-xs font-bold text-gray-500">約定伙食費<input aria-label="約定伙食費" type="number" step="any" min="0" value={rec.foodAllowance ?? ''} onChange={e => update({ foodAllowance: e.target.value === '' ? undefined : Number(e.target.value) })} placeholder="0" className="mt-1 w-full border p-2 rounded-lg text-sm font-bold text-gray-800 bg-white" /></label>
+                                        <label className="flex-1 min-w-[100px] text-xs font-bold text-gray-500">勞健保級距<input aria-label="勞健保級距" type="number" step="any" min="0" value={rec.insuranceBracket || ''} onChange={e => update({ insuranceBracket: Number(e.target.value) })} placeholder="0" className="mt-1 w-full border p-2 rounded-lg text-sm font-bold text-gray-800 bg-white" /></label>
+                                        <div className="grid gap-1 text-sm font-bold text-gray-700 pb-1">
+                                            <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={rec.hasLaborIns ?? true} onChange={e => update({ hasLaborIns: e.target.checked })} />投保勞保</label>
+                                            <label className="flex items-center gap-1.5 cursor-pointer"><input type="checkbox" checked={rec.hasHealthIns ?? true} onChange={e => update({ hasHealthIns: e.target.checked })} />投保健保</label>
                                         </div>
-                                        <div className="flex items-center gap-5 pt-1">
-                                                <label className="text-sm">約定伙食費（缺少時請確認）<input type="number" step="any" min="0" value={rec.foodAllowance ?? ''} onChange={e=>setEditingEmpCompHistory(prev=>prev.map(r=>r.id===rec.id?{...r,foodAllowance:e.target.value===''?undefined:Number(e.target.value)}:r))} className="border p-2 rounded w-28" /></label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="checkbox" checked={rec.hasLaborIns ?? true} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, hasLaborIns: e.target.checked } : r))} className="w-4 h-4 text-orange-500 rounded focus:ring-orange-400 border-gray-300" />
-                                                <span className="text-xs font-bold text-orange-800">投保勞保</span>
-                                            </label>
-                                            <label className="flex items-center gap-2 cursor-pointer">
-                                                <input type="checkbox" checked={rec.hasHealthIns ?? true} onChange={e => setEditingEmpCompHistory(prev => prev.map(r => r.id === rec.id ? { ...r, hasHealthIns: e.target.checked } : r))} className="w-4 h-4 text-orange-500 rounded focus:ring-orange-400 border-gray-300" />
-                                                <span className="text-xs font-bold text-orange-800">投保健保</span>
-                                            </label>
-                                        </div>
-                                    </div>
-                                ))}
+                                        <button type="button" aria-label="移除這筆待遇" onClick={() => setEditingEmpCompHistory(prev => prev.filter(r => r.id !== rec.id))} className="p-2 text-red-400 hover:text-red-600 rounded-lg">✕</button>
+                                    </div>;
+                                })}
                             </div>
-                            {([...editingEmpEmployHistory].sort((a,b) => b.startDate.localeCompare(a.startDate))[0]?.type ?? editingEmp.employmentType) === 'full_time' && (
-                                <div className="pt-2 border-t border-orange-100">
-                                    <label className="block text-xs font-bold text-orange-700 mb-1">預設伙食費 (正職專屬)</label>
-                                    <input type="number" step="any" value={editingEmp.defaultFoodAllowance || ''} onChange={e => setEditingEmp({...editingEmp, defaultFoodAllowance: Number(e.target.value)})} className="w-full border p-2.5 rounded-xl outline-none focus:ring-2 focus:ring-orange-500 text-base font-black text-gray-800" placeholder="0" />
-                                </div>
-                            )}
                         </div>
+
+                        {employeeOriginal && <div className="text-xs">
+                            <button type="button" aria-expanded={!!employeeVersions} onClick={async () => { if (employeeVersions) { setEmployeeVersions(null); return; } setEmployeeVersionsError(''); try { setEmployeeVersions(await payroll.employeeHistory(employeeOriginal.id)); } catch (error: any) { setEmployeeVersionsError(error.message || '變更紀錄讀取失敗'); } }} className="font-bold text-gray-600 underline hover:text-blue-700">變更紀錄</button>
+                            {employeeVersionsError && <p role="alert" className="text-red-600 mt-1">{employeeVersionsError}</p>}
+                            {employeeVersions && <div className="mt-2 max-h-64 overflow-auto">
+                                {!employeeVersions.length && <p className="text-gray-500">尚無變更紀錄；只會記錄此功能上線之後的修改。</p>}
+                                {employeeVersions.map((version, index) => <div key={index} className="border-b border-gray-200 py-2"><p className="font-bold">{new Date(version.changedAt).toLocaleString('zh-TW', { timeZone: 'Asia/Taipei', hour12: false })} · {version.actorName || '操作人未記錄'}</p>{version.changes.map((change, n) => <p key={n}>{change.label}：{change.from} → {change.to}</p>)}</div>)}
+                            </div>}
+                        </div>}
 
                         <button type="submit" disabled={employeeSaving} id="submitEmpForm" className="hidden"></button>
                     </form>

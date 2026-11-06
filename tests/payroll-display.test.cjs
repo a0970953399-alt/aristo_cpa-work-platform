@@ -50,3 +50,17 @@ test('employee import validates rows, skips duplicates and supplies backend defa
 test('employees sort employed first, then full-time, then number',()=>{const period=(type,endDate=null)=>[{id:'p',type,startDate:'2026-01-01',endDate}];const list=[{name:'離職',empNo:'1',employmentType:'full_time',employmentHistory:period('full_time','2026-02-01')},{name:'兼二',empNo:'2',employmentType:'part_time',employmentHistory:period('part_time')},{name:'正三',empNo:'3',employmentType:'full_time',employmentHistory:period('full_time')},{name:'正二',empNo:'2',employmentType:'full_time',employmentHistory:period('full_time')}];assert.deepEqual(display.sortEmployees(list,'2026-11-05').map(e=>e.name).join(),'正二,正三,兼二,離職');assert.equal(list[0].name,'離職');});
 
 test('the payroll page no longer subscribes to every client employee or unused records',()=>{const view=fs.readFileSync(path.join(repo,'PayrollView.tsx'),'utf8');assert(!view.includes('subscribeEmployees'));assert(!view.includes('subscribePayrollRecords'));assert(!view.includes('isAddingNewMonthly'));assert(!view.includes("toISOString().split('T')[0]"));});
+
+test('the employee list status and latest period cover leaving, rehire and old data',()=>{
+ const P=(startDate,endDate=null,type='full_time')=>({id:startDate,type,startDate,endDate});const emp=(...h)=>({id:'e',employmentType:'full_time',startDate:'x',endDate:'',employmentHistory:h});
+ const s=(e,today='2026-11-06')=>JSON.parse(JSON.stringify(display.employeeStatus(e,today)));
+ assert.deepEqual(s(emp(P('2026-01-01'))),{label:'在職',tone:'active'});
+ assert.deepEqual(s(emp(P('2026-01-01','2026-11-10'))),{label:'11/10 離職',tone:'leaving'});
+ assert.deepEqual(s(emp(P('2026-01-01','2026-11-06'))),{label:'11/6 離職',tone:'leaving'});
+ assert.deepEqual(s(emp(P('2026-01-01','2026-11-05'))),{label:'已離職',tone:'gone'});
+ assert.deepEqual(s(emp(P('2026-12-01'))),{label:'12/1 到職',tone:'upcoming'});
+ assert.deepEqual(s(emp(P('2025-01-01','2026-09-30'),P('2026-12-01'))),{label:'12/1 復職',tone:'upcoming'});
+ assert.deepEqual(s(emp(P('2026-11-20'),P('2025-01-01','2026-09-30'))),{label:'11/20 復職',tone:'upcoming'});
+ assert.equal(display.latestPeriod(emp(P('2026-11-20'),P('2025-01-01','2026-09-30'))).startDate,'2026-11-20');
+ assert.deepEqual(s({id:'e',employmentType:'full_time',startDate:'2026-01-01',endDate:''}),{label:'在職',tone:'active'});
+});

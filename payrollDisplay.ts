@@ -66,3 +66,16 @@ export function insuranceLabel(basis: { hasLaborIns: boolean; hasHealthIns: bool
   const types = [basis.hasLaborIns ? '勞' : '', basis.hasHealthIns ? '健' : ''].join('');
   return types ? basis.insuranceBracket.toLocaleString() + ' (' + types + ')' : '未投保';
 }
+
+// The list only shows where an employee stands now; full history lives on the employee page.
+export function latestPeriod(employee: Employee) {
+  return [...periods(employee)].sort((a, b) => a.startDate.localeCompare(b.startDate)).pop()!;
+}
+export function employeeStatus(employee: Employee, today = taiwanToday()): { label: string; tone: 'active' | 'leaving' | 'upcoming' | 'gone' } {
+  const list = [...periods(employee)].sort((a, b) => a.startDate.localeCompare(b.startDate)), last = list[list.length - 1];
+  const short = (d: string) => Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
+  if (last.startDate > today) return { label: short(last.startDate) + (list.length > 1 ? ' 復職' : ' 到職'), tone: 'upcoming' };
+  if (last.endDate && last.endDate < today) return { label: '已離職', tone: 'gone' };
+  if (last.endDate) return { label: short(last.endDate) + ' 離職', tone: 'leaving' };
+  return { label: '在職', tone: 'active' };
+}
