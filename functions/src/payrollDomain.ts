@@ -108,32 +108,47 @@ export function isEffectivePayroll(s: Slip, emp: any, slips: Slip[], legacy: any
 export function currentPayrollMonth(now = new Date()): string { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit' }).format(now); }
 export function previousMonth(month: string): string { monthEnd(month); return new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7); }
 export function isFullMonth(month: string, start: string, end: string): boolean { return start === month + '-01' && end === monthEnd(month); }
-// A partial month has no safe default: the payable base and meal allowance must be entered by hand.
-export function defaultBaseSalary(b: Basis, month: string, start: string, end: string): number { return b.employmentType === 'full_time' && isFullMonth(month, start, end) ? b.baseSalary : 0; }
-export function defaultFoodAllowance(b: Basis): number { return b.foodAllowance; }
+// A partial month starts from the monthly amount by calendar days on a 30-day month; the person can change it.
+export const proratedAmount = (monthly: number, start: string, end: string): number => Math.round(monthly / 30 * (Math.round((Date.parse(end) - Date.parse(start)) / 86400000) + 1));
+export function defaultBaseSalary(b: Basis, month: string, start: string, end: string): number { return b.employmentType !== 'full_time' ? 0 : isFullMonth(month, start, end) ? b.baseSalary : proratedAmount(b.baseSalary, start, end); }
+export function defaultFoodAllowance(b: Basis, month: string, start: string, end: string): number { return isFullMonth(month, start, end) ? b.foodAllowance : proratedAmount(b.foodAllowance, start, end); }
 // Insurance flags default to insured, matching the employee form.
 const isInsured = (flag: unknown) => flag !== false;
 export type PreviousPayroll = { amounts: Values; insurance: Pick<Basis, 'insuranceBracket' | 'hasLaborIns' | 'hasHealthIns'> };
-// The single saved full-month payroll directly before this month, or why it cannot be carried safely.
+// A month's saved pay can be split over several slips, so each carried amount comes from the latest slip that has it.
+const carryFrom = (list: Values[]): Values => Object.fromEntries(['laborIns', 'healthIns', 'pensionSelf', 'positionAllowance'].map(k => [k, [...list].reverse().find(a => a[k] > 0)?.[k] || 0]));
+// The saved payroll of the month directly before this one, or why it cannot be carried safely.
 function findPreviousPayroll(emp: any, p: Period, month: string, slips: Slip[], legacy: any[]): { previous?: PreviousPayroll; issue?: string } {
     const prev = previousMonth(month), start = prev + '-01', end = monthEnd(prev);
-    if (p.endDate && p.endDate < end) return { issue: '上月不是完整月份，請確認本月金額' };
     const visible = legacy.filter(r => r.temporaryPayrollHidden !== true);
     const olds = visible.filter(r => r.employeeId === emp.id && r.month === prev);
-    const regular = slips.filter(s => s.employeeId === emp.id && s.month === prev && s.kind === 'regular' && s.revision > 0 && s.status !== 'void' && s.status !== 'superseded');
-    if (olds.length + regular.length === 0) return { issue: p.startDate > start ? '上月不是完整月份，請確認本月金額' : '上月沒有已保存的薪資' };
-    if (olds.length + regular.length > 1) return { issue: '上月有多張薪資單，請確認本月金額' };
-    if (p.startDate > start) return { issue: '上月不是完整月份，請確認本月金額' };
+    const regular = slips.filter(s => s.employeeId === emp.id && s.month === prev && s.kind === 'regular' && s.revision > 0 && s.status !== 'void' && s.status !== 'superseded').sort((a, b) => a.periodEnd.localeCompare(b.periodEnd));
+    if (olds.length + regular.length === 0) return { issue: '上月沒有已保存的薪資' };
+    if (olds.length > 1) return { issue: '上月舊薪資待核對' };
     try {
         if (olds.length) {
             if (legacyIssues(olds[0], visible, [emp]).length || legacyNeedsReview(olds[0], [emp])) return { issue: '上月舊薪資待核對' };
-            return { previous: { amounts: legacyAmounts(olds[0]), insurance: basisAt(emp, p, start, end) } };
+            return { previous: { amounts: legacyAmounts(olds[0]), insurance: basisAt(emp, p, start > p.startDate ? start : p.startDate, end) } };
         }
-        const s = regular[0];
-        if (s.employmentId !== p.id || !isFullMonth(prev, s.periodStart, s.periodEnd)) return { issue: '上月不是完整月份，請確認本月金額' };
-        if (!isEffectivePayroll(s, emp, slips, visible)) return { issue: '上月沒有已保存的薪資' };
-        return { previous: { amounts: s.amounts, insurance: s.basis } };
+        const effective = regular.filter(s => isEffectivePayroll(s, emp, slips, visible));
+        if (!effective.length) return { issue: '上月沒有已保存的薪資' };
+        const last = effective[effective.length - 1];
+        return { previous: { amounts: { ...last.amounts, ...carryFrom(effective.map(s => s.amounts)) }, insurance: last.basis } };
     } catch { return { issue: '上月舊薪資待核對' }; }
+}
+// The latest saved pay before a date, in any month, used to start a new slip's insurance and other fixed items.
+export function latestPayroll(emp: any, before: string, slips: Slip[], legacy: any[]): (PreviousPayroll & { month: string }) | null {
+    const visible = legacy.filter(r => r.temporaryPayrollHidden !== true && r.employeeId === emp.id && r.month + '-31' < before && !legacyIssues(r, legacy.filter(x => x.temporaryPayrollHidden !== true), [emp]).length);
+    const regular = slips.filter(s => s.employeeId === emp.id && s.kind === 'regular' && s.revision > 0 && s.status === 'confirmed' && s.periodEnd < before);
+    const newest = [...visible.map(r => r.month), ...regular.map(s => s.month)].sort().pop();
+    if (!newest) return null;
+    const list = regular.filter(s => s.month === newest).sort((a, b) => a.periodEnd.localeCompare(b.periodEnd));
+    if (list.length) return { month: newest, amounts: { ...list[list.length - 1].amounts, ...carryFrom(list.map(s => s.amounts)) }, insurance: list[list.length - 1].basis };
+    const old = visible.find(r => r.month === newest);
+    const periodAtOld = periods(emp).find(p => p.startDate <= monthEnd(newest) && (!p.endDate || p.endDate >= newest + '-01'));
+    let insurance: PreviousPayroll['insurance'] = { insuranceBracket: NaN, hasLaborIns: true, hasHealthIns: true };
+    try { if (periodAtOld) insurance = basisAt(emp, periodAtOld, newest + '-01' > periodAtOld.startDate ? newest + '-01' : periodAtOld.startDate, monthEnd(newest)); } catch { /* old months may predate any pay record */ }
+    return { month: newest, amounts: legacyAmounts(old), insurance };
 }
 export function previousPayroll(emp: any, p: Period, month: string, slips: Slip[], legacy: any[]): PreviousPayroll | null { return findPreviousPayroll(emp, p, month, slips, legacy).previous || null; }
 const INSURANCE_KEYS = ['insuranceBracket', 'hasLaborIns', 'hasHealthIns'] as const;
@@ -145,7 +160,7 @@ export function automaticPayrollIssue(emp: any, p: Period, month: string, start:
     if (p.type !== 'full_time') return '兼職請填寫工時';
     if (!isFullMonth(month, start, end)) {
         const from = p.startDate > month + '-01' ? p.startDate : month + '-01', to = p.endDate && p.endDate < monthEnd(month) ? p.endDate : monthEnd(month);
-        return (emp.compensationHistory || []).some((c: any) => c.effectiveDate > from && c.effectiveDate <= to) ? '本月有待遇變動，這段的本薪請手動填寫' : '本月不足月，請手動填寫本薪並確認伙食費';
+        return (emp.compensationHistory || []).some((c: any) => c.effectiveDate > from && c.effectiveDate <= to) ? '本月有待遇變動，請確認這段的本薪' : '本月不足月，請確認本薪和伙食費';
     }
     if (month > currentMonth) return '未來月份不會自動帶入';
     if (slips.some(s => s.employeeId === emp.id && s.month === month && s.kind === 'regular' && s.status === 'void')) return '本月薪資單已作廢，請重新填寫';
@@ -223,8 +238,6 @@ export function validateSlip(s: Slip, emp: any, others: Slip[], legacy: any[]) {
     assert(p, '找不到任職期間');
     assert(p && s.periodStart >= p.startDate && (!p.endDate || s.periodEnd <= p.endDate), '計薪期間超出任職範圍');
     assert(['regular', 'supplement'].includes(s.kind), '薪資用途不正確');
-    const hasOtherPay = others.some(x => x.id !== s.id && x.id !== s.replacesId && x.employeeId === s.employeeId && x.month === s.month && x.status === 'confirmed');
-    assert(!hasOtherPay || s.reviewedMonth === true, '請核對同月其他薪資單及代扣項目');
     assert(s.note.length <= 2000 && s.reason.length <= 500, '備註或原因過長');
     assert(!legacy.some(x => x.employeeId === s.employeeId && x.month === s.month), '這位員工該月已有舊薪資，請先核對舊紀錄，避免重複結薪');
     const relevant = others.filter(x => x.id !== s.id && x.id !== s.replacesId && x.employeeId === s.employeeId && x.status !== 'void' && x.status !== 'superseded');

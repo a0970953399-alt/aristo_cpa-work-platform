@@ -46,7 +46,7 @@ export function rowValues(row: PayrollRow, month: string, employees: Employee[])
     const e = employees.find(e => e.id === row.sourceEmployeeId)!; const p = periods(e).find(p => p.id === row.periodId)!;
     const start = row.recommendedStart || (p.startDate > month + '-01' ? p.startDate : month + '-01'), end = row.recommendedEnd || (p.endDate && p.endDate < monthEnd(month) ? p.endDate : monthEnd(month));
     const b = basisAt(e, p, start, end);
-    return { ...emptyValues(amountFields), ...emptyValues(attendanceFields), baseSalary: defaultBaseSalary(b, start.slice(0, 7), start, end), foodAllowance: defaultFoodAllowance(b) };
+    return { ...emptyValues(amountFields), ...emptyValues(attendanceFields), baseSalary: defaultBaseSalary(b, start.slice(0, 7), start, end), foodAllowance: defaultFoodAllowance(b, start.slice(0, 7), start, end) };
   } catch { return { ...emptyValues(amountFields), ...emptyValues(attendanceFields) }; }
 }
 
