@@ -73,10 +73,11 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     } catch(e:any){const message=e.message||'操作失敗，請重試';lastError.current=message;setError(message.includes('薪資版本已變更')?'這份薪資已由其他人更新，請重新開啟。':message);return undefined;}
     finally{lock.current=false;setBusy(false);}
   }
-  function refreshMonthMail() {
-    if(!ready) return;
+  // Resolves true once the month's send states were read, so the page can say the refresh happened.
+  function refreshMonthMail(): Promise<boolean> {
+    if(!ready) return Promise.resolve(false);
     const request=++monthMailRequest.current;
-    command({clientId,operationId:crypto.randomUUID(),action:'monthMailStatus',month}).then(r=>{if(request===monthMailRequest.current)setMonthMail(r.data.states||{});}).catch(()=>{if(request===monthMailRequest.current)setMonthMail(null);});
+    return command({clientId,operationId:crypto.randomUUID(),action:'monthMailStatus',month}).then(r=>{if(request===monthMailRequest.current)setMonthMail(r.data.states||{});return true;}).catch(()=>{if(request===monthMailRequest.current)setMonthMail(null);return false;});
   }
   useEffect(()=>{setMonthMail(null);refreshMonthMail();},[clientId,ready,month]);
   // Rows only depend on this data, so typing in the editor must not recalculate them.
@@ -183,10 +184,12 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     const result=await run({action:'sendLegacySeptember',id:oldEditing.id,expectedRevision:oldEditing.legacySeptemberRevision||0,retry});
     if(result){setOldEditing(prev=>prev?{...prev,legacySeptemberMailId:result.mailId}:prev);setMailState(result.state);setInfo('已交寄送服務排程；不代表收件匣已收到。');refreshMonthMail();}
   }
-  async function checkLegacyMail() {
+  // Both checks return the state read, or undefined when the query failed (run shows the error).
+  async function checkLegacyMail(): Promise<string|undefined> {
     if(!oldEditing)return;
     const result=await run({action:'legacySeptemberMailStatus',id:oldEditing.id});
     if(result)setMailState(result.state);
+    return result?.state;
   }
   const reviewAmounts = (a:Values) => '勞保 '+a.laborIns.toLocaleString()+'／健保 '+a.healthIns.toLocaleString()+'／所得稅 '+a.incomeTax.toLocaleString()+'／全勤 '+a.fullAttendance.toLocaleString()+'\n實發：'+totals(a).net.toLocaleString()+' 元';
   function legacyReview(r:MonthlySalaryRecord) { const e=employees.find(e=>e.id===r.employeeId); return '核對本次寄送內容：\n'+r.month+'／'+e?.name+'\n收件人：'+e?.email+'\n'+reviewAmounts(legacyAmounts(r))+'\n確認寄送？'; }
@@ -207,7 +210,7 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     const result=await run({action:'send',id:current.id,expectedRevision:current.revision,retry});
     if(result){setMailState(result.state);setInfo('已交寄送服務排程；不代表收件匣已收到。');refreshMonthMail();}
   }
-  async function checkMail(){if(!editing)return;const result=await run({action:'mailStatus',id:editing.id,expectedRevision:editing.revision});if(result)setMailState(result.state);}
+  async function checkMail(): Promise<string|undefined>{if(!editing)return;const result=await run({action:'mailStatus',id:editing.id,expectedRevision:editing.revision});if(result)setMailState(result.state);return result?.state;}
   async function versions(){try{
     setHistory([]);setLegacyHistory([]);
     if(oldEditing){const result=await run({action:'legacyHistory',id:oldEditing.id});if(result)setLegacyHistory(result.history.sort((a:any,b:any)=>b.changedAt.localeCompare(a.changedAt)));}
@@ -270,5 +273,5 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     refreshMonthMail();
     setBatchNotice({text:'本次 '+completed+' 張薪資單已交寄送服務排程；不代表收件匣已收到。',failures});
   }
-  return {recycle,employeeHistory,openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,canEdit,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,editHints,editNotes,save,voidSlip,revise,send,checkMail,versions};
+  return {recycle,setInfo,employeeHistory,openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,canEdit,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,editHints,editNotes,save,voidSlip,revise,send,checkMail,versions};
 }
