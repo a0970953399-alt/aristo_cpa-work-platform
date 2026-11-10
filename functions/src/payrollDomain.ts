@@ -82,13 +82,14 @@ export function numbers(raw: any, fields: readonly string[]): Values { const out
     out[k] = n;
 } return out; }
 export const emptyValues = (fields: readonly string[]) => Object.fromEntries(fields.map(k => [k, 0])) as Values;
-// Overtime uses the meal allowance actually paid that month. A supplement slip only holds the extra amounts, so it keeps the contractual one.
-export function calculate(b: Basis, t: Values, a: Values, kind: Slip['kind'] = 'regular'): Values {
+// Overtime uses the contractual monthly pay plus the contractual meal allowance, so a partial month keeps the same hourly rate as a full one.
+// Deductions use the contractual monthly pay alone. The kind parameter stays for existing callers.
+export function calculate(b: Basis, t: Values, a: Values, _kind: Slip['kind'] = 'regular'): Values {
     numbers(t, attendanceFields);
     numbers(a, amountFields);
     assert(Number.isFinite(b.baseSalary) && b.baseSalary >= 0 && Number.isFinite(b.foodAllowance) && b.foodAllowance >= 0, '約定待遇不正確');
     const h = b.employmentType === 'full_time' ? b.baseSalary / 240 : b.baseSalary;
-    const ot = b.employmentType === 'full_time' ? (b.baseSalary + (kind === 'supplement' ? b.foodAllowance : a.foodAllowance)) / 240 : b.baseSalary;
+    const ot = b.employmentType === 'full_time' ? (b.baseSalary + b.foodAllowance) / 240 : b.baseSalary;
     return { ...a, lateDeduction: Math.round(h / 60 * t.lateHours), leaveDeduction: Math.round(h * t.sickLeave / 2) + Math.round(h * t.personalLeave), taxFreeOt: b.employmentType === 'full_time' ? Math.round(ot * t.annualLeave) + Math.round(ot * t.holidayOt) + Math.round(ot * t.normalOt * 1.3333) : Math.round(ot * t.holidayOt * 2) + Math.round(ot * t.normalOt * 1.3333) };
 }
 export function totals(a: Values) { const add = a.baseSalary + a.fullAttendance + a.positionAllowance + a.performanceBonus + a.taxableOt; const deduct = a.leaveDeduction + a.dailyShortage + a.lateDeduction + a.pensionSelf; const exempt = a.foodAllowance + a.taxFreeOt; const withholding = a.laborIns + a.healthIns + a.incomeTax + a.advancePay; return { add, deduct, exempt, withholding, net: Math.round((add - deduct + exempt - withholding) * 100) / 100 }; }
@@ -108,10 +109,11 @@ export function isEffectivePayroll(s: Slip, emp: any, slips: Slip[], legacy: any
 export function currentPayrollMonth(now = new Date()): string { return new Intl.DateTimeFormat('en-CA', { timeZone: 'Asia/Taipei', year: 'numeric', month: '2-digit' }).format(now); }
 export function previousMonth(month: string): string { monthEnd(month); return new Date(Date.UTC(Number(month.slice(0, 4)), Number(month.slice(5, 7)) - 2, 1)).toISOString().slice(0, 7); }
 export function isFullMonth(month: string, start: string, end: string): boolean { return start === month + '-01' && end === monthEnd(month); }
-// A partial month starts from the monthly amount by calendar days on a 30-day month; the person can change it.
+// A partial month starts base pay from the monthly amount by calendar days on a 30-day month; the person can change it.
+// The meal allowance always starts from the contractual amount; a partial month is adjusted by hand when needed.
 export const proratedAmount = (monthly: number, start: string, end: string): number => Math.round(monthly / 30 * (Math.round((Date.parse(end) - Date.parse(start)) / 86400000) + 1));
 export function defaultBaseSalary(b: Basis, month: string, start: string, end: string): number { return b.employmentType !== 'full_time' ? 0 : isFullMonth(month, start, end) ? b.baseSalary : proratedAmount(b.baseSalary, start, end); }
-export function defaultFoodAllowance(b: Basis, month: string, start: string, end: string): number { return isFullMonth(month, start, end) ? b.foodAllowance : proratedAmount(b.foodAllowance, start, end); }
+export function defaultFoodAllowance(b: Basis, _month: string, _start: string, _end: string): number { return b.foodAllowance; }
 // Insurance flags default to insured, matching the employee form.
 const isInsured = (flag: unknown) => flag !== false;
 export type PreviousPayroll = { amounts: Values; insurance: Pick<Basis, 'insuranceBracket' | 'hasLaborIns' | 'hasHealthIns'> };

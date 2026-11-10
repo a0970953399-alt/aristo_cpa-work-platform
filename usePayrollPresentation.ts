@@ -95,7 +95,6 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     const carry:Values={},hints:Record<string,string>={},notes:string[]=[];
     if(basis.employmentType==='full_time'&&!isFullMonth(m,start,end))hints.baseSalary=basis.baseSalary.toLocaleString()+' ÷ 30 × '+(Math.round((Date.parse(end)-Date.parse(start))/86400000)+1)+' 天，可改';
     if(basis.employmentType!=='full_time')hints.baseSalary='出勤時數 × 時薪 '+basis.baseSalary;
-    if(!isFullMonth(m,start,end)&&basis.foodAllowance)hints.foodAllowance=basis.foodAllowance.toLocaleString()+' ÷ 30 × '+(Math.round((Date.parse(end)-Date.parse(start))/86400000)+1)+' 天，可改';
     const earlier=rowsFor(m).some(r=>r.sourceEmployeeId===e.id&&(r.slip?.periodStart||r.recommendedStart||'')<start&&(r.slip||r.recommendedStart));
     if(earlier){hints.laborIns='本月另一張單已處理';hints.healthIns='本月另一張單已處理';return {carry,hints,notes};}
     const prior=latestPayroll(e,start,slips,legacy);
