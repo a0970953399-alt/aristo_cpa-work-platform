@@ -122,7 +122,7 @@ Playwright 未安裝於專案；瀏覽器測試使用專案外的 `playwright-co
 
 | 服務 | 需要部署 | 目前狀態 |
 |---|---|---|
-| 前端 | 是 | 伙食費修改 `a6783dd` 已部署。第 6 階段和已寄送標記已推送 `main`，由既有整合部署；部署結果見下一行說明 |
+| 前端 | 是 | 伙食費修改 `a6783dd` 已部署。第 6 階段和已寄送標記 `cc97b7c` 也已部署：Vercel Production 7677660614、GitHub Pages 7677687321 都回報 success。正式站 `PayrollView-DmtSX6NU.js` 已包含資源回收桶，「這個月有暫藏的舊薪資」這段文字已移除 |
 | Functions（`payrollCommand`） | 是 | 2026-11-10 已部署兩次 asia-east1，都回報 Successful update operation，只更新這個函式：第一次是伙食費修改，第二次是第 6 階段暫藏不擋開單和已寄送標記 |
 | Firestore Rules | 否 | 無差異 |
 | `firebase/firestore-send-email` Extension | 否 | 不得刪除或取代 |
