@@ -100,13 +100,12 @@ const rowRange = (row: PayrollRow, month: string) => ({ start: row.slip?.periodS
 const shortDate = (d: string) => Number(d.slice(5, 7)) + '/' + Number(d.slice(8, 10));
 // How a single slip is named when a person's line is expanded.
 export function rowPeriodText(row: PayrollRow, month: string): string {
-  if (row.slip?.kind === 'supplement') return '補發';
   if (row.legacyRecord) return '舊資料';
   const { start, end } = rowRange(row, month);
   return shortDate(start) + '–' + shortDate(end);
 }
 function periodLabel(rows: PayrollRow[], month: string, employee: Employee | undefined): string {
-  const ranges = rows.filter(r => r.slip?.kind !== 'supplement').map(r => rowRange(r, month));
+  const ranges = rows.map(r => rowRange(r, month));
   if (!ranges.length) return '整月';
   if (ranges.length > 1) return ranges.map(r => shortDate(r.start) + '–' + shortDate(r.end)).join('、');
   const { start, end } = ranges[0];
@@ -120,8 +119,8 @@ export function groupMonthRows(rows: PayrollRow[], mail: Record<string, string> 
   const order: string[] = [], byId: Record<string, PayrollRow[]> = {};
   for (const row of rows) { if (!byId[row.sourceEmployeeId]) { byId[row.sourceEmployeeId] = []; order.push(row.sourceEmployeeId); } byId[row.sourceEmployeeId].push(row); }
   return order.map(employeeId => {
-    // Earliest days first, with a supplement after the slip it adds to.
-    const list = [...byId[employeeId]].sort((a, b) => Number(a.slip?.kind === 'supplement') - Number(b.slip?.kind === 'supplement') || rowRange(a, month).start.localeCompare(rowRange(b, month).start));
+    // Earliest days first.
+    const list = [...byId[employeeId]].sort((a, b) => rowRange(a, month).start.localeCompare(rowRange(b, month).start));
     const states = list.map(r => rowMonthState(r, mail));
     const fillCount = states.filter(s => s === 'fill').length;
     return { employeeId, rows: list, included: includedRows(list), fillCount, state: fillCount ? 'fill' : states.every(s => s === 'sent') ? 'sent' : 'ready', period: periodLabel(list, month, employees.find(e => e.id === employeeId)) };

@@ -1,4 +1,4 @@
-// Scenario matrix for the shared month data: new hire, leaver, rehire, pay change, supplement, old records and missing data.
+// Scenario matrix for the shared month data: new hire, leaver, rehire, pay change, two slips in a month, old records and missing data.
 const test = require('node:test'), assert = require('node:assert/strict'), fs = require('node:fs'), path = require('node:path');
 const repo = path.resolve(__dirname, '..'), ts = require(path.join(repo, 'node_modules/typescript'));
 function load(file, imports = {}) { const code = ts.transpileModule(fs.readFileSync(path.join(repo, file), 'utf8'), { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } }).outputText; const exports = {}; new Function('exports', 'require', code)(exports, name => { if (imports[name]) return imports[name]; throw Error('unexpected import ' + name); }); return exports; }
@@ -36,8 +36,8 @@ const slips = [
   slip('s-steady', steady, 'p', '2026-10', '2026-10-01', '2026-10-31', pay),
   slip('s-drafted', drafted, 'p', '2026-11', '2026-11-03', '2026-11-30', { ...pay, baseSalary: 33600 }, { status: 'draft' }),
   slip('s-rehire', rehire, 'p1', '2026-11', '2026-11-01', '2026-11-03', { ...pay, baseSalary: 3600, foodAllowance: 300 }),
-  slip('s-extra', extra, 'p', '2026-11', '2026-11-01', '2026-11-30', pay),
-  slip('s-extra-sup', extra, 'p', '2026-11', '2026-11-01', '2026-11-30', { performanceBonus: 5000 }, { kind: 'supplement', relatedId: 's-extra', reason: '補發', reviewedMonth: true }),
+  slip('s-extra-2', extra, 'p', '2026-11', '2026-11-16', '2026-11-30', { performanceBonus: 5000 }),
+  slip('s-extra', extra, 'p', '2026-11', '2026-11-01', '2026-11-15', pay),
   slip('s-void', stub, 'p', '2026-11', '2026-11-01', '2026-11-30', pay, { status: 'void' }),
   slip('s-second', second, 'p', '2026-10', '2026-10-15', '2026-10-31', { ...pay, baseSalary: 20400, foodAllowance: 1700 }),
 ];
@@ -57,7 +57,7 @@ test('days before the first pay record say so, and the covered days stay separat
 test('a part-time month asks for hours', () => { assert.match(forEmp('2026-11', 'part')[0].reason, /兼職請填寫工時/); });
 test('the month after a partial first month fills from it automatically', () => { const [r] = forEmp('2026-11', 'second'); assert.equal(r.excluded, false); assert.equal(r.slip.revision, 0); assert.equal(r.slip.amounts.baseSalary, 36000); assert.equal(r.slip.amounts.laborIns, 900); });
 test('an older saved draft counts like any saved slip', () => { const [r] = forEmp('2026-11', 'drafted'); assert.equal(r.excluded, false); assert.equal(R.includedRows([r]).length, 1); });
-test('a supplement is a second counted row', () => { const rows = forEmp('2026-11', 'extra'); assert.equal(rows.length, 2); assert.equal(R.includedRows(rows).length, 2); });
+test('a second slip in the month is a second counted row', () => { const rows = forEmp('2026-11', 'extra'); assert.equal(rows.length, 2); assert.equal(R.includedRows(rows).length, 2); });
 // Hidden old records sit in the recycle bin: the month is open like any other and no hidden amount shows.
 test('hidden old records no longer reserve the month', () => {
   const hiddenNov = old('hidden-nov', 'hiddenmonth', '2026-11', { ...pay, performanceBonus: 999 }, { temporaryPayrollHidden: true });
@@ -117,9 +117,9 @@ test('lines show the right state', () => {
   assert.equal(groupOf('2026-11', 'fresh').state, 'fill');
   assert.equal(groupOf('2026-11', 'drafted').state, 'ready');
   const rehireGroup = groupOf('2026-11', 'rehire'); assert.equal(rehireGroup.state, 'fill'); assert.equal(rehireGroup.fillCount, 1);
-  assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'SUCCESS', 's-extra-sup': 'PENDING' }).state, 'sent');
+  assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'SUCCESS', 's-extra-2': 'PENDING' }).state, 'sent');
   assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'SUCCESS' }).state, 'ready');
-  assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'ERROR', 's-extra-sup': 'SUCCESS' }).state, 'ready');
+  assert.equal(groupOf('2026-11', 'extra', { 's-extra': 'ERROR', 's-extra-2': 'SUCCESS' }).state, 'ready');
   assert.equal(groupOf('2026-11', 'legacyok', { 'old-nov': 'UNTRACKED' }).state, 'sent');
 });
 test('state labels stay honest about what is waiting', () => {
@@ -135,11 +135,11 @@ test('period labels read as a person would say them', () => {
   assert.equal(groupOf('2026-11', 'back').period, '11/10 復職');
   assert.equal(groupOf('2026-11', 'rehire').period, '11/1–11/3、11/20–11/30');
   assert.equal(groupOf('2026-11', 'raise').period, '11/1–11/15、11/16–11/30');
-  assert.equal(groupOf('2026-11', 'extra').period, '整月');
+  assert.equal(groupOf('2026-11', 'extra').period, '11/1–11/15、11/16–11/30');
   assert.equal(groupOf('2026-11', 'legacyok').period, '整月');
 });
 test('a saved later slip and its unfilled earlier days list in date order', () => { const late = emp('late', [per('p', '2026-10-01', null, 'part_time')], [comp('2026-10-05', 200, { foodAllowance: 0 })]); const s = slip('s-late', late, 'p', '2026-10', '2026-10-05', '2026-10-31', { baseSalary: 22400, laborIns: 277, healthIns: 475 }); const rows = R.buildMonthRows('2026-10', { client, employees: [late], legacy: [], slips: [s], hiddenLegacy: [] }, CUR); const [g] = R.groupMonthRows(rows, null, '2026-10', [late]); assert.equal(g.period, '10/1–10/4、10/5–10/31'); assert.deepEqual(g.rows.map(r => R.rowPeriodText(r, '2026-10')), ['10/1–10/4', '10/5–10/31']); assert.equal(R.rowDataProblem(g.rows[0]), '缺待遇資料'); });
-test('a supplement is named and listed after its slip', () => { const g = groupOf('2026-11', 'extra'); assert.deepEqual(g.rows.map(r => R.rowPeriodText(r, '2026-11')), ['11/1–11/30', '補發']); });
+test('each slip of a person is named by its dates and listed earliest first', () => { const g = groupOf('2026-11', 'extra'); assert.deepEqual(g.rows.map(r => R.rowPeriodText(r, '2026-11')), ['11/1–11/15', '11/16–11/30']); });
 test('only blocking data problems are shown on the line', () => {
   assert.equal(R.rowDataProblem(forEmp('2026-11', 'fresh')[0]), '');
   assert.equal(R.rowDataProblem(forEmp('2026-11', 'part')[0]), '');
