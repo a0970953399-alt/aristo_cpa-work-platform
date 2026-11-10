@@ -4,7 +4,7 @@ import { httpsCallable } from 'firebase/functions';
 import { db, functions } from './firebase';
 import { Client, Employee, MonthlySalaryRecord } from './types';
 import { Slip, amountFields, attendanceFields, emptyValues, periods, basisAt, calculate, monthEnd, legacyIssues, legacyAmounts, legacyCanEdit, totals, isEffectivePayroll, currentPayrollMonth, defaultBaseSalary, defaultFoodAllowance, isFullMonth, latestPayroll, previousPayroll, carriedAmounts, payrollSendIssues, legacySendIssues, legacyAttendance, legacyBasis, legacyRecalculated, Values } from './functions/src/payrollDomain';
-import { PayrollRow, HIDDEN_LEGACY_MESSAGE, PLATFORM_SEND_FROM, buildMonthRows, rowValues } from './payrollRows';
+import { PayrollRow, PLATFORM_SEND_FROM, buildMonthRows, rowValues, recycleItems } from './payrollRows';
 
 export const payrollStatus: Record<string, string> = {draft:'草稿',confirmed:'已保存',void:'已作廢',superseded:'已被更正取代'};
 export type { PayrollRow };
@@ -32,7 +32,8 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   const recurringIds = useRef<Record<string,string>>({});
   const pending = useRef<{body: any; operationId: string}|null>(null);
   const lastError = useRef('');
-  const [hiddenLegacy, setHiddenLegacy] = useState<Array<{employeeId:string;month:string}>>([]);
+  const [hiddenLegacy, setHiddenLegacy] = useState<MonthlySalaryRecord[]>([]);
+  const [hiddenEmployees, setHiddenEmployees] = useState<Employee[]>([]);
   const [openReason, setOpenReason] = useState('');
   const [editHints, setEditHints] = useState<Record<string,string>>({});
   const [editNotes, setEditNotes] = useState<string[]>([]);
@@ -46,15 +47,15 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   const [batchNotice, setBatchNotice] = useState<{text:string; failures:string[]}|null>(null);
   useEffect(() => { setBatchReview(null); setBatchNotice(null); },[clientId,month]);
   useEffect(() => {
-    pending.current=null; openedSignature.current=''; setLoaded({}); setError(''); setSlips([]); setLegacy([]); setEmployees([]); setEditing(null); setOldEditing(null); setHistory([]); setHistoryUsers({});
+    pending.current=null; openedSignature.current=''; setLoaded({}); setError(''); setSlips([]); setLegacy([]); setEmployees([]); setHiddenLegacy([]); setHiddenEmployees([]); setEditing(null); setOldEditing(null); setHistory([]); setHistoryUsers({});
     if (!clientId) return;
     const cleanups = ['employees','monthlySalaries','payrollSlips'].map(name => onSnapshot(query(collection(db,name),where('clientId','==',clientId)), snapshot => {
       const rows = snapshot.docs.map(d=>({...d.data(),id:d.id}));
-      if(name==='employees') setEmployees((rows as Employee[]).filter(r=>r.temporaryPayrollHidden!==true));
+      if(name==='employees') { setEmployees((rows as Employee[]).filter(r=>r.temporaryPayrollHidden!==true)); setHiddenEmployees((rows as Employee[]).filter(r=>r.temporaryPayrollHidden===true)); }
       if(name==='monthlySalaries') {
         setLegacy((rows as MonthlySalaryRecord[]).filter(r=>r.temporaryPayrollHidden!==true));
-        // Hidden amounts stay out of the page, but the month is reserved exactly as the backend treats it.
-        setHiddenLegacy((rows as MonthlySalaryRecord[]).filter(r=>r.temporaryPayrollHidden===true).map(r=>({employeeId:r.employeeId,month:r.month})));
+        // Hidden records only appear in the read-only recycle bin; they count toward nothing and do not reserve the month.
+        setHiddenLegacy((rows as MonthlySalaryRecord[]).filter(r=>r.temporaryPayrollHidden===true));
       }
       if(name==='payrollSlips') setSlips(rows as Slip[]);
       setLoaded(prev=>({...prev,[name]:true}));
@@ -79,13 +80,14 @@ export function usePayrollPresentation(client: Client | null, month: string) {
   }
   useEffect(()=>{setMonthMail(null);refreshMonthMail();},[clientId,ready,month]);
   // Rows only depend on this data, so typing in the editor must not recalculate them.
-  const rowsCache = useMemo(()=>new Map<string,PayrollRow[]>(),[client,ready,employees,legacy,slips,hiddenLegacy]);
+  const rowsCache = useMemo(()=>new Map<string,PayrollRow[]>(),[client,ready,employees,legacy,slips]);
+  const recycle = useMemo(()=>recycleItems(hiddenLegacy,hiddenEmployees,employees,legacy),[hiddenLegacy,hiddenEmployees,employees,legacy]);
   function rowsFor(m:string): PayrollRow[] {
     if(!ready) return [];
     const currentMonth=currentPayrollMonth();
     const cached=rowsCache.get(m+'|'+currentMonth);
     if(cached) return cached;
-    const rows=buildMonthRows(m,{client,employees,legacy,slips,hiddenLegacy},currentMonth);
+    const rows=buildMonthRows(m,{client,employees,legacy,slips},currentMonth);
     rowsCache.set(m+'|'+currentMonth,rows);
     return rows;
   }
@@ -117,7 +119,6 @@ export function usePayrollPresentation(client: Client | null, month: string) {
       const e=employees.find(e=>e.id===row.sourceEmployeeId||e.id===row.id);
       if(!e) throw Error('找不到員工');
       if(legacy.some(r=>r.employeeId===e.id&&r.month===m)) throw Error('該月已有舊薪資，請先核對，避免重複結薪');
-      if(hiddenLegacy.some(r=>r.employeeId===e.id&&r.month===m)) throw Error(HIDDEN_LEGACY_MESSAGE);
       const ps=periods(e).filter(p=>p.startDate<=monthEnd(m)&&(!p.endDate||p.endDate>=m+'-01'));
       const p=ps.find(p=>p.id===row.periodId)||ps[0];if(!p)throw Error('該月沒有有效任職期間');
       const start=row.recommendedStart||(p.startDate>m+'-01'?p.startDate:m+'-01'),end=row.recommendedEnd||(p.endDate&&p.endDate<monthEnd(m)?p.endDate:monthEnd(m));
@@ -269,5 +270,5 @@ export function usePayrollPresentation(client: Client | null, month: string) {
     refreshMonthMail();
     setBatchNotice({text:'本次 '+completed+' 張薪資單已交寄送服務排程；不代表收件匣已收到。',failures});
   }
-  return {employeeHistory,openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,canEdit,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,editHints,editNotes,save,voidSlip,revise,send,checkMail,versions};
+  return {recycle,employeeHistory,openedRowId,monthMail,refreshMonthMail,openReason,legacyCanCorrect,legacyCorrecting,setLegacyCorrecting,recipientOf,batchReview,setBatchReview,batchNotice,setBatchNotice,prepareBatch,executeBatch,sendIssues,employees,legacy,slips,effectiveEditing,canEdit,hasOtherPay,legacyHistory,ready,error,info,busy,dirty,hasUnsavedChanges,legacyEditable,dirtyLegacy,editing,setEditing,oldEditing,history,setHistory,historyUsers,mailState,rowsFor,flat,open,change,changeLegacy,saveLegacy,sendLegacy,checkLegacyMail,editHints,editNotes,save,voidSlip,revise,send,checkMail,versions};
 }

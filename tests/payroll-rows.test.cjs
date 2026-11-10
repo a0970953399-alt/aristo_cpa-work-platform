@@ -42,7 +42,7 @@ const slips = [
   slip('s-second', second, 'p', '2026-10', '2026-10-15', '2026-10-31', { ...pay, baseSalary: 20400, foodAllowance: 1700 }),
 ];
 const legacy = [old('old-nov', 'legacyok', '2026-11'), old('old-noperiod', 'noperiod', '2026-03', { baseSalary: 7200, foodAllowance: 0 }), { id: 'old-stub', clientId: 'c1', employeeId: 'stub', month: '2026-04', isEmailSent: true, updatedAt: '2026-05-01' }];
-const source = { client, employees, legacy, slips, hiddenLegacy: [{ employeeId: 'hiddenmonth', month: '2026-11' }] };
+const source = { client, employees, legacy, slips };
 const rowsOf = m => R.buildMonthRows(m, source, CUR);
 const forEmp = (m, id) => rowsOf(m).filter(r => r.sourceEmployeeId === id);
 
@@ -58,7 +58,42 @@ test('a part-time month asks for hours', () => { assert.match(forEmp('2026-11', 
 test('the month after a partial first month fills from it automatically', () => { const [r] = forEmp('2026-11', 'second'); assert.equal(r.excluded, false); assert.equal(r.slip.revision, 0); assert.equal(r.slip.amounts.baseSalary, 36000); assert.equal(r.slip.amounts.laborIns, 900); });
 test('an older saved draft counts like any saved slip', () => { const [r] = forEmp('2026-11', 'drafted'); assert.equal(r.excluded, false); assert.equal(R.includedRows([r]).length, 1); });
 test('a supplement is a second counted row', () => { const rows = forEmp('2026-11', 'extra'); assert.equal(rows.length, 2); assert.equal(R.includedRows(rows).length, 2); });
-test('hidden old records reserve the month without showing any amount', () => { const [r] = forEmp('2026-11', 'hiddenmonth'); assert.equal(r.excluded, true); assert.equal(r.slip, undefined); assert.equal(r.reason, R.HIDDEN_LEGACY_MESSAGE); });
+// Hidden old records sit in the recycle bin: the month is open like any other and no hidden amount shows.
+test('hidden old records no longer reserve the month', () => {
+  const hiddenNov = old('hidden-nov', 'hiddenmonth', '2026-11', { ...pay, performanceBonus: 999 }, { temporaryPayrollHidden: true });
+  const rows = R.buildMonthRows('2026-11', source, CUR).filter(r => r.sourceEmployeeId === 'hiddenmonth');
+  assert.equal(rows.length, 1); assert.equal(rows[0].legacyRecord, undefined); assert.notEqual(rows[0].reason, '這個月有暫藏的舊薪資，請先核對');
+  assert.equal(R.rowDataProblem(rows[0]), '');
+  const p = hiddenMonth.employmentHistory[0];
+  const prevOct = old('old-oct', 'hiddenmonth', '2026-10', pay);
+  assert.ok(d.recurringPayroll(hiddenMonth, p, '2026-11', client, [], [prevOct, hiddenNov], CUR), 'a hidden record must not stop the automatic row');
+  assert.equal(d.recurringPayroll(hiddenMonth, p, '2026-11', client, [], [prevOct, { ...hiddenNov, temporaryPayrollHidden: false }], CUR), null, 'a visible record still stops it');
+  const slip = d.recurringPayroll(hiddenMonth, p, '2026-11', client, [], [prevOct], CUR);
+  assert.doesNotThrow(() => d.validateSlip(slip, hiddenMonth, [], [hiddenNov]));
+  assert.throws(() => d.validateSlip(slip, hiddenMonth, [], [{ ...hiddenNov, temporaryPayrollHidden: undefined }]), /該月已有舊薪資/);
+});
+test('the recycle bin lists hidden records with a reason and writes nothing', () => {
+  const twin = old('twin-visible', 'legacyok', '2026-11');
+  const hidden = [
+    old('h-orphan', 'gone', '2026-03', { baseSalary: 1000 }, { temporaryPayrollHidden: true }),
+    old('h-same', 'legacyok', '2026-11', pay, { temporaryPayrollHidden: true }),
+    old('h-diff', 'legacyok', '2026-11', { ...pay, performanceBonus: 1 }, { temporaryPayrollHidden: true }),
+    old('h-outside', 'noperiod', '2026-04', { baseSalary: 7200 }, { temporaryPayrollHidden: true }),
+    old('h-plain', 'extra', '2026-05', pay, { temporaryPayrollHidden: true }),
+  ];
+  const hiddenPerson = emp('hiddenperson', [per('p', '2025-01-01')], [comp('2025-01-01')], { temporaryPayrollHidden: true, name: '暫藏員工', empNo: '099' });
+  const before = JSON.stringify(hidden);
+  const items = R.recycleItems(hidden, [hiddenPerson], employees, [twin]);
+  assert.equal(JSON.stringify(hidden), before);
+  const why = Object.fromEntries(items.map(i => [i.id, i.why]));
+  assert.equal(why['legacy:h-orphan'], '員工資料已不存在'); assert.equal(items.find(i => i.id === 'legacy:h-orphan').who, '（員工資料已不存在）');
+  assert.equal(why['legacy:h-same'], '同月重複，內容相同'); assert.equal(why['legacy:h-diff'], '同月另有一筆薪資');
+  assert.equal(why['legacy:h-outside'], '不在任職期間'); assert.equal(why['legacy:h-plain'], '已暫藏');
+  assert.equal(items.find(i => i.id === 'legacy:h-orphan').net, d.totals(d.legacyAmounts(hidden[0])).net);
+  const person = items.find(i => i.id === 'employee:hiddenperson'); assert.equal(person.kind, '員工'); assert.equal(person.who, '暫藏員工（099）'); assert.equal(person.net, null);
+  assert.deepEqual(items.filter(i => i.kind === '薪資').map(i => i.month), ['2026-03', '2026-04', '2026-05', '2026-11', '2026-11']);
+  assert.deepEqual(R.recycleItems([], [], employees, legacy), []);
+});
 test('a voided slip brings the row back to filling', () => { const [r] = forEmp('2026-11', 'stub'); assert.equal(r.slip, undefined); assert.match(r.reason, /已作廢/); });
 test('old records are counted only when clean', () => { assert.equal(forEmp('2026-11', 'legacyok')[0].excluded, false); const a = forEmp('2026-03', 'noperiod')[0]; assert.equal(a.excluded, true); assert.match(a.warning, /任職期間不符/); const b = forEmp('2026-04', 'stub')[0]; assert.equal(b.excluded, true); assert.match(b.warning, /金額明細不完整/); });
 test('old record amounts are read as saved, never recalculated', () => { const a = R.rowAmounts(forEmp('2026-11', 'legacyok')[0]); assert.equal(a.baseSalary, 36000); assert.equal(d.totals(a).net, 37540); });
@@ -111,7 +146,6 @@ test('only blocking data problems are shown on the line', () => {
   assert.equal(R.rowDataProblem(forEmp('2026-11', 'nocomp')[0]), '缺待遇資料');
   assert.equal(R.rowDataProblem(forEmp('2026-11', 'nofood')[0]), '缺待遇資料');
   assert.match(R.rowDataProblem(forEmp('2026-04', 'stub')[0]), /金額明細不完整/);
-  assert.equal(R.rowDataProblem(forEmp('2026-11', 'hiddenmonth')[0]), R.HIDDEN_LEGACY_MESSAGE);
 });
 test('merged values add a person\'s slips, and match the month totals', () => {
   const g = groupOf('2026-11', 'extra'); const v = R.mergedValues(g.included); assert.equal(v.baseSalary, 36000); assert.equal(v.performanceBonus, 5000); assert.equal(d.totals(v).net, 42540);
@@ -119,3 +153,9 @@ test('merged values add a person\'s slips, and match the month totals', () => {
 });
 test('attendance amounts are read from the slip; old records report none', () => { assert.equal(R.partAmount(forEmp('2026-11', 'legacyok')[0], 'sickLeave', 'leaveDeduction'), null); assert.equal(R.partAmount(forEmp('2026-11', 'fresh')[0], 'sickLeave', 'leaveDeduction'), 0); });
 test('months handled outside the platform are never picked up by batch send', () => { assert.equal(R.PLATFORM_SEND_FROM, '2026-11'); const hook = fs.readFileSync(path.join(repo, 'usePayrollPresentation.ts'), 'utf8'); assert(hook.includes('if(month<PLATFORM_SEND_FROM)')); });
+test('a slip marked as sent shows as sent even before mail states load', () => {
+  const row = forEmp('2026-11', 'extra').find(r => r.slip && r.slip.kind === 'regular');
+  assert.equal(R.rowMonthState({ ...row, slip: { ...row.slip, isEmailSent: true } }, null), 'sent');
+  assert.equal(R.rowStateLabel({ ...row, slip: { ...row.slip, isEmailSent: true } }, {}), '已寄');
+  assert.notEqual(R.rowMonthState(row, null), 'sent');
+});

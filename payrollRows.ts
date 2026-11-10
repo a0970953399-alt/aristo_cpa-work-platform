@@ -4,15 +4,15 @@ import { Slip, Values, amountFields, attendanceFields, automaticPayrollIssue, ba
 import { sortEmployees } from './payrollDisplay';
 
 export type PayrollRow = Employee & { sourceEmployeeId: string; slip?: Slip; legacyRecord?: MonthlySalaryRecord; periodId?: string; recommendedStart?: string; recommendedEnd?: string; warning?: string; reason?: string; excluded?: boolean };
-export const HIDDEN_LEGACY_MESSAGE = '這個月有暫藏的舊薪資，請先核對';
-export type PayrollSource = { client: Client | null; employees: Employee[]; legacy: MonthlySalaryRecord[]; slips: Slip[]; hiddenLegacy: Array<{ employeeId: string; month: string }> };
+// Hidden records live in the recycle bin: they count toward nothing and no longer reserve their month.
+export type PayrollSource = { client: Client | null; employees: Employee[]; legacy: MonthlySalaryRecord[]; slips: Slip[] };
 
 function alias(e: Employee, id: string, type: string, start: string, end: string | null): PayrollRow {
   return { ...e, id, sourceEmployeeId: e.id, employmentType: type as any, startDate: start, endDate: end || '', employmentHistory: [{ id, type: type as any, startDate: start, endDate: end }] };
 }
 const nextDay = (d: string, offset: number) => { const date = new Date(d + 'T12:00:00Z'); date.setUTCDate(date.getUTCDate() + offset); return date.toISOString().slice(0, 10); };
 
-export function buildMonthRows(m: string, { client, employees, legacy, slips, hiddenLegacy }: PayrollSource, currentMonth = currentPayrollMonth()): PayrollRow[] {
+export function buildMonthRows(m: string, { client, employees, legacy, slips }: PayrollSource, currentMonth = currentPayrollMonth()): PayrollRow[] {
   const rows: PayrollRow[] = [];
   for (const e of sortEmployees(employees)) {
     const olds = legacy.filter(r => r.employeeId === e.id && r.month === m);
@@ -20,7 +20,6 @@ export function buildMonthRows(m: string, { client, employees, legacy, slips, hi
     for (const r of olds) rows.push({ ...e, id: 'old:' + r.id, sourceEmployeeId: e.id, legacyRecord: r, warning: legacyIssues(r, legacy, employees).join('；'), excluded: legacyIssues(r, legacy, employees).length > 0 || legacyNeedsReview(r, employees) });
     for (const s of ss) rows.push({ ...alias(e, s.id, s.basis.employmentType, periods(e).find(p => p.id === s.employmentId)?.startDate || e.startDate, periods(e).find(p => p.id === s.employmentId)?.endDate || null), name: s.employee.name, empNo: s.employee.empNo, email: s.employee.email, idNumber: s.employee.idNumber || '', bankAccount: s.employee.bankAccount || '', defaultBaseSalary: s.basis.baseSalary, defaultFoodAllowance: s.basis.foodAllowance, compensationHistory: [], slip: s, excluded: !isEffectivePayroll(s, e, slips, legacy) });
     if (olds.length) continue;
-    const reservedByHidden = hiddenLegacy.some(r => r.employeeId === e.id && r.month === m);
     for (const p of periods(e).filter(p => p.startDate <= monthEnd(m) && (!p.endDate || p.endDate >= m + '-01'))) {
       const start = p.startDate > m + '-01' ? p.startDate : m + '-01'; const end = p.endDate && p.endDate < monthEnd(m) ? p.endDate : monthEnd(m);
       const cuts = [...new Set([start, ...(e.compensationHistory || []).map(c => c.effectiveDate).filter(d => d > start && d <= end)])].sort();
@@ -28,9 +27,9 @@ export function buildMonthRows(m: string, { client, employees, legacy, slips, hi
         let gaps = [{ start: cuts[i], end: i + 1 < cuts.length ? nextDay(cuts[i + 1], -1) : end }];
         for (const slip of ss.filter(s => s.employmentId === p.id && s.kind === 'regular')) gaps = gaps.flatMap(g => slip.periodStart > g.end || slip.periodEnd < g.start ? [g] : [...(g.start < slip.periodStart ? [{ start: g.start, end: nextDay(slip.periodStart, -1) }] : []), ...(g.end > slip.periodEnd ? [{ start: nextDay(slip.periodEnd, 1), end: g.end }] : [])]);
         for (const g of gaps) {
-          const recurring = reservedByHidden ? null : recurringPayroll(e, p, m, client!, slips, legacy, currentMonth);
+          const recurring = recurringPayroll(e, p, m, client!, slips, legacy, currentMonth);
           if (recurring && g.start === recurring.periodStart && g.end === recurring.periodEnd) rows.push({ ...alias(e, recurring.id, p.type, p.startDate, p.endDate), slip: recurring, excluded: false });
-          else rows.push({ ...alias(e, 'period:' + e.id + ':' + p.id + ':' + g.start, p.type, p.startDate, p.endDate), periodId: p.id, recommendedStart: g.start, recommendedEnd: g.end, excluded: true, reason: reservedByHidden ? HIDDEN_LEGACY_MESSAGE : automaticPayrollIssue(e, p, m, g.start, g.end, slips, legacy, currentMonth) });
+          else rows.push({ ...alias(e, 'period:' + e.id + ':' + p.id + ':' + g.start, p.type, p.startDate, p.endDate), periodId: p.id, recommendedStart: g.start, recommendedEnd: g.end, excluded: true, reason: automaticPayrollIssue(e, p, m, g.start, g.end, slips, legacy, currentMonth) });
         }
       }
     }
@@ -81,6 +80,7 @@ export function rowMonthState(row: PayrollRow, mail: Record<string, string> | nu
   if (state === 'ERROR') return 'ready';
   if (state) return 'sent';
   if (row.legacyRecord && (row.legacyRecord.isEmailSent || (row.legacyRecord as any).legacySeptemberMailId)) return 'sent';
+  if (row.slip?.isEmailSent) return 'sent';
   return 'ready';
 }
 export function rowStateLabel(row: PayrollRow, mail: Record<string, string> | null): string {
@@ -93,7 +93,6 @@ export function rowStateLabel(row: PayrollRow, mail: Record<string, string> | nu
 // A reason worth showing on the line: data that blocks work, not the normal "please fill this month".
 export function rowDataProblem(row: PayrollRow): string {
   if (row.warning) return row.warning;
-  if (row.reason === HIDDEN_LEGACY_MESSAGE) return row.reason;
   if (row.reason && /尚無已生效待遇|約定伙食費|待遇資料/.test(row.reason)) return '缺待遇資料';
   return '';
 }
@@ -142,4 +141,26 @@ export function partAmount(row: PayrollRow, key: string, output: string): number
   if (!row.slip) return row.legacyRecord ? null : 0;
   if (output === 'lateDeduction') return row.slip.amounts.lateDeduction;
   return calculate(row.slip.basis, { ...emptyValues(attendanceFields), [key]: row.slip.attendance[key] || 0 }, { ...emptyValues(amountFields), foodAllowance: row.slip.amounts.foodAllowance }, row.slip.kind)[output];
+}
+
+// The recycle bin is read-only: it lists hidden records and why they are there, and writes nothing.
+export type RecycleItem = { id: string; kind: '薪資' | '員工'; month: string; who: string; net: number | null; why: string };
+export function recycleItems(hiddenLegacy: MonthlySalaryRecord[], hiddenEmployees: Employee[], employees: Employee[], legacy: MonthlySalaryRecord[]): RecycleItem[] {
+  const everyone = [...employees, ...hiddenEmployees];
+  const label = (e: Employee) => e.name + (e.empNo ? '（' + e.empNo + '）' : '');
+  const sameValues = (a: MonthlySalaryRecord, b: MonthlySalaryRecord) => [...amountFields, ...attendanceFields].every(k => ((a as any)[k] ?? 0) === ((b as any)[k] ?? 0));
+  const salaries: RecycleItem[] = hiddenLegacy.map(r => {
+    const e = everyone.find(x => x.id === r.employeeId);
+    const twin = legacy.find(x => x.employeeId === r.employeeId && x.month === r.month);
+    let why = '已暫藏';
+    if (!e) why = '員工資料已不存在';
+    else if (twin) why = sameValues(r, twin) ? '同月重複，內容相同' : '同月另有一筆薪資';
+    else if (hiddenEmployees.some(x => x.id === e.id)) why = '員工資料已暫藏';
+    else {
+      try { if (!periods(e).some(p => p.startDate <= monthEnd(r.month) && (!p.endDate || p.endDate >= r.month + '-01'))) why = '不在任職期間'; } catch { /* keep the generic reason */ }
+    }
+    return { id: 'legacy:' + r.id, kind: '薪資', month: r.month, who: e ? label(e) : '（員工資料已不存在）', net: totals(legacyAmounts(r)).net, why };
+  });
+  const people: RecycleItem[] = hiddenEmployees.map(e => ({ id: 'employee:' + e.id, kind: '員工', month: '', who: label(e), net: null, why: '已暫藏的員工資料' }));
+  return [...salaries.sort((a, b) => a.month.localeCompare(b.month) || a.who.localeCompare(b.who)), ...people];
 }

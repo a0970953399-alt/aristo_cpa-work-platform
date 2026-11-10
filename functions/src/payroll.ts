@@ -197,7 +197,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 const current = slips.find(s => s.id === id);
                 assert(!current || ['draft','confirmed'].includes(current.status), '已作廢或被取代薪資不能直接修改');
                 if (current?.status === 'confirmed') {
-                    assert(!(await latestDispatch(id)), '已排程或寄送的薪資不能直接修改，請建立更正');
+                    assert(!current.isEmailSent && !(await latestDispatch(id)), '已排程或寄送的薪資不能直接修改，請建立更正');
                 }
                 assert((current?.revision || 0) === data.expectedRevision, '薪資版本已變更，請重新開啟');
                 const employeeId = key(raw.employeeId);
@@ -255,6 +255,8 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 assert(s && s.status === 'confirmed' && s.revision === data.expectedRevision, '僅能寄送目前已確認版本');
                 const dispatchRef = db.doc(`payrollDispatch/${id}_${s!.revision}`);
                 const dispatch = await latestDispatch(id);
+                // A slip marked as sent has no dispatch to retry; sending again would mail the employee twice.
+                assert(dispatch || !s!.isEmailSent, '此薪資單已標記為已寄送，不能再寄送；如需修改請建立更正');
                 let attempt = 1;
                 if (dispatch) {
                     const mail = await tx.get(db.doc('mail/' + dispatch.mailId));
@@ -281,7 +283,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 assert(s, '找不到薪資單');
                 const d = await latestDispatch(id);
                 if (!d)
-                    return { state: 'NONE' };
+                    return { state: s!.isEmailSent ? 'UNTRACKED' : 'NONE' };
                 const m = await tx.get(db.doc('mail/' + d.mailId));
                 return { state: m.data()?.delivery?.state || 'PENDING', attempt: d.attempt };
             }
@@ -296,6 +298,7 @@ export const payrollCommand = onCall({ region: 'asia-east1' }, async (request) =
                 for (const s of slips.filter(x => x.month === month)) {
                     const d = await latestDispatch(s.id);
                     if (d) states[s.id] = (await tx.get(db.doc('mail/' + d.mailId))).data()?.delivery?.state || 'PENDING';
+                    else if (s.isEmailSent) states[s.id] = 'UNTRACKED';
                 }
                 return { states };
             }

@@ -33,6 +33,8 @@ export type Slip = {
     relatedId: string;
     replacesId: string;
     status: 'draft' | 'confirmed' | 'void' | 'superseded';
+    // Marked as sent without a platform dispatch to look up, like isEmailSent on old records. Only set by data maintenance, never by saving.
+    isEmailSent?: boolean;
     basis: Basis;
     amounts: Values;
     attendance: Values;
@@ -209,7 +211,7 @@ export function legacyRecalculated(b: Basis, r: any, field: string): Values {
 export function recurringPayroll(emp: any, p: Period, month: string, company: any, slips: Slip[], legacy: any[], currentMonth = currentPayrollMonth()): Slip | null {
     if (month > currentMonth) return null;
     if (p.type !== 'full_time' || p.startDate > month + '-01' || p.endDate && p.endDate < monthEnd(month)) return null;
-    if (legacy.some(r=>r.employeeId===emp.id&&r.month===month)) return null;
+    if (legacy.some(r=>r.temporaryPayrollHidden!==true&&r.employeeId===emp.id&&r.month===month)) return null;
     if (slips.some(s=>s.employeeId===emp.id&&s.month===month&&s.kind==='regular'&&s.status!=='superseded')) return null;
     try {
         validatePeriods(periods(emp));
@@ -241,7 +243,8 @@ export function validateSlip(s: Slip, emp: any, others: Slip[], legacy: any[]) {
     assert(p && s.periodStart >= p.startDate && (!p.endDate || s.periodEnd <= p.endDate), '計薪期間超出任職範圍');
     assert(['regular', 'supplement'].includes(s.kind), '薪資用途不正確');
     assert(s.note.length <= 2000 && s.reason.length <= 500, '備註或原因過長');
-    assert(!legacy.some(x => x.employeeId === s.employeeId && x.month === s.month), '這位員工該月已有舊薪資，請先核對舊紀錄，避免重複結薪');
+    // Hidden old records sit in the recycle bin and do not block a new slip.
+    assert(!legacy.some(x => x.temporaryPayrollHidden !== true && x.employeeId === s.employeeId && x.month === s.month), '這位員工該月已有舊薪資，請先核對舊紀錄，避免重複結薪');
     const relevant = others.filter(x => x.id !== s.id && x.id !== s.replacesId && x.employeeId === s.employeeId && x.status !== 'void' && x.status !== 'superseded');
     if (s.kind === 'regular')
         assert(!relevant.some(x => x.kind === 'regular' && x.periodStart <= s.periodEnd && x.periodEnd >= s.periodStart), '已有一般薪資單涵蓋此期間（含草稿）');
