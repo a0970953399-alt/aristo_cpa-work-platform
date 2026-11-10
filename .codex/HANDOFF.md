@@ -109,7 +109,7 @@ Playwright 未安裝於專案；瀏覽器測試使用專案外的 `playwright-co
 
 | 服務 | 需要部署 | 目前狀態 |
 |---|---|---|
-| 前端 | 是 | 2026-11-10 的伙食費修改已推送 `main`，由既有整合部署 |
+| 前端 | 是 | 2026-11-10 的伙食費修改 `a6783dd` 已部署：Vercel Production 7676051422、GitHub Pages 7676075357 都回報 success。正式站的 `PayrollView-CV5QUVRk.js` 只剩本薪的「÷ 30 ×」提示，伙食費提示已移除 |
 | Functions（`payrollCommand`） | 是 | 2026-11-10 已部署 asia-east1，回報 Successful update operation，只更新這個函式 |
 | Firestore Rules | 否 | 無差異 |
 | `firebase/firestore-send-email` Extension | 否 | 不得刪除或取代 |
